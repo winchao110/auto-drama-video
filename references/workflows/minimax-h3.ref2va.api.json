@@ -1,0 +1,441 @@
+{
+ "115": {
+  "inputs": {
+   "aspect_ratio": "9:16 (Portrait Widescreen)",
+   "megapixels": 0.8,
+   "multiple": 32
+  },
+  "class_type": "ResolutionSelector",
+  "_meta": {
+   "title": "分辨率选择器"
+  }
+ },
+ "121": {
+  "inputs": {
+   "vae_name": "MiniMaxH3\\minimax_h3_video_vae_int8_convrot1.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "加载VAE"
+  }
+ },
+ "122": {
+  "inputs": {
+   "vae_name": "MiniMaxH3\\minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "加载VAE"
+  }
+ },
+ "126": {
+  "inputs": {
+   "scheduler": "simple",
+   "steps": 5,
+   "denoise": 1,
+   "model": [
+    "363",
+    0
+   ]
+  },
+  "class_type": "BasicScheduler",
+  "_meta": {
+   "title": "基本调度器"
+  }
+ },
+ "127": {
+  "inputs": {
+   "noise": [
+    "131",
+    0
+   ],
+   "guider": [
+    "128",
+    0
+   ],
+   "sampler": [
+    "308",
+    0
+   ],
+   "sigmas": [
+    "126",
+    0
+   ],
+   "latent_image": [
+    "275",
+    2
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "自定义采样器（高级）"
+  }
+ },
+ "128": {
+  "inputs": {
+   "model": [
+    "360",
+    0
+   ],
+   "conditioning": [
+    "275",
+    1
+   ]
+  },
+  "class_type": "BasicGuider",
+  "_meta": {
+   "title": "基本引导器"
+  }
+ },
+ "130": {
+  "inputs": {
+   "clip_name": "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors",
+   "type": "minimax",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "加载CLIP"
+  }
+ },
+ "131": {
+  "inputs": {
+   "noise_seed": 395555030484348
+  },
+  "class_type": "RandomNoise",
+  "_meta": {
+   "title": "随机噪波"
+  }
+ },
+ "134": {
+  "inputs": {
+   "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+   "values.a": [
+    "135",
+    0
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "数学表达式"
+  }
+ },
+ "135": {
+  "inputs": {
+   "value": 10
+  },
+  "class_type": "PrimitiveFloat",
+  "_meta": {
+   "title": "Float (duration)"
+  }
+ },
+ "150": {
+  "inputs": {
+   "frame_rate": 24,
+   "loop_count": 0,
+   "filename_prefix": "drama/minimax-h3",
+   "format": "video/nvenc_h264-mp4",
+   "pix_fmt": "yuv420p",
+   "bitrate": 5,
+   "megabit": true,
+   "save_metadata": true,
+   "pingpong": false,
+   "save_output": true,
+   "images": [
+    "377",
+    0
+   ],
+   "audio": [
+    "377",
+    1
+   ]
+  },
+  "class_type": "VHS_VideoCombine",
+  "_meta": {
+   "title": "Video Combine 🎥🅥🅗🅢"
+  }
+ },
+ "275": {
+  "inputs": {
+   "prompt": [
+    "334",
+    0
+   ],
+   "width": [
+    "115",
+    0
+   ],
+   "height": [
+    "115",
+    1
+   ],
+   "length": [
+    "134",
+    1
+   ],
+   "task_type": "自动判断 / Auto",
+   "audio_mode": "仅作音频参考 / Reference Only",
+   "audio_denoise_strength": 0.35,
+   "reference_quality": "保留高分辨率参考 / Max（显存较高）",
+   "model": [
+    "363",
+    0
+   ],
+   "clip": [
+    "130",
+    0
+   ],
+   "video_vae": [
+    "121",
+    0
+   ],
+   "audio_vae": [
+    "122",
+    0
+   ],
+   "ref_images.ref_image_0": [
+    "429",
+    0
+   ],
+   "ref_audio_0": [
+    "430",
+    0
+   ]
+  },
+  "class_type": "MiniMaxH3MaterialPromptStar7",
+  "_meta": {
+   "title": "MiniMax H3 多合一条件载入 - Star7"
+  }
+ },
+ "308": {
+  "inputs": {
+   "sampler_name": "euler"
+  },
+  "class_type": "KSamplerSelect",
+  "_meta": {
+   "title": "K采样器选择"
+  }
+ },
+ "311": {
+  "inputs": {
+   "lora_name": "MiniMaxH3\\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
+   "strength_model": 0.75,
+   "model": [
+    "391",
+    0
+   ]
+  },
+  "class_type": "LoraLoaderModelOnly",
+  "_meta": {
+   "title": "LoRA加载器（仅模型）"
+  }
+ },
+ "313": {
+  "inputs": {
+   "shift_video": 6,
+   "shift_audio": 3,
+   "model": [
+    "311",
+    0
+   ]
+  },
+  "class_type": "MiniMaxH3SigmaShift",
+  "_meta": {
+   "title": "MiniMax H3 Sigma Shift"
+  }
+ },
+ "334": {
+  "inputs": {
+   "prompt": ""
+  },
+  "class_type": "MiniMaxH3PromptImportStar7",
+  "_meta": {
+   "title": "提示词载入 - Star7"
+  }
+ },
+ "339": {
+  "inputs": {
+   "导出方式": "视频内置工作流",
+   "视频文件": [
+    "150",
+    0
+   ]
+  },
+  "class_type": "Star7VideoWorkflowExport",
+  "_meta": {
+   "title": "视频与工作流导出 - Star7"
+  }
+ },
+ "360": {
+  "inputs": {
+   "preview_enabled": true,
+   "preview_model": "taeh3.safetensors",
+   "preview_fps": 5,
+   "preview_resolution": "1024",
+   "preview_quality": 80,
+   "first_step_only": false,
+   "model": [
+    "275",
+    0
+   ]
+  },
+  "class_type": "MiniMaxH3LivePreviewStar7",
+  "_meta": {
+   "title": "MiniMax H3 实时预览 - Star7"
+  }
+ },
+ "363": {
+  "inputs": {
+   "mlp_chunk_tokens": 8192,
+   "qkv_chunk_tokens": 8192,
+   "out_proj_chunk_tokens": 4096,
+   "chunk_tokens": 8192,
+   "auto_halve_on_oom": true,
+   "verbose": true,
+   "reuse_mlp_weights": true,
+   "disable_dynamic_prefetch": "关闭",
+   "attention_backend": "comfy_kitchen_int8",
+   "model": [
+    "408",
+    0
+   ]
+  },
+  "class_type": "MiniMaxH3ActivationChunkStar7",
+  "_meta": {
+   "title": "MiniMax H3 显存分块加速 - Star7"
+  }
+ },
+ "376": {
+  "inputs": {
+   "enable_hd": false,
+   "upscale_model": "h3_upscaler_lms_v0.1.safetensors",
+   "second_pass_lora": "继承一采",
+   "second_pass_lora_strength": 1,
+   "second_pass_attention": "继承一采",
+   "preset": "自定义",
+   "target_megapixels": 1.5,
+   "refine_steps": 2,
+   "refine_strength": 0.3,
+   "seed": 201439031291339,
+   "enable_tiling": true,
+   "tile_count": 4,
+   "tile_overlap": 128,
+   "sampled_av_latent": [
+    "127",
+    0
+   ],
+   "h3_context": [
+    "275",
+    4
+   ]
+  },
+  "class_type": "MiniMaxH3OneClickHDStar7",
+  "_meta": {
+   "title": "MiniMax H3 一键高清放大 - Star7"
+  }
+ },
+ "377": {
+  "inputs": {
+   "av_latent": [
+    "395",
+    0
+   ],
+   "video_vae": [
+    "121",
+    0
+   ],
+   "audio_vae": [
+    "122",
+    0
+   ]
+  },
+  "class_type": "MiniMaxH3ChunkedDecodeStar7",
+  "_meta": {
+   "title": "MiniMax H3 分块解码 - Star7"
+  }
+ },
+ "391": {
+  "inputs": {
+   "unet_name": "MiniMaxH3\\minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
+  },
+  "class_type": "MiniMaxH3ChunkEnhancedLoaderStar7",
+  "_meta": {
+   "title": "MiniMax H3 增强载入 - Star7"
+  }
+ },
+ "395": {
+  "inputs": {
+   "enable_refine": false,
+   "face_detector": "face_yolov8m.pt",
+   "face_lora": "继承一采",
+   "face_lora_strength": 1,
+   "face_attention": "继承一采",
+   "face_count": 1,
+   "preset": "远景小脸",
+   "target_face": "主人物",
+   "refine_steps": 4,
+   "custom_strength": 0.48,
+   "custom_canvas": "768",
+   "custom_crop_context": 2.4,
+   "custom_blend": 0.95,
+   "custom_feather": 18,
+   "seed": 175043546185533,
+   "preserve_repair_detail": true,
+   "sampled_av_latent": [
+    "376",
+    0
+   ],
+   "refine_context": [
+    "275",
+    4
+   ]
+  },
+  "class_type": "MiniMaxH3FaceRefineLatentStar7",
+  "_meta": {
+   "title": "MiniMax H3 一键人脸修复 - Star7"
+  }
+ },
+ "408": {
+  "inputs": {
+   "enabled": true,
+   "predictor": "minimax_h3_t2va_veda_8nfe_600step_preview_fp8.safetensors",
+   "generated_sparsity": "90%",
+   "reference_sparsity": "90%",
+   "full_attention_layers": "",
+   "full_attention_steps": "",
+   "verbose": true,
+   "model": [
+    "313",
+    0
+   ]
+  },
+  "class_type": "Star7VedaSparseAttention",
+  "_meta": {
+   "title": "MiniMax H3 VEDA 稀疏注意力 - Star7"
+  }
+ },
+ "429": {
+  "inputs": {
+   "image_files": "[]",
+   "auto_link": "自动",
+   "upscale_method": "bilinear",
+   "megapixels": 2,
+   "resolution_steps": 32
+  },
+  "class_type": "TaiYangMultiImageLoader",
+  "_meta": {
+   "title": "Multi Image Loader"
+  }
+ },
+ "430": {
+  "inputs": {
+   "audio_files": "[]",
+   "trims": "[]",
+   "auto_link": "自动"
+  },
+  "class_type": "TaiYangMultiAudioLoader",
+  "_meta": {
+   "title": "Multi Audio Loader"
+  }
+ }
+}

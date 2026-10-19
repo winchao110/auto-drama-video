@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ · 短剧工作台</title>
+<style>
+  *{box-sizing:border-box}
+  :root{
+    --bg:#f4f4f1;--panel:#fff;--ink:#1b1d22;--muted:#71767f;--line:#e6e6e0;
+    --accent:#c0392b;--accent-soft:#fbeae7;--ok:#2f6f5e;--ok-soft:#e8f2ee;
+    --en:#3b4a5a;--en-soft:#f2f5f8;
+    --side:#15171b;--side-ink:#e9e9e5;--side-muted:#8d9096;
+  }
+  html,body{margin:0;padding:0;min-height:100%}
+  body{background:var(--bg);color:var(--ink);font:14px/1.65 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  #app{display:flex;min-height:100vh}
+  aside{width:236px;flex:0 0 236px;background:var(--side);color:var(--side-ink);position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+  .brand{padding:22px 20px 10px;font-size:11px;letter-spacing:.24em;color:var(--side-muted);text-transform:uppercase}
+  .proj{padding:0 20px 18px;font-size:16px;font-weight:600;line-height:1.4;word-break:break-word}
+  nav{padding:6px 10px;flex:1}
+  nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;color:var(--side-ink);padding:11px 12px;border-radius:8px;font:inherit;font-size:14px;cursor:pointer;transition:.15s}
+  nav button:hover{background:#1f2228}
+  nav button.on{background:var(--accent);color:#fff}
+  nav button .dot{width:6px;height:6px;border-radius:50%;background:#3a3f47;flex:0 0 6px}
+  nav button.on .dot{background:#fff}
+  .sidefoot{padding:14px 20px 20px;font-size:11px;color:var(--side-muted);border-top:1px solid #24272d;line-height:1.75}
+  .sidefoot b{color:#c9cbcf;font-weight:500}
+  .sideby{padding:0 20px 18px;font-size:10px;line-height:1.6;color:#565b63;letter-spacing:.04em;user-select:text}
+  .sidehelp{margin:0 14px 12px;padding:12px 13px 11px;border-radius:10px;background:#101216;border:1px solid #24272d;font-size:11px;color:var(--side-muted);line-height:1.7}
+  .sidehelp .hd{font-size:10px;letter-spacing:.18em;color:#9aa0a8;margin-bottom:8px;text-transform:uppercase}
+  .sidehelp ol{margin:0;padding-left:16px}
+  .sidehelp li{margin-bottom:8px}
+  .sidehelp li:last-child{margin-bottom:0}
+  .sidehelp b{color:#e2e3e0;font-weight:600}
+  main{flex:1;min-width:0;padding-bottom:90px}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(244,244,241,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 32px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .stat{font-size:12px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+  .topbar .stat b{color:var(--ink);font-weight:600}
+  .spacer{flex:1}
+  .savebtn{background:var(--ink);color:#fff;border:0;border-radius:8px;padding:9px 18px;font:inherit;font-size:13px;cursor:pointer}
+  .savebtn:hover{background:#000}
+  .dirty{font-size:12px;color:var(--accent);display:none}
+  .dirty.on{display:inline}
+  .page{padding:26px 32px;max-width:1240px}
+  .pagehead h2{margin:0 0 4px;font-size:22px}
+  .pagehead .sub{margin:0 0 18px;color:var(--muted);font-size:13px;max-width:900px}
+  .flowbar{display:flex;margin-bottom:20px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+  .flowbar div{flex:1;padding:9px 8px;text-align:center;font-size:12px;color:var(--muted);border-right:1px solid var(--line)}
+  .flowbar div:last-child{border-right:0}
+  .flowbar div.done{background:var(--ok-soft);color:var(--ok)}
+  .flowbar div.cur{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:16px}
+  .card>h3{margin:0 0 14px;font-size:12px;letter-spacing:.1em;color:var(--muted);font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+  .field>label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .checkrow{display:flex;align-items:center;gap:9px;padding:9px 11px;background:#fbfbf9;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+  .checkrow input[type=checkbox]{width:16px;height:16px;margin:0;cursor:pointer;accent-color:var(--ink)}
+  .checkrow span{font-size:13px;color:var(--ink)}
+  .checkrow.off span{color:var(--muted)}
+  input[type=text],input[type=number],textarea,select{width:100%;font:inherit;font-size:13.5px;line-height:1.7;color:var(--ink);background:#fbfbf9;border:1px solid var(--line);border-radius:8px;padding:9px 11px;outline:none;transition:.15s;resize:vertical}
+  input:focus,textarea:focus,select:focus{border-color:#b9b9b0;background:#fff}
+  textarea{min-height:60px}
+  .hint{font-size:11.5px;color:#9a9a92;margin-top:5px;line-height:1.55}
+  .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer;text-decoration:none;transition:.15s}
+  .btn:hover{border-color:#c9c9c0;background:#fafaf7}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:#a83226}
+  .btn.sm{padding:4px 9px;font-size:12px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:#f0f0ec;color:var(--muted);letter-spacing:.03em;white-space:nowrap}
+  .tag.ok{background:var(--ok-soft);color:var(--ok)}
+  .tag.warn{background:var(--accent-soft);color:var(--accent)}
+  .tag.en{background:var(--en-soft);color:var(--en)}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11px;color:var(--muted);font-weight:500;text-align:left;padding:0 6px 6px;letter-spacing:.06em;white-space:nowrap}
+  td{padding:6px;vertical-align:top;border-top:1px solid var(--line);font-size:13px}
+  .ov th:first-child,.ov td:first-child{width:74px}
+  .ov td:nth-child(3){width:120px}
+  .agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(336px,1fr));gap:14px}
+  .acard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .acard .thumb{height:186px;background:#f0f0ec center/cover no-repeat;position:relative;border-bottom:1px solid var(--line)}
+  .acard .thumb .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a8a8a0;font-size:12px;flex-direction:column;gap:2px}
+  .acard .thumb .idx{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;padding:2px 7px;border-radius:20px;letter-spacing:.06em}
+  .acard .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .acard .nm{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .acard textarea{font-size:12.5px;min-height:100px}
+  .prow{display:flex;gap:10px}
+  .prow .field{flex:1;margin:0}
+  /* 配音面板 */
+  .vgrid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .vrow{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;gap:12px;background:#fcfcfa}
+  .vrow .ava{width:56px;height:74px;flex:0 0 56px;border-radius:6px;background:#eee center/cover no-repeat;border:1px solid var(--line)}
+  .vrow .vmain{flex:1;min-width:0}
+  .vrow .vname{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .vrow .vname .role{font-weight:400;font-size:11.5px;color:var(--muted)}
+  .vrow select{font-size:12.5px;padding:5px 8px}
+  .vrow .vacts{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+  .vstate{font-size:11.5px;color:var(--muted)}
+  .vstate.on{color:var(--ok)}
+  /* 资产卡里的音色区 */
+  .vcbox{border:1px dashed var(--line);border-radius:9px;padding:9px 10px;display:flex;flex-direction:column;gap:7px;background:#fafaf6}
+  .vcbox .vchead{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.08em}
+  .vcbox .vacts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .vcbox textarea{font-size:12px;min-height:62px}
+  .vcbox .field{gap:4px}
+  .vcbox label{font-size:11.5px;color:var(--muted)}
+  /* 提示词页的音色总览 */
+  .vsrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .vsitem{border:1px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;gap:10px;background:#fcfcfa;align-items:center}
+  .vsitem .ava{width:44px;height:58px;flex:0 0 44px;border-radius:6px;background:#eee center/cover no-repeat;border:1px solid var(--line)}
+  /* 提示词卡 */
+  .pcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .pcard .hd{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:#fbfbf9;flex-wrap:wrap}
+  .pcard .hd .id{font-weight:600;font-size:13.5px;letter-spacing:.03em}
+  .pcard .hd .meta{font-size:12px;color:var(--muted)}
+  .pcard .bd{padding:14px 16px}
+  .refs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  .refchip{display:flex;align-items:center;gap:7px;background:#f6f6f2;border:1px solid var(--line);border-radius:20px;padding:3px 10px 3px 3px;font-size:12px}
+  .refchip img{width:24px;height:24px;border-radius:50%;object-fit:cover;background:#e2e2da}
+  .refchip b{color:var(--accent);font-weight:600}
+  .pair{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+  .pair .en{background:var(--en-soft);border-bottom:1px dashed var(--line);padding:10px 12px}
+  .pair .en .lbl{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.12em;color:var(--en);margin-bottom:6px;text-transform:uppercase}
+  .pair .en pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.62 ui-monospace,Consolas,"Courier New",monospace;color:#26313d}
+  .pair .zh{padding:10px 12px 12px}
+  .pair .zh .lbl{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.12em;color:var(--accent);margin-bottom:6px;text-transform:uppercase}
+  .pair textarea{min-height:96px;font-size:13px}
+  .pair .edited{background:var(--accent);color:#fff;border-radius:20px;padding:0 7px;font-size:10px;letter-spacing:.06em}
+  .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .vcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .vcard .vwrap{aspect-ratio:9/16;max-height:520px;background:#0d0d0f;display:flex;align-items:center;justify-content:center;color:#5c5c5c;font-size:12px}
+  .vcard video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
+  .vcard .vb{padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}
+  .vcard .vb .id{font-weight:600}
+  .banner{display:none;margin:10px 32px 0;padding:9px 14px;border-radius:8px;background:#fff4e5;border:1px solid #f0d9b5;color:#8a5a12;font-size:12.5px;align-items:center;gap:12px}
+  .banner.on{display:flex}
+  .banner.ok{background:var(--ok-soft);border-color:#cbe0d7;color:var(--ok)}
+  #toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,16px);background:#1b1d22;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:72vw;text-align:center}
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+  .empty{color:var(--muted);font-size:13px;padding:28px;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:12px}
+  @media(max-width:880px){aside{display:none}.page{padding:18px 16px}.grid2{grid-template-columns:1fr}.topbar{padding:10px 16px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="brand">Drama Workbench</div>
+    <div class="proj">__TITLE__</div>
+    <nav id="nav">
+      <button data-page="synopsis"><span class="dot"></span>简介</button>
+      <button data-page="assets"><span class="dot"></span>资产</button>
+      <button data-page="prompts"><span class="dot"></span>视频提示词</button>
+      <button data-page="final"><span class="dot"></span>成品</button>
+    </nav>
+    <div class="sidehelp">
+      <div class="hd">三步走</div>
+      <ol>
+        <li><b>一</b> 按剧本 / 小说出资产提示词与视频提示词，你审完回「继续」</li>
+        <li><b>二</b> 本地 Qwen-Image 2.1 出资产参考图，你审完回「继续」</li>
+        <li><b>三</b> 本地 MiniMax H3 出视频，按顺序拼成片</li>
+      </ol>
+    </div>
+    <div class="sidefoot">
+      改完点「保存」，AI 会重读这一页继续往下做。<br>
+      <b id="modeHint">—</b>
+    </div>
+    <div class="sideby">作者：太阳阶梯jqk8707</div>
+  </aside>
+  <main>
+    <div class="topbar">
+      <div class="stat" id="stat"></div>
+      <div class="spacer"></div>
+      <span class="dirty" id="dirty">● 有未保存修改</span>
+      <button class="savebtn" id="saveAll">保存</button>
+    </div>
+    <div class="banner" id="banner"><span id="bannerTxt"></span><button class="btn sm" id="reloadBtn">重新载入</button></div>
+    <div id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+<script type="application/json" id="drama-state">__DRAMA_STATE__</script>
+<script>
+(function () {
+  "use strict";
+  var STATE = JSON.parse(document.getElementById("drama-state").textContent);
+  var PROJECT_DIR = __PROJECT_DIR__;
+  var SERVER = location.protocol === "http:" || location.protocol === "https:";
+  var PAGES = ["synopsis", "assets", "prompts", "final"];
+  var page = (location.hash || "").replace("#", "");
+  if (PAGES.indexOf(page) < 0) page = "synopsis";
+  var diskStamp = (STATE.meta && STATE.meta.updatedAt) || "";
+  var isDirty = false;
+  var runTimer = null;
+  var showEn = true;
+  var mergedView = true;
+  var player = null;
+  var playingId = "";
+
+  var RATIOS = ["16:9", "9:16", "4:3", "3:4", "1:1", "21:9"];
+  var SEED_MODES = [["fixed", "固定（种子不变）"], ["increment", "递增（每次 +1）"], ["decrement", "递减（每次 -1）"], ["randomize", "随机（每次换）"]];
+  /* 模型选项全部来自已连接的 ComfyUI：unet=diffusion_models，lora=loras，clip=text_encoders，vae=vae
+     规矩：下拉里只放 ComfyUI 此刻真实存在的文件；页面每次打开 / 切到这两页都重新读，绝不复用上次的列表。 */
+  var MODELS = { unet: [], lora: [], clip: [], vae: [], error: "", loaded: false, ts: "" };
+  var MODEL_DEFAULTS = __MODEL_DEFAULTS__;
+  var MODEL_SLOT = { imgUnet: "unet", imgClip: "clip", imgVae: "vae",
+                     h3Model: "unet", h3Lora: "lora", h3Clip: "clip",
+                     h3VideoVae: "vae", h3AudioVae: "vae" };
+  var MODEL_LABEL = { imgUnet: "生图 UNet", imgClip: "生图 CLIP", imgVae: "生图 VAE",
+                      h3Model: "H3 主模型", h3Lora: "LoRA", h3Clip: "CLIP",
+                      h3VideoVae: "视频 VAE", h3AudioVae: "音频 VAE" };
+  var MODEL_FIXED = [];          /* 本轮读取判定为「已不存在」并自动改掉的项（明细） */
+  function fixedNames() {
+    return MODEL_FIXED.map(function (x) { return x.name; }).join("、");
+  }
+  function modelTip() {
+    if (!MODELS.loaded) return "正在从已连接的 ComfyUI 读取模型列表…";
+    if (MODELS.error) return "读取失败：" + MODELS.error + "。ComfyUI 起来后点「刷新模型列表」重读。";
+    var s = "已从 ComfyUI 实时读取（" + (MODELS.ts || "刚刚") + "）：主模型 " + MODELS.unet.length +
+      " / LoRA " + MODELS.lora.length + " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length;
+    if (MODEL_FIXED.length) s += "｜有 " + MODEL_FIXED.length + " 项已不在 ComfyUI（" + fixedNames() + "），已切到可用项，记得保存";
+    return s;
+  }
+  function assetUrl(a) { return a.image ? (a.image + "?v=" + (a.imageVer || 0)) : ""; }
+  function videoUrl(s) { return s.video ? (s.video + "?v=" + (s.videoVer || 0)) : ""; }
+  /* 下拉选项：只给真实存在的模型；列表空（离线/读取失败）时给一条占位，绝不把旧值塞进列表 */
+  function selOptions(list, emptyLabel) {
+    if (!list || !list.length) return [["", emptyLabel || "（ComfyUI 里没读到模型）"]];
+    return list.map(function (x) { return [x, x]; });
+  }
+  function getModelList(slot) { return MODELS[slot] || []; }
+  /* 保存的模型在当前 ComfyUI 里已经不存在 → 自动切到可用项，并记下来提示用户保存；
+     读不到列表（离线）时一律不动，避免把设置改成空。 */
+  function alignModels() {
+    MODEL_FIXED = [];
+    if (!MODELS.loaded || MODELS.error) return;
+    Object.keys(MODEL_SLOT).forEach(function (k) {
+      var list = getModelList(MODEL_SLOT[k]);
+      if (!list.length) return;
+      var cur = String((STATE.settings || {})[k] || "").trim();
+      if (!cur || list.indexOf(cur) >= 0) return;
+      var pick;
+      if (k === "h3Lora") {
+        pick = "";                                   /* LoRA 可选：文件没了就先不挂 */
+      } else {
+        var def = MODEL_DEFAULTS[k] || "";
+        pick = list.indexOf(def) >= 0 ? def : list[0];
+      }
+      STATE.settings[k] = pick;
+      MODEL_FIXED.push({ name: MODEL_LABEL[k], detail: "「" + cur + "」→「" + (pick || "不挂") + "」" });
+    });
+    if (MODEL_FIXED.length) markDirty();
+  }
+  function applyModels(j) {
+    MODELS.unet = j.unet || []; MODELS.lora = j.lora || [];
+    MODELS.clip = j.clip || []; MODELS.vae = j.vae || [];
+    MODELS.error = j.error || ""; MODELS.ts = j.ts || ""; MODELS.loaded = true;
+    MODELS.at = Date.now();
+    alignModels();
+  }
+  /* 每次都向本地服务现读一遍（服务端不缓存，浏览器也不缓存） */
+  function loadModels(silent) {
+    if (!SERVER) { MODELS.loaded = true; return; }
+    return fetch("/api/models?force=1&t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        applyModels(j);
+        if (page === "assets" || page === "prompts") render();
+        if (silent) return;
+        if (MODEL_FIXED.length) toast(MODEL_FIXED.map(function (x) { return x.name + " " + x.detail; }).join("；") + "（已切到可用模型，记得保存）", 6500);
+        else toast("模型列表已刷新：主模型 " + MODELS.unet.length + " / LoRA " + MODELS.lora.length +
+          " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length);
+      })
+      .catch(function (e) {
+        MODELS.loaded = true;
+        MODELS.error = (e && e.message) || "服务没响应";
+        if (page === "assets" || page === "prompts") render();
+      });
+  }
+  var TYPE_NAME = { character: "人物资产", scene: "场景资产", prop: "道具资产" };
+
+  /* ---------- 小工具 ---------- */
+  function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function get(path) { return path.split(".").reduce(function (o, k) { return o == null ? o : o[k]; }, STATE); }
+  function set(path, v) {
+    var ks = path.split("."), last = ks.pop(), o = STATE;
+    for (var i = 0; i < ks.length; i++) { var k = ks[i]; if (o[k] == null) o[k] = {}; o = o[k]; }
+    o[last] = v;
+  }
+  function toast(msg, ms) {
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("on");
+    clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("on"); }, ms || 2600);
+  }
+  /* 让本机资源管理器打开本剧目录（由本地服务执行，浏览器不碰文件系统） */
+  function openProjectDir(btn) {
+    if (!SERVER) { toast("要用「打开目录」，请用 serve 起的 http://127.0.0.1 页面"); return; }
+    if (btn) btn.disabled = true;
+    fetch("/api/open-dir", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (btn) btn.disabled = false;
+        if (j && j.ok) toast("已打开本剧目录：" + (j.path || PROJECT_DIR));
+        else toast("打不开目录：" + ((j && j.error) || "未知原因"));
+      }, function () {
+        if (btn) btn.disabled = false;
+        toast("打不开目录：本地服务没响应");
+      });
+  }
+  function markDirty() { isDirty = true; document.getElementById("dirty").classList.add("on"); }  function clearDirty() { isDirty = false; document.getElementById("dirty").classList.remove("on"); }
+  function autosize(ta) { ta.style.height = "auto"; ta.style.height = Math.max(ta.scrollHeight + 2, 54) + "px"; }
+  function segs() { return STATE.segments || []; }
+  function genSec(sec) { return Math.max(5, Math.min(15, Math.floor((Number(sec) || 8) * 5 / 6 + 0.5))); }
+  function assetMap() { var m = {}; (STATE.assets || []).forEach(function (a) { m[a.id] = a; }); return m; }
+  function voiceById(id) { return (STATE.voices || []).filter(function (v) { return v.id === id; })[0]; }
+  function segPromptEn(s) {
+    var ps = (s.promptSegs || []).filter(function (p) { return (p.en || "").trim(); });
+    if (ps.length) return ps.map(function (p) { return p.en.trim(); }).join("\n\n");
+    return (s.prompt || "").trim();
+  }
+  function editedCount(s) { return (s.promptSegs || []).filter(function (p) { return p.edited; }).length; }
+  function globalBlock() { return ((STATE.meta || {}).globalBlock) || {}; }
+  /* 真正送进 H3 的完整文本 = 全局画质与摄影前置 + 本段英文 */
+  function segPromptFull(s) {
+    var g = String(globalBlock().en || "").trim();
+    var body = segPromptEn(s);
+    if (g && body.indexOf(g) !== 0) return (g + "\n\n" + body).trim();
+    return body;
+  }
+  function segPromptZh(s) {
+    return (s.promptSegs || []).map(function (p) { return (p.zh || "").trim(); })
+      .filter(function (x) { return x; }).join("\n\n");
+  }
+  /* 整段中文按「空行」切回 N 段；切不出 N 段就返回 null，宁可不写也不写错 */
+  function splitZhBlocks(text, n) {
+    var parts = String(text || "").replace(/\r/g, "").split(/\n\s*\n+/)
+      .map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+    return parts.length === n ? parts : null;
+  }
+  function wordCount(t) { return (String(t || "").match(/[A-Za-z][A-Za-z'\-]*/g) || []).length; }
+
+  function field(label, path, o) {
+    o = o || {};
+    var wrap = h("div", "field");
+    if (label) wrap.appendChild(h("label", null, label));
+    var inp;
+    if (o.type === "select") {
+      inp = h("select");
+      (o.options || []).forEach(function (v) {
+        var pair = Array.isArray(v) ? v : [v, v];
+        var op = h("option", null, pair[1]); op.value = pair[0]; inp.appendChild(op);
+      });
+      inp.value = get(path) || "";
+      if (inp.selectedIndex < 0) inp.selectedIndex = 0;
+      inp.addEventListener("change", function () { set(path, inp.value); markDirty(); if (o.onchange) o.onchange(inp.value); });
+    } else if (o.type === "number") {
+      inp = h("input"); inp.type = "number";
+      if (o.step) inp.step = o.step;
+      if (o.min != null) inp.min = o.min;
+      if (o.max != null) inp.max = o.max;
+      var v0 = get(path); inp.value = (v0 == null ? "" : v0);
+      inp.addEventListener("input", function () {
+        var v = inp.value === "" ? "" : Number(inp.value);
+        /* integer: 只收整数（步数这类参数填 25.5 会被取整，避免把小数塞进 KSampler） */
+        if (o.integer && v !== "" && isFinite(v)) v = Math.round(v);
+        set(path, v); markDirty();
+      });
+      inp.addEventListener("change", function () {
+        if (!o.integer) return;          /* 只对整数项做取整 + 越界夹取，其它数字项行为不变 */
+        if (inp.value === "") return;
+        var v = Number(inp.value);
+        if (!isFinite(v)) return;
+        v = Math.round(v);
+        if (o.min != null && v < o.min) v = Number(o.min);
+        if (o.max != null && v > o.max) v = Number(o.max);
+        inp.value = v; set(path, v); markDirty();
+      });
+    } else if (o.type === "check") {
+      var row = h("label", "checkrow");
+      inp = h("input"); inp.type = "checkbox";
+      inp.checked = !!get(path);
+      if (!inp.checked) row.className = "checkrow off";
+      inp.addEventListener("change", function () {
+        set(path, !!inp.checked);
+        row.className = inp.checked ? "checkrow" : "checkrow off";
+        markDirty();
+        if (o.onchange) o.onchange(inp.checked);
+      });
+      row.appendChild(inp);
+      row.appendChild(h("span", null, o.checkLabel || (inp.checked ? "已开启" : "已关闭")));
+      inp.addEventListener("change", function () {
+        row.lastChild.textContent = inp.checked ? (o.checkLabelOn || "已开启") : (o.checkLabelOff || "已关闭");
+      });
+      wrap.appendChild(row);
+    } else if (o.rows) {
+      inp = h("textarea"); inp.rows = o.rows;
+      if (o.mono) { inp.style.fontFamily = "ui-monospace,Consolas,monospace"; inp.style.overflow = "auto"; }
+      else if (o.fixed) { inp.style.height = (o.rows * 21 + 20) + "px"; inp.style.minHeight = "0"; inp.style.overflow = "auto"; }
+      inp.value = get(path) == null ? "" : get(path);
+      inp.addEventListener("input", function () { set(path, inp.value); markDirty(); if (!o.mono && !o.fixed) autosize(inp); });
+      if (!o.mono && !o.fixed) setTimeout(function () { autosize(inp); }, 0);
+    } else {
+      inp = h("input"); inp.type = "text";
+      inp.value = get(path) == null ? "" : get(path);
+      inp.addEventListener("input", function () { set(path, inp.value); markDirty(); });
+    }
+    if (o.ph) inp.placeholder = o.ph;
+    if (o.oninput) inp.addEventListener("input", function () { o.oninput(inp.value); });
+    wrap.appendChild(inp);
+    if (o.hint) wrap.appendChild(h("div", "hint", o.hint));
+    if (o.el) wrap.appendChild(o.el);
+    return wrap;
+  }
+
+  function pageHead(title, sub, tools) {
+    var p = h("div", "pagehead");
+    p.appendChild(h("h2", null, title));
+    if (sub) p.appendChild(h("p", "sub", sub));
+    if (tools) { var t = h("div", "tools"); tools.forEach(function (x) { t.appendChild(x); }); p.appendChild(t); }
+    return p;
+  }
+  function saveBtn(label) {
+    var b = h("button", "btn primary", label || "保存本页");
+    b.onclick = function () { saveAll(false); };
+    return b;
+  }
+  function flowbar() {
+    var s = segs(), assets = STATE.assets || [];
+    var done = [
+      s.length > 0 && s.every(function (x) { return !!segPromptEn(x); }),
+      assets.length > 0 && assets.every(function (a) { return !!a.image; }),
+      s.length > 0 && s.every(function (x) { return !!x.video; })
+    ];
+    var cur = done.indexOf(false);
+    if (cur < 0) cur = 3;
+    var w = h("div", "flowbar");
+    ["提示词", "资产图", "视频"].forEach(function (n, i) {
+      var cls = done[i] ? "done" : (i === cur ? "cur" : "");
+      w.appendChild(h("div", cls, (done[i] ? "✓ " : "") + n));
+    });
+    return w;
+  }
+  function stat() {
+    var s = segs(), assets = STATE.assets || [];
+    var aDone = assets.filter(function (a) { return !!a.image; }).length;
+    var vDone = s.filter(function (x) { return !!x.video; }).length;
+    var total = 0, gtotal = 0;
+    s.forEach(function (x) { total += Number(x.sec || 0); gtotal += genSec(x.sec); });
+    document.getElementById("stat").innerHTML =
+      "<span>分段 <b>" + s.length + "</b></span>" +
+      "<span>时长 <b>" + Math.round(total) + "s→" + gtotal + "s</b></span>" +
+      "<span>资产 <b>" + aDone + "/" + assets.length + "</b></span>" +
+      "<span>视频 <b>" + vDone + "/" + s.length + "</b></span>" +
+      "<span>阶段 <b>" + (STATE.meta.stage || 1) + "/3</b></span>";
+  }
+
+  /* ---------- 保存 / 上传 / 生成 ---------- */
+  function saveAll(silent) {
+    if (!SERVER) { downloadJson(); return Promise.resolve(); }
+    return fetch("/api/save", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: STATE, diskStamp: diskStamp })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) throw new Error(j.error || "保存失败");
+      diskStamp = j.updatedAt || diskStamp;
+      clearDirty();
+      if (!silent) toast(j.stale ? "已保存 ✓（页面是旧快照，AI 的登记与产物已自动保留；建议刷新一次）" : "已保存 ✓ 参数已记住，下一部剧自动沿用", j.stale ? 4200 : 2600);
+    }).catch(function (e) {
+      toast("保存失败：" + e.message + "（已改为下载 json）", 4200);
+      downloadJson();
+    });
+  }
+  function downloadJson() {
+    var blob = new Blob([JSON.stringify(STATE, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "drama-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";
+    a.click();
+    clearDirty();
+    toast("已下载 drama json，请让 AI 读取该文件", 5200);
+  }
+  function uploadAsset(id, file) {
+    if (!SERVER) { toast("上传需要以本地服务方式打开（python drama.py serve）"); return; }
+    var fr = new FileReader();
+    fr.onload = function () {
+      fetch("/api/upload", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset: id, filename: file.name, data: fr.result })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || "上传失败");
+        toast("已替换资产图");
+        return reloadState();
+      }).catch(function (e) { toast("上传失败：" + e.message, 4200); });
+    };
+    fr.readAsDataURL(file);
+  }
+  function uploadVoice(vid, file, assetId, name) {
+    if (!SERVER) { toast("上传需要以本地服务方式打开（python drama.py serve）"); return; }
+    var fr = new FileReader();
+    fr.onload = function () {
+      fetch("/api/voice", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice: vid || "", asset: assetId || "", name: name || "", filename: file.name, data: fr.result })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || "上传失败");
+        toast("已上传参考音");
+        return reloadState();
+      }).catch(function (e) { toast("上传失败：" + e.message, 4200); });
+    };
+    fr.readAsDataURL(file);
+  }
+  function runTask(task, only) {
+    if (!SERVER) { toast("生成需要以本地服务方式打开（python drama.py serve）"); return; }
+    fetch("/api/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task: task, only: only || [] })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) throw new Error(j.error || "提交失败");
+      toast("已提交生成，完成后自动刷新…", 4000);
+      watchRun();
+    }).catch(function (e) { toast("提交失败：" + e.message, 4200); });
+  }
+  function watchRun() {
+    clearInterval(runTimer);
+    var banner = document.getElementById("banner");
+    banner.classList.add("on"); banner.classList.remove("ok");
+    document.getElementById("bannerTxt").textContent = "生成中…";
+    runTimer = setInterval(function () {
+      fetch("/api/runstatus").then(function (r) { return r.json(); }).then(function (j) {
+        document.getElementById("bannerTxt").textContent = j.tail ? "生成中：" + j.tail : "生成中…";
+        if (!j.running) {
+          clearInterval(runTimer);
+          banner.classList.remove("on");
+          reloadState().then(function () { toast("生成完成，已刷新"); });
+        }
+      }).catch(function () { clearInterval(runTimer); });
+    }, 3500);
+  }
+  function reloadState() {
+    if (!SERVER) { location.reload(); return Promise.resolve(); }
+    return fetch("/api/state").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) throw new Error("读取失败");
+      Object.keys(STATE).forEach(function (k) { delete STATE[k]; });
+      Object.assign(STATE, j.state);
+      diskStamp = (STATE.meta && STATE.meta.updatedAt) || "";
+      clearDirty(); render();
+    });
+  }
+  function checkDisk() {
+    if (!SERVER || isDirty) return;
+    fetch("/api/state").then(function (r) { return r.json(); }).then(function (j) {
+      var stamp = (j.state.meta && j.state.meta.updatedAt) || "";
+      if (stamp !== diskStamp) {
+        var b = document.getElementById("banner");
+        b.classList.add("on"); b.classList.add("ok");
+        document.getElementById("bannerTxt").textContent = "磁盘上的内容已更新（可能是 AI 刚写入或视频生成完成）";
+      }
+    }).catch(function () {});
+  }
+
+  /* ---------- 页面：简介 ---------- */
+  function renderSynopsis() {
+    var v = h("section", "page");
+    v.appendChild(pageHead("简介", "读小说/剧本后自动生成的：钩子、视频简介、统一美术风格锁。这一页定的是「片子是什么」，改完保存，AI 会按你的定调重写提示词。"));
+    v.appendChild(flowbar());
+
+    var c = h("div", "card");
+    var g = h("div", "grid2");
+    g.appendChild(field("剧名", "meta.title", { ph: "例：寒舟" }));
+    g.appendChild(field("改编来源", "meta.source", { ph: "小说名 / 剧本名 / 章节范围" }));
+    c.appendChild(g);
+    c.appendChild(field("一句话钩子（0–3 秒必须抛出的矛盾）", "meta.hook", { rows: 2, ph: "他亲手处决了自己的同志，转身却要走进敌人的庆功宴。", hint: "只写冲突、反差、痛点，不写铺垫。" }));
+    c.appendChild(field("视频简介（基于提示词生成的成片简介）", "meta.synopsis", { rows: 7, hint: "观众视角的 3–6 句：谁 + 处境 + 最痛的一件事 + 悬念。它会写进成片发布文案。" }));
+    c.appendChild(field("统一美术风格锁（全片资产图共用）", "meta.styleLock", { rows: 4, hint: "英文一句描述式，会拼在每条资产提示词末尾。例：Photoreal urban comedy, ARRI Alexa 65, 35mm prime, warm afternoon daylight, natural skin texture, gentle film grain. 不要写 8K / 超高清 / 大师作品这类空词。" }));
+    var t = h("div", "tools"); t.style.marginTop = "16px";
+    t.appendChild(saveBtn("保存简介"));
+    c.appendChild(t);
+    v.appendChild(c);
+
+    if (segs().length) {
+      var o = h("div", "card");
+      o.appendChild(h("h3", null, "分段总览 · " + segs().length + " 段（AI 已按 5–18 秒切成独立可生成单元）"));
+      var tbl = h("table"); tbl.className = "ov";
+      tbl.innerHTML = "<thead><tr><th>段号</th><th>段名 / 事件</th><th>时长</th><th>出场</th></tr></thead>";
+      var tb = h("tbody"), am = assetMap();
+      segs().forEach(function (s) {
+        var tr = h("tr");
+        tr.appendChild(h("td", null, s.id || ""));
+        var td2 = h("td");
+        td2.appendChild(h("div", null, s.title || ""));
+        if (s.logline) { var lg = h("div", "hint", s.logline); td2.appendChild(lg); }
+        tr.appendChild(td2);
+        tr.appendChild(h("td", null, (s.sec || "?") + "s → " + genSec(s.sec) + "s"));
+        var cast = (s.cast || []).map(function (id) { return (am[id] && am[id].name) || id; }).join("、");
+        tr.appendChild(h("td", null, cast || "—"));
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb); o.appendChild(tbl);
+      v.appendChild(o);
+    }
+    return v;
+  }
+
+  /* ---------- 共享参数条 ----------
+     两个页面各用各的：资产页只放生图参数（Qwen-Image），
+     视频提示词页只放视频参数（MiniMax H3），绝不把生图模型混进视频参数区。 */
+  function paramBar(title, withImage, extra) {
+    var c = h("div", "card");
+    c.appendChild(h("h3", null, title));
+    var g = h("div", "params");
+    if (withImage) {
+      /* --- 生图三件套：Qwen-Image 2.1 · 25 步（turbo 版已删），模型直接读 ComfyUI 的目录 --- */
+      g.appendChild(field("生图 UNet（models/diffusion_models）", "settings.imgUnet", {
+        type: "select", options: selOptions(getModelList("unet")), hint: modelTip()
+      }));
+      g.appendChild(field("生图 CLIP（models/text_encoders）", "settings.imgClip", {
+        type: "select", options: selOptions(getModelList("clip")), hint: "Qwen-Image 2.1 配 qwen3vl 系列"
+      }));
+      g.appendChild(field("生图 VAE（models/vae）", "settings.imgVae", {
+        type: "select", options: selOptions(getModelList("vae")), hint: "Qwen-Image 2.1 配 qwen_image_2.1_vae"
+      }));
+      g.appendChild(field("步数（整数）", "settings.imgSteps", {
+        type: "number", step: 1, min: 1, max: 200, integer: true,
+        hint: "默认 25。只能填整数；调低出图更快但细节少，调高更细也更慢"
+      }));
+    }
+    if (extra) extra(g);
+    c.appendChild(g);
+    var t = h("div", "tools"); t.style.marginTop = "14px";
+    t.appendChild(saveBtn("保存参数"));
+    c.appendChild(t);
+    var note = h("div", "hint", "以上参数会记进技能，下一部剧打开就沿用你这次的设置；改完点「保存参数」即更新记忆。只记参数，剧情 / 资产 / 提示词一概不记。");
+    note.style.marginTop = "8px";
+    c.appendChild(note);
+    return c;
+  }
+
+  function imageModelBar(extra) { return paramBar("生图参数（Qwen-Image 2.1）", true, extra); }
+
+  /* ---------- 人物视图模板（生图参数里的一个长条框） ----------
+     这段会接在每张人物定设图提示词后面一起送进 Qwen-Image，决定三块面板怎么排、截在哪。
+     只给一个中文框：改完点「保存参数」，和比例 / 像素 / 步数一起存盘。 */
+  function charSheetField() {
+    if (!STATE.settings) STATE.settings = {};
+    if (!STATE.settings.charSheet) STATE.settings.charSheet = { en: "", zh: "", edited: false };
+    var box = h("div");
+    box.style.gridColumn = "1 / -1";
+    box.appendChild(field("人物视图模板（每张人物定设图共用）", "settings.charSheet.zh", {
+      rows: 4, fixed: true,
+      ph: "留空 = 用内置默认模板",
+      hint: "这段接在人物描述后面一起送进模型，管的是三块面板怎么排、截在哪。改完点下面的「保存参数」即生效；留空回到内置默认。",
+      oninput: function () { set("settings.charSheet.edited", true); markDirty(); }
+    }));
+    return box;
+  }
+
+  /* ---------- 全局画质与摄影前置：从各段抽出来，单独一块给用户改 ---------- */
+  function globalBar() {
+    if (!STATE.meta) STATE.meta = {};
+    if (!STATE.meta.globalBlock) STATE.meta.globalBlock = {};
+    var gb = STATE.meta.globalBlock;
+    var n = segs().length;
+    var c = h("div", "card");
+    var hd = h("h3", null, "全局画质与摄影前置（" + n + " 个分镜共用）");
+    c.appendChild(hd);
+    c.appendChild(h("div", "hint", "这一段会拼在每个分镜提示词的最前面送进 H3，改一次对所有分镜生效。它原来重复写在各段开头，现在统一收到这里。"));
+
+    var grid = h("div", "grid2"); grid.style.marginTop = "14px";
+    var enCol = h("div");
+    enCol.appendChild(field("英文 · 直接送进 H3", "meta.globalBlock.en", {
+      rows: 7, mono: true,
+      hint: "改这里立刻生效（英文是机器入口）。清空则不发送全局块。"
+    }));
+    var zhCol = h("div");
+    var zhFlag = h("div", "hint", gb.edited ? "中文已改，待同步进英文" : "中文与英文逐句对应，改完由 AI 按原格式重写英文。");
+    if (gb.edited) zhFlag.style.color = "var(--accent)";
+    zhCol.appendChild(field("中文 · 对照（改这里）", "meta.globalBlock.zh", {
+      rows: 7,
+      oninput: function () {
+        set("meta.globalBlock.edited", true);
+        zhFlag.textContent = "中文已改，待同步进英文";
+        zhFlag.style.color = "var(--accent)";
+        markDirty();
+      }
+    }));
+    zhCol.appendChild(zhFlag);
+    grid.appendChild(enCol); grid.appendChild(zhCol);
+    c.appendChild(grid);
+
+    var t = h("div", "tools"); t.style.marginTop = "12px";
+    t.appendChild(saveBtn("保存全局参数"));
+    var cp = h("button", "btn sm", "复制完整英文");
+    cp.onclick = function () {
+      if (!segs().length) return toast("还没有分镜");
+      if (navigator.clipboard) navigator.clipboard.writeText(segPromptFull(segs()[0])).then(function () { toast("已复制「全局块 + 第一个分镜」的完整英文"); });
+      else toast("浏览器不支持一键复制");
+    };
+    t.appendChild(cp);
+    c.appendChild(t);
+    return c;
+  }
+
+  /* ---------- 页面：资产 ---------- */
+  function renderAssets() {
+    var v = h("section", "page");
+    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Qwen-Image 2.1 规范：英文单段、约 400 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图固定走 Qwen-Image 2.1，UNet / CLIP / VAE 三件套与采样步数（默认 25，可自己改）都按上面选的来。"));
+    v.appendChild(flowbar());
+    v.appendChild(imageModelBar(function (g) {
+      var miss = (STATE.assets || []).filter(function (a) { return !a.image; }).length;
+      var box = h("div", "field");
+      box.appendChild(h("label", null, "批量生成"));
+      var t = h("div", "tools");
+      var b = h("button", "btn primary sm", "生成全部缺图（" + miss + " 张）");
+      b.onclick = function () { runTask("images", []); };
+      b.disabled = miss === 0;
+      t.appendChild(b);
+      box.appendChild(t);
+      g.appendChild(box);
+      var mbox = h("div", "field");
+      mbox.appendChild(h("label", null, "模型列表"));
+      var mt = h("div", "tools");
+      var mr = h("button", "btn sm", "刷新模型列表");
+      mr.onclick = function () {
+        toast("正在重新读取 ComfyUI 模型…");
+        loadModels(false);
+      };
+      mt.appendChild(mr);
+      mbox.appendChild(mt);
+      g.appendChild(mbox);
+      g.appendChild(charSheetField());
+    }));
+
+    var all = STATE.assets || [];
+    if (!all.length) v.appendChild(h("div", "empty", "还没有资产提示词。"));
+
+    ["character", "scene", "prop"].forEach(function (type) {
+      var list = [];
+      all.forEach(function (a, i) { if (a.type === type) list.push({ a: a, i: i }); });
+      if (!list.length) return;
+      var c = h("div", "card");
+      c.appendChild(h("h3", null, TYPE_NAME[type] + " · " + list.length + " 项"));
+      var grid = h("div", "agrid");
+      list.forEach(function (x) {
+        var a = x.a, i = x.i;
+        var card = h("div", "acard");
+        var thumb = h("div", "thumb");
+        if (a.image) {
+          thumb.style.backgroundImage = 'url("' + assetUrl(a) + '")';
+          thumb.appendChild(h("div", "idx", a.id));
+        } else {
+          var none = h("div", "none");
+          none.appendChild(h("div", null, "未生成")); none.appendChild(h("div", null, a.id));
+          thumb.appendChild(none);
+        }
+        card.appendChild(thumb);
+
+        var body = h("div", "body");
+        var nm = h("div", "nm");
+        nm.appendChild(document.createTextNode(a.name || a.id));
+        nm.appendChild(h("span", "tag " + (a.image ? "ok" : "warn"), a.image ? "已生成" : "待生成"));
+        if (a.imageSource === "user-upload") nm.appendChild(h("span", "tag", "手动上传"));
+        body.appendChild(nm);
+        if (a.type === "character") body.appendChild(voiceBlock(a, i));
+        body.appendChild(field("身份一句话", "assets." + i + ".desc", { ph: "例：1934 江南，17 岁女学生" }));
+        var prow = h("div", "prow");
+        prow.appendChild(field("比例", "assets." + i + ".ratio", { type: "select", options: RATIOS }));
+        prow.appendChild(field("百万像素", "assets." + i + ".megapixels", { type: "number", step: 0.1, min: 0.2, max: 6 }));
+        body.appendChild(prow);
+        body.appendChild(field("生成提示词", "assets." + i + ".prompt", { rows: 6, hint: "拼接构图块与统一画风由生成器自动补在前后，这里只写人物/场景/道具本体。" }));
+
+        var tools = h("div", "tools");
+        var file = h("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";
+        file.onchange = function () { if (file.files[0]) uploadAsset(a.id, file.files[0]); file.value = ""; };
+        var up = h("button", "btn sm", "上传替换");
+        up.onclick = function () { file.click(); };
+        tools.appendChild(up); tools.appendChild(file);
+        if (a.image) {
+          var dl = h("a", "btn sm", "下载");
+          dl.href = assetUrl(a); dl.download = (a.id || "asset") + ".png";
+          tools.appendChild(dl);
+        }
+        var rg = h("button", "btn sm", "生成这张");
+        rg.onclick = function () { runTask("images", [a.id]); };
+        tools.appendChild(rg);
+        var sv = h("button", "btn sm primary", "保存提示词");
+        sv.onclick = function () { saveAll(false); };
+        tools.appendChild(sv);
+        body.appendChild(tools);
+        card.appendChild(body);
+        grid.appendChild(card);
+      });
+      c.appendChild(grid);
+      v.appendChild(c);
+    });
+    return v;
+  }
+
+  /* ---------- 页面：视频提示词 ---------- */
+  function castCharacters() {
+    var am = assetMap(), order = [], seen = {};
+    segs().forEach(function (s) {
+      (s.cast || []).forEach(function (id) {
+        if (seen[id]) return;
+        seen[id] = 1;
+        var a = am[id];
+        if (a && a.type === "character") order.push(a);
+      });
+    });
+    if (!order.length) {
+      (STATE.assets || []).forEach(function (a) { if (a.type === "character") order.push(a); });
+    }
+    return order;
+  }
+
+  /* 一个人物当前走哪条音色路线：audio = 挂参考音频 / prompt = 用音色提示词 / none = 缺音色 */
+  function voiceState(a) {
+    var v = voiceById(a.voice);
+    if (v && v.file) return { kind: "audio", v: v };
+    if (String(a.voicePrompt || "").trim() || String(a.voicePromptZh || "").trim()) return { kind: "prompt", v: v };
+    return { kind: "none", v: v };
+  }
+  function voiceTag(stt) {
+    return h("span", "tag " + (stt.kind === "audio" ? "ok" : (stt.kind === "prompt" ? "" : "warn")),
+      stt.kind === "audio" ? "参考音频" : (stt.kind === "prompt" ? "系统音色" : "缺音色"));
+  }
+
+  /* 资产卡里的音色区：选参考音 / 试听 / 上传替换 / 固定音色提示词（整部剧共用） */
+  function voiceBlock(a, i) {
+    var stt = voiceState(a);
+    var box = h("div", "vcbox");
+    var head = h("div", "vchead");
+    head.appendChild(h("span", null, "音色"));
+    head.appendChild(voiceTag(stt));
+    box.appendChild(head);
+
+    var opts = [["", "不用参考音频 · 用下面的音色提示词"]];
+    (STATE.voices || []).forEach(function (vv) {
+      opts.push([vv.id, vv.name + (vv.gender ? " · " + vv.gender : "") + (vv.file ? "" : "（缺音频）")]);
+    });
+    box.appendChild(field("", "assets." + i + ".voice", { type: "select", options: opts, onchange: function () { render(); } }));
+
+    var acts = h("div", "vacts");
+    var play = h("button", "btn sm", "▶ 试听");
+    play.disabled = !(stt.v && stt.v.file);
+    play.onclick = function () { previewVoice(stt.v); };
+    acts.appendChild(play);
+
+    var f = h("input"); f.type = "file"; f.accept = "audio/*"; f.style.display = "none";
+    f.onchange = function () {
+      if (f.files[0]) uploadVoice(a.voice || "", f.files[0], a.voice ? "" : a.id, a.name || a.id);
+      f.value = "";
+    };
+    var up = h("button", "btn sm", a.voice ? "替换音频" : "上传参考音");
+    up.onclick = function () { f.click(); };
+    acts.appendChild(up); acts.appendChild(f);
+    box.appendChild(acts);
+
+    box.appendChild(h("div", "vstate " + (stt.kind === "none" ? "" : "on"),
+      stt.kind === "audio" ? "已挂参考音：" + (stt.v.name || "") + "，生成视频时这一段走「仅作音频参考」"
+        : stt.kind === "prompt" ? "不挂参考音：用下面这条音色提示词，整部剧都读同一条"
+        : "两条路都没有：要么选一个参考音，要么写一条音色提示词"));
+
+    box.appendChild(field("音色提示词 · 英文（整部剧共用）", "assets." + i + ".voicePrompt", {
+      rows: 3, mono: true,
+      ph: "young adult female, mid-high pitch, clear slightly cool timbre, medium-fast speech, controlled volume, clipped sentence endings; when annoyed she drops her pitch instead of shouting.",
+      hint: "没挂参考音频时，这一句会拼进每个人物段的 <Subject> 里；全剧同一句，保证音色一致。"
+    }));
+    box.appendChild(field("音色提示词 · 中文（对照，AI 按它重写英文）", "assets." + i + ".voicePromptZh", {
+      rows: 3, ph: "青年女性，中高音区，清亮略冷的音色，语速中等偏快，音量克制，句尾咬得干脆；不耐烦时压低音高而不是喊。"
+    }));
+    return box;
+  }
+
+  /* 视频提示词页：只看不改的音色总览（改动统一在「资产」页做） */
+  function voiceSummary() {
+    var chars = castCharacters();
+    var c = h("div", "card");
+    var hd = h("h3", null, "音色总览（已按资产页的设定写进提示词）");
+    c.appendChild(hd);
+    if (!chars.length) { c.appendChild(h("div", "empty", "还没有人物资产。")); return c; }
+    var grid = h("div", "vsrow");
+    chars.forEach(function (a) {
+      var stt = voiceState(a);
+      var row = h("div", "vsitem");
+      var ava = h("div", "ava");
+      if (a.image) ava.style.backgroundImage = 'url("' + assetUrl(a) + '")';
+      row.appendChild(ava);
+      var box = h("div");
+      var nm = h("div", "vname");
+      nm.appendChild(document.createTextNode(a.name || a.id));
+      nm.appendChild(voiceTag(stt));
+      box.appendChild(nm);
+      box.appendChild(h("div", "vstate " + (stt.kind === "none" ? "" : "on"),
+        stt.kind === "audio" ? "整部剧同一段参考音：" + (stt.v.name || "")
+          : stt.kind === "prompt" ? "整部剧同一条音色提示词"
+          : "没有音色依据，提示词里会没有这个人物的声音"));
+      row.appendChild(box);
+      grid.appendChild(row);
+    });
+    c.appendChild(grid);
+    var t = h("div", "tools"); t.style.marginTop = "12px";
+    var go = h("button", "btn sm primary", "去「资产」页改音色");
+    go.onclick = function () { location.hash = "assets"; };
+    t.appendChild(go);
+    c.appendChild(t);
+    c.appendChild(h("div", "hint", "两条路互斥：挂了参考音频 → 提示词写 <Audio N> 参考句；没挂 → 写该人物的固定音色提示词。同一个人物在整部剧里永远是同一套设定。改完音色要重新保存，跑 build / 生成视频时会自动同步进提示词。"));
+    return c;
+  }
+
+  function previewVoice(v) {
+    if (!v || !v.file) return;
+    if (playingId === v.id) {
+      if (player) player.pause();
+      playingId = ""; return;
+    }
+    if (player) player.pause();
+    player = new Audio(v.file);
+    playingId = v.id;
+    player.play().catch(function () { toast("这个音频播放不了：" + v.file, 3600); });
+    player.onended = function () { playingId = ""; };
+  }
+
+  function promptCard(s, si) {
+    var am = assetMap();
+    var card = h("div", "pcard");
+    var hd = h("div", "hd");
+    hd.appendChild(h("span", "id", s.id || ("P" + (si + 1))));
+    if (s.title) hd.appendChild(h("span", "meta", s.title));
+    hd.appendChild(h("span", "tag", (s.sec || "?") + "s → 实传 " + genSec(s.sec) + "s"));
+    if (s.video) hd.appendChild(h("span", "tag ok", "视频已生成"));
+    else if (segPromptEn(s)) hd.appendChild(h("span", "tag", "待生成视频"));
+    else hd.appendChild(h("span", "tag warn", "缺提示词"));
+    var ed = editedCount(s);
+    if (ed) hd.appendChild(h("span", "tag warn", "中文改动待同步 " + ed + " 处"));
+    var castNames = (s.cast || []).map(function (id) { return (am[id] && am[id].name) || id; });
+    if (castNames.length) hd.appendChild(h("span", "meta", "出场：" + castNames.join("、")));
+    card.appendChild(hd);
+
+    var bd = h("div", "bd");
+    var refs = s.refs || [];
+    if (refs.length) {
+      var chips = h("div", "refs");
+      chips.appendChild(h("span", "hint", "本段参考图："));
+      refs.forEach(function (r, k) {
+        var aid = (r && r.asset) ? r.asset : r;
+        var a = am[aid] || {};
+        var chip = h("span", "refchip");
+        var im = h("img"); im.src = assetUrl(a) || ""; im.alt = ""; chip.appendChild(im);
+        var label = h("span"); label.innerHTML = "<b>P" + (k + 1) + "</b> " + (a.name || aid);
+        chip.appendChild(label);
+        chips.appendChild(chip);
+      });
+      bd.appendChild(chips);
+    } else {
+      bd.appendChild(h("div", "hint", "⚠ 这一段没有挂参考图，全参考模式会退化成纯文生视频。"));
+    }
+
+    var pairs = s.promptSegs || [];
+    if (s.legacy || (!pairs.length && s.prompt)) {
+      bd.appendChild(h("div", "hint", "旧版单语提示词（未双语化）：这段文字会原样送进 H3。"));
+      bd.appendChild(field("", "segments." + si + ".promptSegs.0.en", { rows: 14, mono: true }));
+    } else if (!pairs.length) {
+      bd.appendChild(h("div", "empty", "这一段还没有提示词。"));
+    } else if (mergedView) {
+      /* ---------- 整段视图：一个分镜 = 一整段英文 + 一整段中文 ---------- */
+      var edN = editedCount(s);
+      var wrap = h("div", "pair");
+      if (showEn) {
+        var en = h("div", "en");
+        var lbl = h("div", "lbl", "英文 · 整段送进 H3（" + wordCount(segPromptEn(s)) + " 词，另加顶部全局块）");
+        if (edN) lbl.appendChild(h("span", "edited", "中文已改 " + edN + " 段，待同步"));
+        en.appendChild(lbl);
+        var pre = h("pre"); pre.textContent = segPromptEn(s);
+        en.appendChild(pre);
+        wrap.appendChild(en);
+      }
+      var zh = h("div", "zh");
+      var zlbl = h("div", "lbl", "中文 · 整段（直接改，段与段之间空一行）");
+      var zbadge = h("span", "edited", "已改，待同步");
+      zbadge.style.display = edN ? "" : "none";
+      zlbl.appendChild(zbadge);
+      zh.appendChild(zlbl);
+      var ta = h("textarea");
+      ta.value = segPromptZh(s);
+      ta.rows = Math.min(24, Math.max(6, pairs.length * 2));
+      var tip = h("div", "hint", "共 " + pairs.length + " 段，段与段之间空一行；保存后 AI 按原格式翻回英文。");
+      ta.addEventListener("input", function () {
+        var parts = splitZhBlocks(ta.value, pairs.length);
+        if (!parts) {
+          tip.textContent = "⚠ 现在按空行切出来不是 " + pairs.length + " 段，还没写入。请恢复成 " + pairs.length + " 段（段间空一行）";
+          tip.style.color = "var(--accent)";
+          autosize(ta);
+          return;
+        }
+        tip.textContent = "共 " + pairs.length + " 段，段与段之间空一行；保存后 AI 按原格式翻回英文。";
+        tip.style.color = "";
+        var hit = false;
+        parts.forEach(function (txt, pi) {
+          var p = pairs[pi];
+          if (!p) return;
+          if ((p.zh || "") !== txt) {
+            set("segments." + si + ".promptSegs." + pi + ".zh", txt);
+            set("segments." + si + ".promptSegs." + pi + ".edited", true);
+            hit = true;
+          }
+        });
+        if (hit) { markDirty(); zbadge.style.display = ""; }
+        autosize(ta);
+      });
+      zh.appendChild(ta);
+      zh.appendChild(tip);
+      wrap.appendChild(zh);
+      bd.appendChild(wrap);
+      setTimeout(function () { autosize(ta); }, 0);
+    } else {
+      pairs.forEach(function (p, pi) {
+        var wrap = h("div", "pair");
+        if (showEn) {
+          var en = h("div", "en");
+          var lbl = h("div", "lbl", "英文 · 第 " + (pi + 1) + " 段 · 实际送进 H3");
+          if (p.edited) lbl.appendChild(h("span", "edited", "中文已改，待同步"));
+          en.appendChild(lbl);
+          var pre = h("pre"); pre.textContent = p.en || "";
+          en.appendChild(pre);
+          wrap.appendChild(en);
+        }
+        var zh = h("div", "zh");
+        zh.appendChild(h("div", "lbl", "中文 · 第 " + (pi + 1) + " 段 · 改这里"));
+        var ta = h("textarea");
+        ta.value = p.zh || "";
+        ta.rows = 3;
+        ta.addEventListener("input", function () {
+          set("segments." + si + ".promptSegs." + pi + ".zh", ta.value);
+          set("segments." + si + ".promptSegs." + pi + ".edited", true);
+          markDirty();
+          var badge = wrap.querySelector(".edited");
+          if (!badge) {
+            var l2 = wrap.querySelector(".lbl");
+            var sp = h("span", "edited", "中文已改，待同步");
+            if (l2) l2.appendChild(sp);
+          }
+        });
+        zh.appendChild(ta);
+        wrap.appendChild(zh);
+        bd.appendChild(wrap);
+      });
+    }
+
+    var tools = h("div", "tools");
+    var sv = h("button", "btn primary sm", "保存提示词");
+    sv.onclick = function () { saveAll(false); };
+    tools.appendChild(sv);
+    var cp = h("button", "btn sm", "复制英文");
+    cp.onclick = function () {
+      var txt = segPromptFull(s);
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function () { toast("已复制本段完整英文（含全局画质块）"); });
+      else toast("浏览器不支持一键复制");
+    };
+    tools.appendChild(cp);
+    var cpz = h("button", "btn sm", "复制中文");
+    cpz.onclick = function () {
+      var txt = segPromptZh(s);
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(function () { toast("已复制本段中文提示词"); });
+      else toast("浏览器不支持一键复制");
+    };
+    tools.appendChild(cpz);
+    var rg = h("button", "btn sm", "生成这段视频");
+    rg.onclick = function () { runTask("videos", [s.id]); };
+    tools.appendChild(rg);
+    if (s.error) tools.appendChild(h("span", "tag warn", "上次失败：" + String(s.error).slice(0, 70)));
+    bd.appendChild(tools);
+    card.appendChild(bd);
+    return card;
+  }
+
+  function renderPrompts() {
+    var v = h("section", "page");
+    var tools = [];
+    var tg = h("button", "btn sm", showEn ? "只看中文" : "显示英文对照");
+    tg.onclick = function () { showEn = !showEn; render(); };
+    tools.push(tg);
+    var tm = h("button", "btn sm", mergedView ? "切成逐段编辑" : "整段合并显示");
+    tm.onclick = function () { mergedView = !mergedView; render(); };
+    tools.push(tm);
+    v.appendChild(pageHead("视频生成提示词", "MiniMax H3 全参考模式。最上方是「全局画质与摄影前置」，所有分镜共用、改一次全生效；下面是每个分镜的「一整段英文 + 一整段中文」，英文送生成，中文供你改。改中文时段与段之间空一行，保存后由 AI 按原格式同步回英文。时长按 5/6 折算成 API 实传值。", tools));
+    v.appendChild(flowbar());
+    v.appendChild(globalBar());
+
+    v.appendChild(paramBar("视频参数（MiniMax H3 · 全参考 Ref2VA）", false, function (g) {
+      /* --- 模型：直接读 ComfyUI 的 diffusion_models / loras / text_encoders / vae 目录 --- */
+      var unetOpts = selOptions(getModelList("unet"));
+      var loraOpts = [["", "（不挂 LoRA）"]].concat(getModelList("lora").map(function (x) { return [x, x]; }));
+      var tip = modelTip();
+      g.appendChild(field("H3 主模型（models/diffusion_models）", "settings.h3Model", { type: "select", options: unetOpts, hint: tip }));
+      g.appendChild(field("LoRA（models/loras）", "settings.h3Lora", { type: "select", options: loraOpts, hint: "选了就接 LoaderModelOnly 节点，不选则整条 LoRA 节点摘掉" }));
+      g.appendChild(field("LoRA 强度", "settings.h3LoraStrength", { type: "number", step: 0.05, min: -2, max: 2, hint: "默认 0.75" }));
+      g.appendChild(field("CLIP（models/text_encoders）", "settings.h3Clip", {
+        type: "select", options: selOptions(getModelList("clip")),
+        hint: "接了 CLIPLoader 节点 130；H3 走 minimax 类型，现用 Qwen3VL-8B"
+      }));
+      g.appendChild(field("视频 VAE（models/vae）", "settings.h3VideoVae", {
+        type: "select", options: selOptions(getModelList("vae")),
+        hint: "接 VAELoader 节点 121，条件载入与分块解码都用它"
+      }));
+      g.appendChild(field("音频 VAE（models/vae）", "settings.h3AudioVae", {
+        type: "select", options: selOptions(getModelList("vae")),
+        hint: "接 VAELoader 节点 122，音频 latent 编解码用它"
+      }));
+
+      /* --- 随机种 + 生成后控制 --- */
+      var seedBox = h("div", "field");
+      seedBox.appendChild(h("label", null, "随机种（0 = 每次随机）"));
+      var row = h("div", "tools");
+      var seedInp = h("input");
+      seedInp.type = "number"; seedInp.min = "0"; seedInp.value = (STATE.settings.seed == null ? 0 : STATE.settings.seed);
+      seedInp.style.maxWidth = "170px";
+      seedInp.oninput = function () {
+        STATE.settings.seed = seedInp.value === "" ? 0 : Number(seedInp.value); markDirty();
+      };
+      var rnd = h("button", "btn sm", "换一个");
+      rnd.onclick = function () {
+        seedInp.value = Math.floor(Math.random() * 2147482000) + 1;
+        STATE.settings.seed = Number(seedInp.value); markDirty();
+      };
+      row.appendChild(seedInp); row.appendChild(rnd);
+      seedBox.appendChild(row);
+      seedBox.appendChild(h("div", "hint", "每段按这个种子出片；批量时按下面的「生成后控制」往后推"));
+      g.appendChild(seedBox);
+      g.appendChild(field("生成后控制", "settings.afterGenerate", { type: "select", options: SEED_MODES, hint: "默认固定：同一批共用起始种子，重跑结果可复现" }));
+
+      var tools2 = h("div", "tools");
+      var rf = h("button", "btn sm", "刷新模型列表");
+      rf.onclick = function () {
+        toast("正在重新读取 ComfyUI 模型…");
+        loadModels(false);
+      };
+      tools2.appendChild(rf);
+      g.appendChild(h("div", "field")).appendChild(tools2);
+
+      g.appendChild(field("宽高比", "settings.ratio", { type: "select", options: RATIOS, hint: "短剧建议 9:16" }));
+      g.appendChild(field("分辨率（百万像素）", "settings.megapixels", { type: "number", step: 0.1, min: 0.2, max: 4, hint: "9:16 · 0.9 ≈ 704×1280" }));
+      g.appendChild(field("生成步数", "settings.steps", { type: "number", step: 1, min: 1, max: 60, hint: "默认 5（turbo_v4 蒸馏 LoRA 按 5 步走）" }));
+
+      /* --- 二采高清放大：默认关闭，打开后一采完成再做一次 latent 放大 + 低强度精修 --- */
+      var hdOn = !!STATE.settings.h3Hd;
+      g.appendChild(field("MiniMax H3 二采高清放大", "settings.h3Hd", {
+        type: "check",
+        checkLabel: "开启二采（关着只跑一采）",
+        hint: "关：一次采样出片，最快、最省显存。开：一采完成后再做一次 latent 放大，按目标像素补细节，人脸和远景更实；每段耗时会明显变长。",
+        onchange: function (on) {
+          var i = hdField && hdField.querySelector("input");
+          if (i) { i.disabled = !on; i.style.opacity = on ? "1" : ".5"; }
+        }
+      }));
+      var hdField = field("二采目标像素（MP）", "settings.h3HdMegapixels", {
+        type: "number", step: 0.1, min: 1, max: 4,
+        hint: hdOn ? "默认 1.5。一采是 " + (STATE.settings.megapixels || 0.7) + " MP，二采把它放大到这个像素再精修一轮" : "开关关闭时这一项不生效"
+      });
+      var hdInp = hdField.querySelector("input");
+      if (hdInp) { hdInp.disabled = !hdOn; hdInp.style.opacity = hdOn ? "1" : ".5"; }
+      g.appendChild(hdField);
+    }));
+
+    v.appendChild(voiceSummary());
+
+    if (!segs().length) v.appendChild(h("div", "empty", "还没有分段提示词。"));
+    segs().forEach(function (s, si) { v.appendChild(promptCard(s, si)); });
+
+    if (segs().length) {
+      var t = h("div", "tools");
+      t.appendChild(saveBtn("保存全部提示词"));
+      var all = h("button", "btn", "整批生成全部视频");
+      all.onclick = function () { runTask("videos", []); };
+      t.appendChild(all);
+      v.appendChild(t);
+    }
+    return v;
+  }
+
+  /* ---------- 页面：成品 ---------- */
+  function renderFinal() {
+    var v = h("section", "page");
+    v.appendChild(pageHead("成品", "每生成一段，视频就落在这里。生成时整批入队，ComfyUI 连续跑，模型只加载一次。"));
+    v.appendChild(flowbar());
+    var dirBar = h("div", "tools");
+    dirBar.style.margin = "12px 0 2px";
+    var openBtn = h("button", "btn", "打开本剧目录");
+    openBtn.title = "在资源管理器里打开 " + PROJECT_DIR;
+    openBtn.onclick = function () { openProjectDir(openBtn); };
+    dirBar.appendChild(openBtn);
+    var dirHint = h("span", "hint", "输出：" + PROJECT_DIR);
+    dirHint.style.marginTop = "0";
+    dirBar.appendChild(dirHint);
+    v.appendChild(dirBar);
+    var done = segs().filter(function (s) { return !!s.video; });
+    var all = segs();
+    if (!done.length) {
+      v.appendChild(h("div", "empty", "还没有生成的视频。先到「视频提示词」页确认提示词与配音，再点生成。"));
+    } else {
+      var grid = h("div", "vgrid");
+      done.forEach(function (s) {
+        var card = h("div", "vcard");
+        var wrap = h("div", "vwrap");
+        var vid = h("video");
+        vid.src = videoUrl(s); vid.controls = true; vid.preload = "metadata"; vid.playsInline = true;
+        wrap.appendChild(vid);
+        card.appendChild(wrap);
+        var vb = h("div", "vb");
+        vb.appendChild(h("span", "id", s.id));
+        vb.appendChild(h("span", "tag", (s.title || "") + " · " + (s.sec || "?") + "s"));
+        var dl = h("a", "btn sm", "下载");
+        dl.href = videoUrl(s); dl.download = (s.id || "seg") + ".mp4";
+        vb.appendChild(dl);
+        card.appendChild(vb);
+        grid.appendChild(card);
+      });
+      v.appendChild(grid);
+    }
+    if (all.length) {
+      var rest = all.length - done.length;
+      var t = h("div", "tools"); t.style.marginTop = "16px";
+      t.appendChild(h("span", "hint", "共 " + all.length + " 段，已生成 " + done.length + " 段" + (rest ? "，还差 " + rest + " 段" : "")));
+      if (rest) {
+        var go = h("button", "btn primary", "整批补齐剩余 " + rest + " 段");
+        go.onclick = function () { runTask("videos", []); };
+        t.appendChild(go);
+      }
+      v.appendChild(t);
+    }
+    return v;
+  }
+
+  /* ---------- 渲染 ---------- */
+  var RENDER = { synopsis: renderSynopsis, assets: renderAssets, prompts: renderPrompts, final: renderFinal };
+  function render() {
+    stat();
+    document.querySelectorAll("#nav button").forEach(function (b) {
+      b.classList.toggle("on", b.dataset.page === page);
+    });
+    var view = document.getElementById("view");
+    view.innerHTML = "";
+    view.appendChild(RENDER[page]());
+  }
+
+  document.getElementById("nav").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-page]");
+    if (!b) return;
+    page = b.dataset.page;
+    if (history.replaceState) history.replaceState(null, "", "#" + page);
+    render();
+    window.scrollTo(0, 0);
+    /* 进「资产 / 视频提示词」页就重新读一次模型：中途删了模型，下拉立刻跟上 */
+    if (SERVER && (page === "assets" || page === "prompts") && Date.now() - (MODELS.at || 0) > 2000) loadModels(true);
+  });
+  document.getElementById("saveAll").onclick = function () { saveAll(false); };
+  document.getElementById("reloadBtn").onclick = function () {
+    document.getElementById("banner").classList.remove("on");
+    reloadState();
+  };
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); saveAll(false); }
+  });
+  window.addEventListener("beforeunload", function (e) {
+    if (isDirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  document.getElementById("modeHint").textContent = SERVER
+    ? "已连接本地服务，保存直接写回项目"
+    : "文件模式：保存会下载 json，需要交给 AI";
+
+  render();
+  if (SERVER) {
+    /* 页面每次打开都现读一次 ComfyUI 的模型目录（服务端不缓存、浏览器也不缓存） */
+    loadModels(true);
+    setInterval(checkDisk, 8000);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# 运行期产物，不进仓库
+__pycache__/
+*.pyc
+*.pyo
+
+# 本机状态：参数记忆（模型路径 / 种子 / 模板）与本机路径配置
+settings.user.json
+config.json
+
+# 服务记录与临时文件
+.serve.json
+*.tmp
