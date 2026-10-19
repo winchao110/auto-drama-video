@@ -18,7 +18,9 @@
 | 时长 | 单元标题写 5–15 秒 | 提示词可写 5–18 秒；**API 实传 = round(sec × 5/6)** |
 | 配音 | 只写声线文字描述 | 可选**参考音**：HTML 里给角色挂音频，H3 切 `仅作音频参考 / Reference Only` |
 
-其余（Subject/S 编号、只写出场人物、Picture 段内重排、无独立站位段、Shot 不写时间码、固定尾部逐字、口型同步、禁止可读文字等）**全部照原模板执行**。
+其余（Subject/S 编号、只写出场人物、Picture 段内重排、Shot 不写时间码、固定尾部逐字、口型同步、禁止可读文字等）**全部照原模板执行**。
+**两处例外，以本技能为准**：① 不设独立的"人物站位"段，但场景段里必须带一句"本段开场站位与姿势"（四之三 · 铁律 C）；
+② 全局光影只在场景段声明一次，Shot 里不再写任何光影微调（四之三 · 铁律 D）。
 
 ---
 
@@ -57,8 +59,8 @@
 |---|---|---|
 | 1 | 画质前置块（`【GLOBAL QUALITY…】` + 画质正文） | 2 |
 | 2 | `<Subject1>` 角色映射 + 音色句（同一段内，机器注入） | 2 |
-| 3 | `<Subject2>` 场景 + 全局光影（双人则先 Subject2 角色 + 音色句，再 Subject3 场景） | 1–2 |
-| 4… | 每个 `[Shot N]` 一块：运镜+景别+位置+动作链+环境+光影，`says:` 与 `<d>` 台词同块 | 3–5 |
+| 3 | `<Subject2>` 场景 + 全局光影 + **本段开场站位/姿势句**（双人则先 Subject2 角色 + 音色句，再 Subject3 场景） | 1–2 |
+| 4… | 每个 `[Shot N]` 一块：运镜 + 景别 + 动作链 + 环境（**不写光影；人物不移动就不写位置**），`says:` 与 `<d>` 台词同块 | 3–5 |
 | N-1 | `【禁止项】` + 词表 | 2 |
 | N | `【强制声明】` + 声明句 | 2 |
 
@@ -129,6 +131,7 @@ H3 的帧数由 `length = round(genSec × 24)` 再按 17 帧对齐，节点自�
 
 H3 不是编剧，它只认"能在几秒画面里看见的东西"。文字通顺但模型做不到，就是废稿。
 下面八条是硬约束，可机检的部分已写进 `drama.py check`。
+**八条之上还有「四之三 · 构图与连续性四铁律」，优先级更高；两者冲突时按四铁律写。**
 
 ### ① 场景不穿帮：每一镜都要交代"背景落在哪儿"
 
@@ -172,34 +175,108 @@ H3 不是编剧，它只认"能在几秒画面里看见的东西"。文字通顺
 ### ⑤ 时序与连续性
 
 - **一镜一件事**：`走进客厅 → 坐下 → 拿起手机 → 提问` 是四个事件，至少拆两镜。
-- **每镜写明姿势与位置**：`seated on the left half of the sofa`、`standing at the window`。
-  上一镜站着、下一镜坐着而中间没有"坐下"动作 = 瞬移。
+- **姿势与位置只在本段场景段写一次**（见「四之三 · 铁律 C」），Shot 里只在**人物真的动了**的时候写
+  `from … to …`，没动就一个字都不写位置。上一镜站着、下一镜坐着而中间没有"坐下"动作 = 瞬移。
 - **朝向与道具前后一致**：他面朝左，下一镜不能突然面朝右，除非写"转身"。
 
 ### ⑥ 只用 H3 认识的术语
 
-- 可用：`push in / pull back / pan / tilt / track / dolly`，`close-up / medium shot / full shot / wide shot / reverse shot`
-  （推、拉、摇、跟、移；近景、中景、全景、正反打）
+- 可用：`push in / pull back / pan / tilt / track / dolly`，`close-up / medium shot / full shot / wide shot / reverse shot`，
+  `over-the-shoulder / over-the-waist`（过肩 / 过腰）
+  （推、拉、摇、跟、移；近景、中景、全景、正反打；过肩、过腰）
 - 不用：`升格`、`跟焦`、`浅景深`、`拉焦`、`变焦`、`荷兰角`、`摇臂`、`斯坦尼康`、
   `slow motion`、`rack focus`、`shallow depth of field`、`dutch angle`
 - 想表达浅景深，写大白话：`the background falls away softly`
 
-### ⑦ 多人同框必须写站位
+### ⑦ 多人同框：站位写在场景段，不写进 Shot
 
-一镜出现两个人，就把左右与前后写死：
+一镜出现两个人，**先在场景段**把左右与前后写死一次：
 
-> `CHEN MO on the left half of the frame, SU QING on the right, both facing the lens`
+> `S2 sits slumped at the right end of the sofa, one hand holding a phone; S1 sits close on his left, her torso tilted toward him.`
 
-不写站位 → 两人换位、脸串。**一镜只允许一个人说话**，两句台词必须分镜。
+然后 Shot 里**不要重复**"他在左、她在右"——重复等于给模型一条新指令，它会重新排站位。
+**一镜只允许一个人说话**，两句台词必须分镜。
 
-### ⑧ 9:16 窄屏：相隔远时禁止同框
+### ⑧ 窄屏：一律不许两人同框
 
-窄屏下模型会把画面**从中间劈成两半**（左边一人、右边一人），这是最不能出现的画面。
+窄屏（画幅宽高比 < 1，即 9:16 / 3:4）下**任何情况都不许两人同框**，哪怕并肩也不行——模型会把画面劈成左右两半。
 
-- 两人要同框就必须**物理靠近**：并肩、贴身、同一张沙发、面对面一臂之内。
-- 剧情要一人在门口、一人在窗边 → **分镜**，一人一镜；
-  中间用"他朝她走过去"的单独镜头连接（这一镜也只能一个人，或两人已贴身）。
-- 宁可多一个镜头，也不要一次切屏。
+- 一人一镜，用**正反打**接：她说完切他，视线方向对着彼此。
+- 需要交代"两人在一起"时，用**过肩/过脸**：前景只留另一个人的肩线或侧脸轮廓，主体仍然只有一个人。
+- 宽屏（16:9 / 21:9 / 4:3）才可以两人同框；两人隔着整个房间时必须拆成正反打。
+
+---
+
+## 四之三、构图与连续性四铁律（2026-10-19 用户钦定，优先级最高）
+
+这四条覆盖本文其他条目与 `h3-wenxi-v2-template.md` 里任何冲突的写法。**每一段提示词都要同时满足。**
+
+### 铁律 A：画幅决定能不能同框
+
+| 画幅 | 同框 | 怎么写 |
+|---|---|---|
+| 宽屏（16:9 / 21:9 / 4:3，宽高比 ≥ 1.3） | 可以 | 两人同框时写清左右，最好用关系镜头 |
+| 方屏（1:1） | 可以 | 必须并肩/贴身/同一张沙发，不许分置两端 |
+| 窄屏（9:16 / 3:4，宽高比 < 1） | **禁止** | 一人一镜，正反打或过肩/过脸接 |
+
+判断以工作台「视频参数 → 宽高比」为准，不是凭剧本想象。`check` 会直接卡窄屏双人同框。
+
+### 铁律 B：优先"过脸 / 过肩 / 过腰"的关系镜头，交代前景后景
+
+单人镜头也必须有空间关系，不许拍成一张平面照。首选这四种：
+
+| 写法 | 英文 | 交代了什么 |
+|---|---|---|
+| 过脸 | `past her cheek, close-up, …` | 前景是对方侧脸轮廓，主体在对面 |
+| 过肩 | `over-the-shoulder, close-up, …` | 前景是一条肩线压住画面一侧 |
+| 过腰 | `framed past his waist, medium shot, …` | 前景人物只入画到腰际，前后景都在 |
+| 正反打 | `reverse shot, medium shot, …` | 一人一镜，靠视线方向接起来 |
+
+**每个镜头都要能说出"前景是什么、后景是什么"**，写不出来就是平面照。可套的句式：
+
+```
+over-the-shoulder, close-up, the near shoulder of <Subject 2> filling the lower left edge,
+<Subject 1> sharp beyond it, the sofa back and the off-white wall behind her
+```
+
+**焦距给谁**（说话或做动作的人必须是焦点所在，对手只作前景轮廓；禁用 `rack focus / shallow depth of field`）：
+
+- 焦点在前景：`the focus holds on the near figure, the far side of the room falls away softly`
+- 焦点在后景：`the focus sits on the far figure, the near shoulder reads soft and out of register`
+
+### 铁律 C：每段独立，禁止跨段上下文
+
+ComfyUI 是**一段一个任务**送进去的，模型不知道上一段发生了什么。所以：
+
+1. **禁止任何跨段指代**：`still / remains / continues / as before / same as the previous / 仍然 / 依旧 / 还是坐在 / 仍坐在 / 继续坐在 / 如前`。
+   `check` 命中即报硬问题。
+2. **每段必须在场景段里把"本段开场状态"重写一遍**：谁在哪、什么姿势、手里有什么、朝向谁。
+   写在场景 `<Subject N>` 段（单人是 Subject2、双人是 Subject3）的开头一句，**紧接着**再写场景环境：
+
+```
+<Subject 3> is the living room scene. S2 sits slumped at the right end of the sofa, one hand
+holding a phone; S1 sits close on his left, her torso tilted toward him, both facing each other.
+The oat-coloured sofa fills the centre, a glass of water on the tea table, an off-white wall behind.
+```
+
+```
+<Subject 3>是客厅场景。S2 瘫坐在沙发右侧，一只手拿着手机；S1 坐在他左侧，身体歪向他，
+两人面对面。燕麦色布艺沙发居中，茶几上放着一杯水，身后是暖白色墙面。
+```
+
+- 这段是**本段的起点**，后面每一镜的位置都从这里推。
+- 姿势用实词：`sits / seated / slumped / sprawled / stands / leans / lies`，位置用锚点：`sofa / bed / door / window / desk / floor + left / right / centre`。
+- 人换了地方（上一段在沙发、这一段在门口），就在场景段里直接写新位置 + 怎么到的（`standing at the doorway, keys still in hand`），不要写"她走过去"这种跨段动作。
+
+### 铁律 D：Shot 里只写"这一镜发生的变化"
+
+1. **人物没移动，就不写位置**。不要每镜复制"她在画面左侧、他在右侧"，模型会重排站位。
+2. **人物动了，必须写"从哪到哪"**，起点与场景段的开场状态一致，终点能接上下一镜：
+   - ✅ `she leans further in from his left, closing the gap to a hand's width`
+   - ❌ 开场"两人坐在沙发上"，下一镜写 `she stands at the window`（中间没有起身走过去 → 瞬移）
+3. **一段内只允许一次位移**；要换空间就拆段。
+4. **Shot 里不写光影**。全局光影已在场景段声明一次，每镜再写会把模型带到不同光位，也会和资产图的光打架。
+   要写"看不看得清"就写材质和方向（`the sleeve catches the fold of the cushion`），不写灯、不写色温、不写亮边。
 
 ---
 
@@ -321,6 +398,10 @@ H3 不是编剧，它只认"能在几秒画面里看见的东西"。文字通顺
 - [ ] `sec` 在 5–18，`genSec` = round(sec×5/6)，两者没有被手改。
 - [ ] `cast` 只写本段真出场的人，`refs` 顺序与 `<Picture N>` 一致。
 - [ ] `【禁止项】` / `【强制声明】` 两段在最后，逐字保留。
-- [ ] 每个 Shot 有运镜 + 景别 + 人物位置 + 动作链 + 环境 + 光影，且 Shot 内无时间码。
+- [ ] 每个 Shot 有运镜 + 景别 + 动作链 + 环境，且 Shot 内无时间码。
+- [ ] **画幅对得上同框规则**：窄屏（9:16 / 3:4）没有一镜两人；宽屏双人同框写了左右与前后。
+- [ ] **关键对话用了过脸 / 过肩 / 过腰 / 正反打**之一，每个 Shot 都能说出前景是什么、后景是什么。
+- [ ] **每段场景段都重写了本段开场站位与姿势**（谁在哪、坐/站/靠/躺、手里有什么、朝向谁），不靠"仍然/如前"。
+- [ ] **Shot 里没有光影词**（灯、光、色温、亮边、阴影都没有），也没有在人物没移动时写画面位置。
 - [ ] 18 秒段台词 ≤ 56 字，其他段按密度表。
 - [ ] **挂了参考音的人物，其 `<Subject K>` 段里有对应的 `<Audio N>` 句，并且写明了"只继承音色、不参考原台词"**（`check` 会查）。

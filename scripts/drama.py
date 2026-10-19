@@ -2378,8 +2378,10 @@ CINE_BAD = ("升格", "跟焦", "浅景深", "拉焦", "变焦", "荷兰角", "�
             "slow motion", "rack focus", "shallow depth of field", "dutch angle",
             "dolly zoom", "crane shot", "steadicam")
 CINE_OK = ("push", "pull", "pan", "tilt", "track", "dolly", "close-up", "close up",
-           "medium shot", "full shot", "wide shot", "reverse", "推", "拉", "摇", "跟", "移",
-           "近景", "中景", "全景", "特写", "正反打")
+           "medium shot", "full shot", "wide shot", "reverse", "over-the-shoulder",
+           "over the shoulder", "over-the-waist", "over the waist",
+           "推", "拉", "摇", "跟", "移",
+           "近景", "中景", "全景", "特写", "正反打", "过肩", "过脸", "过腰")
 EVENT = ("walks", "enters", "sits down", "stands up", "turns", "picks up", "puts down",
          "hands it", "pushes", "lies down", "crosses over",
          "走进", "走进来", "坐下", "坐到", "站起", "起身", "转身", "拿起", "放下", "递给",
@@ -2392,6 +2394,32 @@ NEAR = ("beside", "next to", "against", "close to", "in his arms", "shoulder to 
         "same sofa", "face to face", "within arm", "并肩", "贴着", "靠在一起", "同一张沙发", "面对面")
 FAR = ("across the room", "far side", "other end of the room", "at the door", "in the doorway",
        "房间另一端", "对面墙", "门口", "远处")
+# 每段独立生成：这些词都是"拿上一段当上下文"，模型看不到，直接判硬问题
+CONTEXT_REF = ("still sitting", "still seated", "still standing", "still on the same",
+               "still holding the same", "remains seated", "remains sitting", "remains standing",
+               "continues to sit", "continues to stand", "as before", "as in the previous",
+               "same as the previous", "from the last shot", "仍然", "依旧", "还是坐在", "仍坐在",
+               "仍在原地", "继续坐在", "和上一段", "如前", "接着上")
+# Shot 里不许出现的光影词（全局光影已在场景段声明；裸 "light" 会误伤 light grey，故不收）
+LIGHT_WORDS = ("lighting", "key light", "rim light", "backlight", "back light", "side light",
+               "top light", "fill light", "soft light", "hard light", "warm light", "cool light",
+               "sunlight", "moonlight", "lamp light", "light from", "light falls", "light hits",
+               "shadow", "shadows", "主光", "辅光", "轮廓光", "侧光", "逆光", "顶光", "打光",
+               "补光", "光线", "灯光", "光斑", "亮边", "高光", "阴影", "色温")
+# Shot 里的"画面构图位置"（人物没动就不该写）
+FRAME_POS = ("frame left", "frame right", "left side of the frame", "right side of the frame",
+             "left half of the frame", "right half of the frame", "center of the frame",
+             "画面左", "画面右", "画面中心", "左半边", "右半边")
+# 站位锚点：本段开场状态必须写清"人在哪儿"
+POS_ANCHOR = ("sofa", "couch", "bed", "chair", "stool", "floor", "desk", "table", "counter",
+              "door", "doorway", "window", "kitchen", "hallway", "stairs", "armchair",
+              "left", "right", "side", "corner", "沙发", "床", "椅", "地板", "桌", "台面",
+              "门口", "窗", "厨房", "走廊", "楼梯", "左", "右", "角落", "里侧", "外侧")
+# 关系镜头（过脸 / 过肩 / 过腰 / 正反打）
+OTS = ("over-the-shoulder", "over the shoulder", "over-the-face", "over the face",
+       "past her cheek", "past his cheek", "over-the-waist", "over the waist",
+       "past his waist", "past her waist", "reverse shot", "reverse angle",
+       "过肩", "过脸", "过腰", "正反打")
 PERF = ("expression", "eyebrow", "smirk", "grin", "frown", "jaw", "lip", "breath", "blink",
         "stare", "eyes", "face",
         "表情", "神色", "眼神", "嘴角", "眉", "呼吸", "下巴", "眨眼", "脸")
@@ -2418,10 +2446,23 @@ def _split_words(s):
     return [w.lower() for w in re.split(r"[，,。;；/、\s]+", s or "") if len(w) >= 2]
 
 
+def _ratio_wh(ratio):
+    """把 16:9 / 9:16 这类字符串解析成 (w, h)，解析不了返回 None。"""
+    m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*[:：]\s*(\d+(?:\.\d+)?)\s*$", str(ratio or ""))
+    if not m:
+        return None
+    a, b = float(m.group(1)), float(m.group(2))
+    return (a, b) if b else None
+
+
 def check_h3_rules(st, issues, warns):
-    """H3 落地八条：①场景 ②道具 ③风格 ④具象化 ⑤时序 ⑥术语 ⑦站位 ⑧窄屏切屏。"""
+    """H3 落地八条 + 构图与连续性四铁律（画幅同框 / 关系镜头 / 每段独立 / Shot 不写光影与位置）。"""
     ratio = str((st.get("settings") or {}).get("ratio") or "")
-    narrow = ratio in ("9:16", "3:4", "2:3", "9:21", "1:2")
+    wh = _ratio_wh(ratio)
+    aspect = (wh[0] / wh[1]) if wh else None
+    narrow = ratio in ("9:16", "3:4", "2:3", "9:21", "1:2") or (aspect is not None and aspect < 1.0)
+    wide = aspect is not None and aspect >= 1.3
+    ots_used = 0
     props = [a for a in st.get("assets") or [] if a.get("type") == "prop"]
     prop_words = []
     for a in props:
@@ -2435,6 +2476,24 @@ def check_h3_rules(st, issues, warns):
             warns.append("%s 没有 [Shot N] 分段，H3 会把整段当一个长镜头乱切" % sid)
             continue
         total += len(shots)
+
+        # 本段出场人物：<Subject K>NAME → K（点名和 <Subject K> 都折算成同一个编号，避免重复计数）
+        subj_idx = {}
+        for b in seg.get("promptSegs") or []:
+            t = b.get("en") or ""
+            if H3_SHOT_RE.match(t.strip()):
+                continue
+            for mm in re.finditer(
+                    r"<Subject\s*(\d+)>\s*([A-Z][A-Za-z'’]+(?:\s+[A-Z][A-Za-z'’]+)*)", t):
+                subj_idx[mm.group(2).strip()] = int(mm.group(1))
+
+        def _who(text):
+            ids = set(int(x) for x in re.findall(r"<Subject\s*(\d+)>", text))
+            ids |= set(int(x) for x in re.findall(r"\bS(\d)\b", text))
+            for nm, i in subj_idx.items():
+                if nm in text:
+                    ids.add(i)
+            return ids
 
         # ① 场景不穿帮
         scene_hit = {}
@@ -2473,34 +2532,53 @@ def check_h3_rules(st, issues, warns):
                 warns.append("%s 的 Shot %d 有精细手部操作（%s），H3 手部弱，降级成「手持某物」" % (
                     sid, n, "、".join(hh[:3])))
 
-        # ⑤ 时序与连续性
+        # ⑤ 时序与连续性（姿势只在本段场景段交代，Shot 里不再重复）
         for n, t in shots:
             ev = _hits(t, EVENT)
             if len(ev) >= 3:
                 warns.append("%s 的 Shot %d 一镜塞了 %d 个事件（%s），要拆镜" % (
                     sid, n, len(ev), "、".join(ev)))
-        no_pose = [n for n, t in shots if not _hits(t, POSE)]
-        if no_pose:
-            warns.append("%s 的 Shot %s 没写姿势/位置（站/坐/靠/躺），前后会瞬移" % (
-                sid, ",".join(map(str, no_pose))))
-        # 相邻镜姿势跳变：只比较同一个人；并剔除 "standing out"（青筋绷出）这类假姿势
+        # 相邻镜姿势跳变：只比较同一个人（按 <Subject N> 认人，不写死人名）
         prev = {}
         for n, t in shots:
             low = t.lower().replace("standing out", "").replace("stands out", "")
             cur = "坐" if _hits(low, ("seated", "sits", "sitting", "sprawled", "slumped",
                                       "perched", "坐在", "坐着", "瘫")) else (
                 "站" if _hits(low, ("stands", "standing", "站着")) else None)
-            who = []
-            if re.search(r"SU QING|<Subject\s*1>", t):
-                who.append("S1")
-            if re.search(r"CHEN MO|<Subject\s*2>", t):
-                who.append("S2")
+            who = sorted(_who(t))
             for w in who:
                 if cur and prev.get(w) and prev[w] != cur and not _hits(t, POSE_MOVE):
                     warns.append("%s 的 Shot %d 姿势从%s直接变%s、中间没有过渡动作 → 会瞬移" % (
                         sid, n, prev[w], cur))
                 if cur:
                     prev[w] = cur
+
+        # ⑨ 每段独立（ComfyUI 逐段生成，模型看不到上一段）：不许跨段指代 + 场景段必须写开场站位
+        scene_text = "\n".join((b.get("en") or "") + " " + (b.get("zh") or "")
+                               for b in seg.get("promptSegs") or []
+                               if not H3_SHOT_RE.match((b.get("en") or "").strip()))
+        ctx = _hits(scene_text + "\n" + "\n".join(t for _, t in shots), CONTEXT_REF)
+        if ctx:
+            issues.append("%s 用了跨段指代（%s）→ 每段单独送进 ComfyUI，模型没有上一段的记忆，"
+                          "本段开场状态必须重写一遍" % (sid, "、".join(ctx[:3])))
+        if not _hits(scene_text, POSE):
+            issues.append("%s 的场景段没写本段开场站位/姿势（坐/站/靠/躺）→ 模型只能瞎猜，"
+                          "上一段结尾的姿势接不上" % sid)
+        elif not _hits(scene_text, POS_ANCHOR):
+            warns.append("%s 的场景段写了姿势但没写人在哪（沙发左/右、床、门口…），站位会飘" % sid)
+
+        # ⑩ Shot 不写光影（全局已有）；人物没移动就不写画面位置
+        for n, t in shots:
+            if _hits(t, OTS):
+                ots_used += 1
+            lg = _hits(t, LIGHT_WORDS)
+            if lg:
+                issues.append("%s 的 Shot %d 写了光影（%s）→ 全局光影已声明，每镜再写会把光位带跑，删掉" % (
+                    sid, n, "、".join(lg[:3])))
+            fp = _hits(t, FRAME_POS)
+            if fp and not _hits(t, EVENT):
+                warns.append("%s 的 Shot %d 人物没移动却写了画面位置（%s），模型会重排站位，删掉" % (
+                    sid, n, "、".join(fp[:3])))
 
         # ⑥ 术语
         bad = list(dict.fromkeys(w for _, t in shots for w in _hits(t, CINE_BAD)))
@@ -2522,23 +2600,27 @@ def check_h3_rules(st, issues, warns):
             if gone:
                 warns.append("%s 建了道具 %s 但镜头里没出现，关键道具不能凭空消失" % (sid, "、".join(gone)))
 
-        # ⑦ 站位 / 一镜一台词　⑧ 窄屏切屏
+        # ⑦ 画幅决定同框　⑧ 窄屏一律双人分镜
         for n, t in shots:
-            subs = set(re.findall(r"<Subject\s*(\d+)>", t))
-            if len(subs) >= 2 and not _hits(t, ("left", "right", "左", "右")):
-                warns.append("%s 的 Shot %d 有 %d 人同框却没写站位（画面左/右），会换位串脸" % (
-                    sid, n, len(subs)))
+            subs = _who(t)
             if t.count("<d>") >= 2:
                 issues.append("%s 的 Shot %d 里两个人在说话，一镜只允许一人说话，必须分镜" % (sid, n))
-            if narrow and len(subs) >= 2:
-                if _hits(t, FAR) and not _hits(t, NEAR):
-                    issues.append("%s 的 Shot %d 在 %s 窄屏里让两人相隔很远同框 → 会劈屏，必须拆镜" % (
-                        sid, n, ratio))
-                elif not _hits(t, NEAR):
-                    warns.append("%s 的 Shot %d 窄屏双人同框但没写并肩/贴身，有劈屏风险" % (sid, n))
+            if len(subs) < 2:
+                continue
+            if narrow:
+                issues.append("%s 的 Shot %d 在 %s 窄屏里让两人同框 → 会被劈成左右两半，"
+                              "必须拆成正反打一人一镜" % (sid, n, ratio or "窄屏"))
+            elif wide and _hits(t, FAR) and not _hits(t, NEAR):
+                issues.append("%s 的 Shot %d 让两人隔着整个房间同框 → 宽屏也会拍成两个小人，"
+                              "拆成正反打或写清走近" % (sid, n))
+            elif not (wide or _hits(t, NEAR)):
+                warns.append("%s 的 Shot %d 方屏双人同框但没写并肩/贴身，有劈屏风险" % (sid, n))
 
+    if total and not ots_used:
+        warns.append("全片没有用过脸/过肩/过腰/正反打这类关系镜头 → 都成了平面单人照，"
+                     "至少给关键对话配一次过肩或正反打")
     if total:
-        print("H3 落地八条：%d 段 / %d 个镜头（场景·道具·风格·具象·时序·术语·站位·窄屏）" % (
+        print("H3 落地八条 + 构图连续性四铁律：%d 段 / %d 个镜头（画幅同框·关系镜头·逐段独立·无光影）" % (
             len(st.get("segments") or []), total), flush=True)
 
 
@@ -2698,7 +2780,7 @@ def cmd_check(args):
     except Exception as e:
         warns.append("Veda 档位检查失败：%s" % e)
 
-    # H3 落地八条（场景 / 道具 / 风格 / 具象化 / 时序 / 术语 / 站位 / 窄屏切屏）
+    # H3 落地八条 + 构图连续性四铁律（画幅同框 / 关系镜头 / 逐段独立 / Shot 不写光影与位置）
     try:
         check_h3_rules(st, issues, warns)
     except Exception as e:
