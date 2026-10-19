@@ -2364,8 +2364,8 @@ SCENE_GROUPS = {
     "阳台": ("balcony", "阳台"),
     "电梯": ("elevator", "电梯"),
 }
-BG_ANCHOR = ("background", "behind", "wall", "window", "sofa back", "backdrop",
-             "背景", "身后", "墙", "窗", "靠背")
+# 2026-10-19 用户要求取消「每镜必须写背景落点」：场景只在场景段声明一次，Shot 不再复述背景
+BACKDROP_RESTATE = ("wall behind", "sofa back", "backdrop", "身后的墙", "身后是", "背景是")
 PSY_HARD = ("内心os", "内心独白", "心里想", "暗想", "心想", "意识到", "明白了", "决定要",
             "inner monologue", "voice-over", "realizes", "realises", "decides to",
             "thinks to himself", "thinks to herself", "inwardly", "mentally")
@@ -2458,7 +2458,7 @@ def _ratio_wh(ratio):
 
 
 def check_h3_rules(st, issues, warns):
-    """H3 落地八条 + 构图与连续性四铁律（画幅同框 / 关系镜头 / 每段独立 / Shot 不写光影与位置）。"""
+    """H3 落地规则 + 构图与连续性四铁律（画幅同框 / 关系镜头 / 每段独立 / Shot 不写光影与位置）。"""
     ratio = str((st.get("settings") or {}).get("ratio") or "")
     wh = _ratio_wh(ratio)
     aspect = (wh[0] / wh[1]) if wh else None
@@ -2510,7 +2510,7 @@ def check_h3_rules(st, issues, warns):
                     ids.add(i)
             return ids
 
-        # ① 场景不穿帮
+        # ① 场景不穿帮：只查"一段里换了空间"；背景只写在场景段，Shot 不再要求背景落点
         scene_hit = {}
         for name, kws in SCENE_GROUPS.items():
             for n, t in shots:
@@ -2519,10 +2519,6 @@ def check_h3_rules(st, issues, warns):
         if len(scene_hit) >= 2:
             warns.append("%s 一段里出现了多个空间（%s），背景会跳；写清移动过程或拆段" % (
                 sid, "、".join(sorted(scene_hit))))
-        no_bg = [n for n, t in shots if not _hits(t, BG_ANCHOR)]
-        if no_bg:
-            warns.append("%s 的 Shot %s 没写背景落点（身后是什么），背景会各镜乱跳" % (
-                sid, ",".join(map(str, no_bg))))
 
         # ③ 风格贯穿
         if not any(_hits(t, PERF) for _, t in shots):
@@ -2594,6 +2590,10 @@ def check_h3_rules(st, issues, warns):
             if fp and not _hits(t, EVENT):
                 warns.append("%s 的 Shot %d 人物没移动却写了画面位置（%s），模型会重排站位，删掉" % (
                     sid, n, "、".join(fp[:3])))
+            bg = _hits(t, BACKDROP_RESTATE)
+            if bg:
+                warns.append("%s 的 Shot %d 复述了背景（%s）→ 场景段已经声明过一次，"
+                             "Shot 只写这一镜的动作，删掉这句" % (sid, n, "、".join(bg[:3])))
 
         # ⑥ 术语
         bad = list(dict.fromkeys(w for _, t in shots for w in _hits(t, CINE_BAD)))
@@ -2635,7 +2635,7 @@ def check_h3_rules(st, issues, warns):
         warns.append("全片没有用过脸/过肩/过腰/正反打这类关系镜头 → 都成了平面单人照，"
                      "至少给关键对话配一次过肩或正反打")
     if total:
-        print("H3 落地八条 + 构图连续性四铁律：%d 段 / %d 个镜头（画幅同框·关系镜头·逐段独立·无光影）" % (
+        print("H3 落地规则 + 构图连续性四铁律：%d 段 / %d 个镜头（画幅同框·关系镜头·逐段独立·无光影无背景复述）" % (
             len(st.get("segments") or []), total), flush=True)
 
 

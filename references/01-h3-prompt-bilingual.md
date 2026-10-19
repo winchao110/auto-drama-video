@@ -133,12 +133,14 @@ H3 不是编剧，它只认"能在几秒画面里看见的东西"。文字通顺
 下面八条是硬约束，可机检的部分已写进 `drama.py check`。
 **八条之上还有「四之三 · 构图与连续性四铁律」，优先级更高；两者冲突时按四铁律写。**
 
-### ① 场景不穿帮：每一镜都要交代"背景落在哪儿"
+### ① 场景不穿帮：场景只声明一次，Shot 不再复述背景
 
-一镜一句背景锚，全段用同一个场景锚，别这一镜客厅下一镜咖啡厅。
+**场景段（`<Subject 3>`）把空间、家具、墙面一次写全，每个 `[Shot N]` 不再写"身后是什么"。**
+Shot 里重复背景等于每镜重新描述一遍同一面墙，模型会把注意力从动作挪到布景上，还会和场景参考图打架。
 
-- ✅ `the plain warm-white wall behind him, the oat-coloured sofa under his hip`
-- ❌ 只写人物和动作、不写身后是什么 → H3 自由发挥，背景每镜都在跳
+- ✅ 场景段：`a light oatmeal sofa against a plain warm off-white wall, a walnut coffee table in front of it`
+- ✅ Shot：`Over-the-shoulder, close-up, the near shoulder of CHEN YU soft along the lower right edge, SU MO sharp beyond it, …`
+- ❌ Shot 结尾补一句 `the sofa back and the off-white wall behind her` → 每镜都重述布景，动作被稀释
 
 同段内出现两个不同空间（客厅＋卧室）时，必须写清移动过程，否则拆段。
 
