@@ -2395,17 +2395,19 @@ NEAR = ("beside", "next to", "against", "close to", "in his arms", "shoulder to 
 FAR = ("across the room", "far side", "other end of the room", "at the door", "in the doorway",
        "房间另一端", "对面墙", "门口", "远处")
 # 每段独立生成：这些词都是"拿上一段当上下文"，模型看不到，直接判硬问题
-CONTEXT_REF = ("still sitting", "still seated", "still standing", "still on the same",
+CONTEXT_REF = ("still sitting", "still seated", "still standing", "still leaning", "still sprawled",
+               "still slumped", "still facing", "still holding", "still on the same",
                "still holding the same", "remains seated", "remains sitting", "remains standing",
                "continues to sit", "continues to stand", "as before", "as in the previous",
-               "same as the previous", "from the last shot", "仍然", "依旧", "还是坐在", "仍坐在",
-               "仍在原地", "继续坐在", "和上一段", "如前", "接着上")
+               "same as the previous", "from the last shot", "same sofa", "同一张沙发", "仍然", "依旧",
+               "还是坐在", "仍坐在", "仍在原地", "继续坐在", "和上一段", "如前", "接着上")
 # Shot 里不许出现的光影词（全局光影已在场景段声明；裸 "light" 会误伤 light grey，故不收）
-LIGHT_WORDS = ("lighting", "key light", "rim light", "backlight", "back light", "side light",
+LIGHT_WORDS = ("lighting", "key light", "warm key", "cool key", "key from", "rim light",
+               "bright rim", "rim along", "rim on", "backlight", "back light", "side light",
                "top light", "fill light", "soft light", "hard light", "warm light", "cool light",
                "sunlight", "moonlight", "lamp light", "light from", "light falls", "light hits",
-               "shadow", "shadows", "主光", "辅光", "轮廓光", "侧光", "逆光", "顶光", "打光",
-               "补光", "光线", "灯光", "光斑", "亮边", "高光", "阴影", "色温")
+               "shadow", "shadows", "half a stop", "主光", "辅光", "轮廓光", "侧光", "逆光", "顶光",
+               "打光", "补光", "光线", "灯光", "光斑", "亮边", "高光", "阴影", "色温")
 # Shot 里的"画面构图位置"（人物没动就不该写）
 FRAME_POS = ("frame left", "frame right", "left side of the frame", "right side of the frame",
              "left half of the frame", "right half of the frame", "center of the frame",
@@ -2463,6 +2465,19 @@ def check_h3_rules(st, issues, warns):
     narrow = ratio in ("9:16", "3:4", "2:3", "9:21", "1:2") or (aspect is not None and aspect < 1.0)
     wide = aspect is not None and aspect >= 1.3
     ots_used = 0
+
+    # 画幅一致性：全局画质块里写死的画幅必须与视频参数一致，否则提示词和实际出图打架
+    gb = (st.get("meta") or {}).get("globalBlock") or {}
+    gb_text = " ".join(str(gb.get(k) or "") for k in ("en", "zh"))
+    declared = [r for r in ("9:16", "16:9", "4:3", "3:4", "1:1", "21:9") if r in gb_text]
+    if ratio and declared and ratio not in declared:
+        issues.append("全局画质块写的是 %s，但视频参数是 %s → 提示词和实际画幅打架，"
+                      "模型会按错画幅构图；把这一句改成 %s" % ("、".join(declared), ratio, ratio))
+    elif ratio and len(set(declared)) > 1:
+        warns.append("全局画质块里出现了多个画幅（%s），只保留 %s 一个" % ("、".join(declared), ratio))
+    if "focus held on the face in every shot" in gb_text.lower():
+        warns.append("全局画质块写了 focus held on the face in every shot（每镜都锁脸）→ 和"
+                     "「焦点给前景还是后景」冲突，删掉这句，让每个 Shot 自己决定")
     props = [a for a in st.get("assets") or [] if a.get("type") == "prop"]
     prop_words = []
     for a in props:

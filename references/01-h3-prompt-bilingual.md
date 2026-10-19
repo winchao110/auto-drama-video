@@ -244,6 +244,12 @@ over-the-shoulder, close-up, the near shoulder of <Subject 2> filling the lower 
 - 焦点在前景：`the focus holds on the near figure, the far side of the room falls away softly`
 - 焦点在后景：`the focus sits on the far figure, the near shoulder reads soft and out of register`
 
+**全局块两处禁区**（`check` 会查）：
+
+- 画幅词必须和「视频参数 → 宽高比」一字不差：`vertical 9:16 framing` 只配 9:16，改成 16:9 就必须同步改成
+  `horizontal 16:9 framing`，否则提示词按竖屏构图、实际出横屏，人脸和站位全乱。
+- 不要写 `focus held on the face in every shot`（每镜都锁脸），它会把"焦点给前景还是后景"这条废掉。
+
 ### 铁律 C：每段独立，禁止跨段上下文
 
 ComfyUI 是**一段一个任务**送进去的，模型不知道上一段发生了什么。所以：
