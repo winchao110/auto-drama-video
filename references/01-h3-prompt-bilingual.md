@@ -15,72 +15,107 @@
 | 项 | 原 v2 模板 | 本技能 |
 |---|---|---|
 | 输出语言 | 默认纯中文 | **英文正文为唯一生成用文本，中文逐段对照** |
-| 时长 | 单元标题写 5–15 秒 | 提示词可写 5–18 秒；**API 实传 = round(sec × 5/6)** |
+| 结构 | 中文小标题段落流 | **六段式英文块**：`subject_definitions / summary / retention_analysis / detailed_description / overall_soundscape / non_diegetic_music`（见 2.1） |
+| 时长 | 单元标题写 5–15 秒 | 提示词可写 5–18 秒；**API 实传 = round(sec × 5/6)**；**Shot 内一律不写时长** |
 | 配音 | 只写声线文字描述 | 可选**参考音**：HTML 里给角色挂音频，H3 切 `仅作音频参考 / Reference Only` |
 
-其余（Subject/S 编号、只写出场人物、Picture 段内重排、Shot 不写时间码、固定尾部逐字、口型同步、禁止可读文字等）**全部照原模板执行**。
-**两处例外，以本技能为准**：① 不设独立的"人物站位"段，但场景段里必须带一句"本段开场站位与姿势"（四之三 · 铁律 C）；
-② 全局光影只在场景段声明一次，Shot 里不再写任何光影微调（四之三 · 铁律 D）。
+其余（Subject/S 编号、只写出场人物、Picture 段内重排、口型同步、禁止可读文字等）**全部照原模板执行**。
+**四处例外，以本技能为准**：① 不设独立的"人物站位"段，但 `subject_definitions:` 的场景条里必须带一句"本段开场站位与姿势"（四之三 · 铁律 C）；
+② 全局光影只在场景条声明一次，Shot 里不再写任何光影微调（四之三 · 铁律 D）；
+③ 结尾不再有 `【禁止项】`/`【强制声明】` 两块，禁止项并进 `detailed_description:` 首句；
+④ Shot 里不写 `At 00:03.000` 之类时间码，镜头长短交给模型。
 
 ---
 
 ## 二、双语段落对（核心）
 
-### 2.1 结构
+### 2.1 六段式结构（2026-10-19 起强制，按官方 H3 长提示词格式）
 
-每个单元提示词由 N 个"段落对"组成，**英文在上、中文在下，一段对一段**：
+每个单元提示词 = **固定六个块，顺序与块名都不许改**（英文小写 + 英文冒号，顶格另起一行）：
 
-```
-[EN] 【GLOBAL QUALITY & CINEMATOGRAPHY】 8K ... 
-[ZH] 【全局画质与摄影前置】8K ...
+| # | 块名 | 写什么 |
+|---|---|---|
+| 1 | `subject_definitions:` | 每个 `<Subject N>` 一行：是什么 + 对应 `<Picture N>` + 关键外观。`<Audio N>` 也在这里，指向它要模仿的人物。**有场景图时场景排第一条**，人物随后 |
+| 2 | `summary:` | 一段话讲本段整体发生什么（模型靠它理解意图），开头可带 `[reference generation + audio reference]` |
+| 3 | `retention_analysis:` | 逐 Subject 一行，写本段必须保住的特征：`fully_preserved - …`；音频写 `reference - …` |
+| 4 | `detailed_description:` | 第一句是全局风格 + 画幅 + 画质 + 禁止项；随后每个 `[Shot N]` 一块 |
+| 5 | `overall_soundscape:` | 环境声一句话（房间底噪、室外声） |
+| 6 | `non_diegetic_music:` | 有配乐写配乐，没有就写 `N/A` |
 
-[EN] <Subject1>SHEN YAN is <Picture 1> ...（外貌/服装/配饰）
-     <Audio 1> is the only voice reference ...（或固定音色句，由脚本自动注入）
-[ZH] <Subject1>沈砚是<Picture 1> ……
-     <Audio 1> 是 <Subject 1> 的音色参考 …（或固定音色句）
+```text
+subject_definitions:
+<Subject 1> is the living room in <Picture 1>, an oatmeal sofa, an off-white wall, a walnut
+tea table with a glass of water, warm lamplight.
+<Subject 2> is SU MO in <Picture 2>, a 28-year-old woman, light-grey hoodie, white shorts, low
+ponytail. Opening state: she sits on the left half of the sofa, her torso turned to the right.
+<Subject 3> is CHEN YU in <Picture 3>, a 30-year-old man, black tee, grey sweatpants, short
+black hair. Opening state: he sits sprawled at the right end of the sofa, phone in his right hand.
+<Audio 1> is the voice-timbre reference for <Subject 2> (S2), containing a spoken Chinese vocal layer.
+<Audio 2> is the voice-timbre reference for <Subject 3> (S3), containing a spoken Chinese vocal layer.
 
-[EN] [Shot 1]
-     Slow push-in, close-up, ...
-     <Subject 1> (S1) says:
-     <d>[Chinese]婚礼继续，我不介意。</d>
-[ZH] [Shot 1]
-     缓慢匀速向前推进，近景，……
-     <Subject 1> (S1) says:
-     <d>[Chinese]婚礼继续，我不介意。</d>
+summary:
+[reference generation + audio reference] SU MO tests CHEN YU on the sofa; he answers without
+lifting his eyes from his phone, and she leans in to press the point.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - the oatmeal sofa, off-white wall
+and walnut tea table are retained.
+<Subject 2> (appears in [Shot 1]): fully_preserved - her oval face, low ponytail and grey hoodie are retained.
+<Subject 3> (appears in [Shot 2]): fully_preserved - his short black hair, black tee and grey sweatpants are retained.
+<Audio 1>: reference - its vocal timbre guides <Subject 2>'s delivery without copying the original signal.
+<Audio 2>: reference - its vocal timbre guides <Subject 3>'s delivery without copying the original signal.
+
+detailed_description:
+The target video uses a realistic multi-camera sitcom style, 24fps, horizontal 16:9 framing,
+natural unretouched skin texture, warm indoor evening light; no on-screen text, subtitles,
+watermark, logo or UI at any moment.
+[Shot 1] Over-the-shoulder, close-up, ... <Subject 2> (S1) says:
+<d>[Chinese]你们男人是不是都喜欢年轻的呀？</d>
+[Shot 2] Over-the-shoulder, medium shot, ...
+
+overall_soundscape:
+Soft living-room room tone throughout, a faint hum from the building outside the window.
+
+non_diegetic_music:
+N/A
 ```
 
 **英文块是唯一送进 H3 的文本**（`seg_prompt()` 只拼 `en`）；中文块只作人读与修改入口。
 
 ### 2.2 断段规则（必须逐条遵守，否则中英对不齐）
 
-按**空行**切块，块内可以多行。固定切法：
+一个"段落对"= 工作台上可独立编辑的一小块。**块名那一行只写在该块的第一段开头**，
+所以中文块的块名要逐字对应（用相同英文块名，方便对位）。
 
-| # | 内容 | 行数 |
+| # | 元素 | 内容 |
 |---|---|---|
-| 1 | 画质前置块（`【GLOBAL QUALITY…】` + 画质正文） | 2 |
-| 2 | `<Subject1>` 角色映射 + 音色句（同一段内，机器注入） | 2 |
-| 3 | `<Subject2>` 场景 + 全局光影 + **本段开场站位/姿势句**（双人则先 Subject2 角色 + 音色句，再 Subject3 场景） | 1–2 |
-| 4… | 每个 `[Shot N]` 一块：运镜 + 景别 + 动作链 + 环境（**不写光影；人物不移动就不写位置**），`says:` 与 `<d>` 台词同块 | 3–5 |
-| N-1 | `【禁止项】` + 词表 | 2 |
-| N | `【强制声明】` + 声明句 | 2 |
+| 1 | 第 1 个 Subject | `subject_definitions:` 顶格 + 场景或第一个人物（含本段开场站位/姿势） |
+| 2… | 其余 Subject | 每人一段 `<Subject N> is …`（含音色句 `<Audio N>`，机器注入） |
+| — | `summary:` | 一段，本段剧情概括 |
+| — | `retention_analysis:` | 一段，逐 Subject 保真说明（可多行） |
+| — | `detailed_description:` | 首句风格/画幅/禁止项，随后 **每个 `[Shot N]` 单独一段** |
+| — | `overall_soundscape:` | 一段 |
+| — | `non_diegetic_music:` | 一段（`N/A` 也算一段） |
+
+**不要再写 `【禁止项】` / `【强制声明】` 两个尾部块**——禁止项已并进 `detailed_description` 第一句。
+
+**Shot 里绝对不写时长**：不写 `At 00:03.000`、不写 `[0-3秒]`、不写"前 2 秒"。镜头的长短交给模型，
+`[Shot N]` 后面直接写这一镜的运镜、景别、动作与台词。
 
 **不要**把两句 Shot 塞进同一个块，也不要把 `says:` 和 `<d>` 拆成两块——否则用户改中文时 AI 无法定位该改哪段英文。
 
 ### 2.3 语言规则
 
-- 英文块：描述性内容全部英文；**结构标签原样保留**：`<Subject1>`、`<Subject 1> (S1) says:`、`<d>[Chinese]…</d>`、`<Picture 1>`、`[Shot N]`、`【禁止项】`、`【强制声明】`。
+- 英文块：描述性内容全部英文；**结构标签原样保留**：`<Subject1>`、`<Subject 1> (S1) says:`、`<d>[Chinese]…</d>`、`<Picture 1>`、`<Audio 1>`、`[Shot N]`、六个块名（`subject_definitions:` 等）。
 - **台词一律放在 `<d>[Chinese]台词</d>` 里，保留中文原文**，不做英文翻译、不写拼音。这是让 H3 说中文的唯一开关。
 - 人物名：英文块写拼音全大写（`SHEN YAN`），中文块写中文原名（`沈砚`）；两处指向同一 `<SubjectN>`。
-- `【禁止项】`/`【强制声明】` 的英文块也要保留中文标签 + 英文内容，例如：
+- 禁止项并进 `detailed_description` 首句，例如：
 
 ```
-【禁止项】
-
-Text / UI / watermark / logo / corner mark / readable text / real UI
-
-【强制声明】
-
-No background music; keep only ambience, human voice and SFX; no subtitles, text, watermark or logo on screen; no readable text (on-screen text only, spoken dialogue excluded)
+The target video uses a realistic multi-camera sitcom style, 24fps, horizontal 16:9 framing,
+natural unretouched skin texture, warm indoor evening light; no subtitles, no on-screen text,
+no watermark, no logo, no UI, no corner mark at any moment; no background music, ambience,
+human voice and SFX only.
 ```
 
 ### 2.4 中文改动回同步英文（人机闭环的关键）
@@ -135,10 +170,10 @@ H3 不是编剧，它只认"能在几秒画面里看见的东西"。文字通顺
 
 ### ① 场景不穿帮：场景只声明一次，Shot 不再复述背景
 
-**场景段（`<Subject 3>`）把空间、家具、墙面一次写全，每个 `[Shot N]` 不再写"身后是什么"。**
+**`subject_definitions:` 里的场景条把空间、家具、墙面一次写全，每个 `[Shot N]` 不再写"身后是什么"。**
 Shot 里重复背景等于每镜重新描述一遍同一面墙，模型会把注意力从动作挪到布景上，还会和场景参考图打架。
 
-- ✅ 场景段：`a light oatmeal sofa against a plain warm off-white wall, a walnut coffee table in front of it`
+- ✅ 场景条：`<Subject 1> is the living room in <Picture 1>, a light oatmeal sofa against a plain warm off-white wall, a walnut coffee table in front of it`
 - ✅ Shot：`Over-the-shoulder, close-up, the near shoulder of CHEN YU soft along the lower right edge, SU MO sharp beyond it, …`
 - ❌ Shot 结尾补一句 `the sofa back and the off-white wall behind her` → 每镜都重述布景，动作被稀释
 
@@ -177,7 +212,7 @@ Shot 里重复背景等于每镜重新描述一遍同一面墙，模型会把注
 ### ⑤ 时序与连续性
 
 - **一镜一件事**：`走进客厅 → 坐下 → 拿起手机 → 提问` 是四个事件，至少拆两镜。
-- **姿势与位置只在本段场景段写一次**（见「四之三 · 铁律 C」），Shot 里只在**人物真的动了**的时候写
+- **姿势与位置只在本段场景条写一次**（见「四之三 · 铁律 C」），Shot 里只在**人物真的动了**的时候写
   `from … to …`，没动就一个字都不写位置。上一镜站着、下一镜坐着而中间没有"坐下"动作 = 瞬移。
 - **朝向与道具前后一致**：他面朝左，下一镜不能突然面朝右，除非写"转身"。
 
@@ -190,9 +225,9 @@ Shot 里重复背景等于每镜重新描述一遍同一面墙，模型会把注
   `slow motion`、`rack focus`、`shallow depth of field`、`dutch angle`
 - 想表达浅景深，写大白话：`the background falls away softly`
 
-### ⑦ 多人同框：站位写在场景段，不写进 Shot
+### ⑦ 多人同框：站位写在场景条，不写进 Shot
 
-一镜出现两个人，**先在场景段**把左右与前后写死一次：
+一镜出现两个人，**先在 `subject_definitions:` 的场景条**把左右与前后写死一次：
 
 > `S2 sits slumped at the right end of the sofa, one hand holding a phone; S1 sits close on his left, her torso tilted toward him.`
 
@@ -258,23 +293,26 @@ ComfyUI 是**一段一个任务**送进去的，模型不知道上一段发生�
 
 1. **禁止任何跨段指代**：`still / remains / continues / as before / same as the previous / 仍然 / 依旧 / 还是坐在 / 仍坐在 / 继续坐在 / 如前`。
    `check` 命中即报硬问题。
-2. **每段必须在场景段里把"本段开场状态"重写一遍**：谁在哪、什么姿势、手里有什么、朝向谁。
-   写在场景 `<Subject N>` 段（单人是 Subject2、双人是 Subject3）的开头一句，**紧接着**再写场景环境：
+2. **每段必须在 `subject_definitions:` 里把"本段开场状态"重写一遍**：谁在哪、什么姿势、手里有什么、朝向谁。
+   写在场景条（有场景图时是第一条 `<Subject 1>`）的末尾，环境写完后接 `Opening state:` 一句：
 
 ```
-<Subject 3> is the living room scene. S2 sits slumped at the right end of the sofa, one hand
-holding a phone; S1 sits close on his left, her torso tilted toward him, both facing each other.
-The oat-coloured sofa fills the centre, a glass of water on the tea table, an off-white wall behind.
+subject_definitions:
+<Subject 1> is the living room in <Picture 1>, an oatmeal sofa, a glass of water on the walnut
+tea table, a plain off-white wall. Opening state: CHEN YU sits slumped at the right end of the
+sofa with a phone in his right hand; SU MO sits close on his left, her torso tilted toward him.
 ```
 
 ```
-<Subject 3>是客厅场景。S2 瘫坐在沙发右侧，一只手拿着手机；S1 坐在他左侧，身体歪向他，
-两人面对面。燕麦色布艺沙发居中，茶几上放着一杯水，身后是暖白色墙面。
+subject_definitions:
+<Subject 1>是客厅场景，<Picture 1>，燕麦色沙发、胡桃木茶几上放着玻璃杯、暖白色墙面。
+本段开场：陈屿瘫坐在沙发右侧，右手拿着手机；苏沫坐在他左侧，身体歪向他。
 ```
 
+没有场景图时（只有人物图），把同一句 `Opening state:` 写在**第一个人物条**的末尾。
 - 这段是**本段的起点**，后面每一镜的位置都从这里推。
 - 姿势用实词：`sits / seated / slumped / sprawled / stands / leans / lies`，位置用锚点：`sofa / bed / door / window / desk / floor + left / right / centre`。
-- 人换了地方（上一段在沙发、这一段在门口），就在场景段里直接写新位置 + 怎么到的（`standing at the doorway, keys still in hand`），不要写"她走过去"这种跨段动作。
+- 人换了地方（上一段在沙发、这一段在门口），就在场景条里直接写新位置 + 怎么到的（`standing at the doorway, keys still in hand`），不要写"她走过去"这种跨段动作。
 
 ### 铁律 D：Shot 里只写"这一镜发生的变化"
 
@@ -283,7 +321,7 @@ The oat-coloured sofa fills the centre, a glass of water on the tea table, an of
    - ✅ `she leans further in from his left, closing the gap to a hand's width`
    - ❌ 开场"两人坐在沙发上"，下一镜写 `she stands at the window`（中间没有起身走过去 → 瞬移）
 3. **一段内只允许一次位移**；要换空间就拆段。
-4. **Shot 里不写光影**。全局光影已在场景段声明一次，每镜再写会把模型带到不同光位，也会和资产图的光打架。
+4. **Shot 里不写光影**。全局光影已在 `detailed_description:` 首句声明一次，每镜再写会把模型带到不同光位，也会和资产图的光打架。
    要写"看不看得清"就写材质和方向（`the sleeve catches the fold of the cushion`），不写灯、不写色温、不写亮边。
 
 ---
@@ -319,7 +357,7 @@ The oat-coloured sofa fills the centre, a glass of water on the tea table, an of
 英文块：
 
 ```
-<Audio 1> is the only voice reference for <Subject 1>: inherit its timbre alone — vocal texture, pitch and speaking pace — and never its recorded words, dialogue or content. This same voice is used for <Subject 1> in every shot of the whole drama.
+<Audio 1> is the voice-timbre reference for <Subject 1> (S1), containing a spoken Chinese vocal layer; inherit its timbre alone — vocal texture, pitch and speaking pace — and never its recorded words, dialogue or content. This same voice is used for <Subject 1> in every shot of the whole drama.
 ```
 
 中文块：
@@ -405,11 +443,13 @@ The oat-coloured sofa fills the centre, a glass of water on the tea table, an of
 - [ ] 台词都在 `<d>[Chinese]…</d>` 里，没有漏掉 `[Chinese]`。
 - [ ] `sec` 在 5–18，`genSec` = round(sec×5/6)，两者没有被手改。
 - [ ] `cast` 只写本段真出场的人，`refs` 顺序与 `<Picture N>` 一致。
-- [ ] `【禁止项】` / `【强制声明】` 两段在最后，逐字保留。
-- [ ] 每个 Shot 有运镜 + 景别 + 动作链 + 环境，且 Shot 内无时间码。
+- [ ] **六个块齐全且顺序正确**：`subject_definitions` → `summary` → `retention_analysis` → `detailed_description` → `overall_soundscape` → `non_diegetic_music`。
+- [ ] `detailed_description` 首句写明风格 + 画幅 + 画质 + 禁止项（字幕/水印/UI/配乐）。
+- [ ] `retention_analysis` 覆盖 `subject_definitions` 里的每一个 `<Subject N>`。
+- [ ] 每个 Shot 有运镜 + 景别 + 动作链，**Shot 内没有任何时长/时间码**。
 - [ ] **画幅对得上同框规则**：窄屏（9:16 / 3:4）没有一镜两人；宽屏双人同框写了左右与前后。
 - [ ] **关键对话用了过脸 / 过肩 / 过腰 / 正反打**之一，每个 Shot 都能说出前景是什么、后景是什么。
-- [ ] **每段场景段都重写了本段开场站位与姿势**（谁在哪、坐/站/靠/躺、手里有什么、朝向谁），不靠"仍然/如前"。
+- [ ] **每段 `subject_definitions` 的场景条都重写了本段开场站位与姿势**（谁在哪、坐/站/靠/躺、手里有什么、朝向谁），不靠"仍然/如前"。
 - [ ] **Shot 里没有光影词**（灯、光、色温、亮边、阴影都没有），也没有在人物没移动时写画面位置。
 - [ ] 18 秒段台词 ≤ 56 字，其他段按密度表。
 - [ ] **挂了参考音的人物，其 `<Subject K>` 段里有对应的 `<Audio N>` 句，并且写明了"只继承音色、不参考原台词"**（`check` 会查）。

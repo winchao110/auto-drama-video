@@ -93,9 +93,10 @@ AUDIO_REF_ONLY = "仅作音频参考 / Reference Only"
 #   ② 没用参考音频 → 写"固定音色提示词"句（来自 assets[].voicePrompt，整部剧同一句）
 # 两句都是"机器管理的句子"：换音色 / 换参考音 / 撤掉 时先按原文删掉再插新的，不会叠加。
 AUDIO_TAG_EN = (
-    "<Audio {n}> is the only voice reference for <Subject {s}>: inherit its timbre alone — "
-    "vocal texture, pitch and speaking pace — and never its recorded words, dialogue or content. "
-    "This same voice is used for <Subject {s}> in every shot of the whole drama."
+    "<Audio {n}> is the voice-timbre reference for <Subject {s}> (S{s}), containing a spoken Chinese "
+    "vocal layer; inherit its timbre alone — vocal texture, pitch and speaking pace — and never its "
+    "recorded words, dialogue or content. This same voice is used for <Subject {s}> in every shot "
+    "of the whole drama."
 )
 AUDIO_TAG_ZH = (
     "<Audio {n}> 是 <Subject {s}> 的音色参考：仅继承其音色（音质、音高、语速），"
@@ -806,12 +807,16 @@ GLOBAL_ZH_MARK = "【全局"
 
 
 def seg_prompt(seg, gb=None):
-    """真正送进 H3 的提示词：全局画质与摄影前置 + 本段英文段落（中文只作对照）。"""
+    """真正送进 H3 的提示词：本段英文段落按顺序拼接。
+
+    六段式段（以 `subject_definitions:` 开头）自带全局风格句，不再前置旧版全局块；
+    旧格式段仍然前置 `meta.globalBlock`，保证老项目能原样重跑。
+    """
     pairs = [p for p in (seg.get("promptSegs") or []) if (p.get("en") or "").strip()]
     g = ((gb or {}).get("en") or "").strip() if isinstance(gb, dict) else ""
     if pairs:
         body = "\n\n".join(p["en"].strip() for p in pairs)
-        if g and not body.startswith(GLOBAL_EN_MARK):
+        if g and not body.startswith(GLOBAL_EN_MARK) and not body.lstrip().lower().startswith("subject_definitions:"):
             body = g + "\n\n" + body
         return body
     body = (seg.get("prompt") or "").strip()
@@ -931,12 +936,15 @@ def seg_audio(st, seg):
 
 
 def _subject_blocks(seg, key, subject):
-    """找出以 <Subject K> 开头的那一段（K = subject），返回 [(下标, 段落)]。"""
-    pats = ("<Subject%d>" % subject, "<Subject %d>" % subject)
+    """找出含 `<Subject K>` 行的段落（K = subject），返回 [(下标, 段落)]。
+
+    六段式里第一个人物/场景那条前面还顶着 `subject_definitions:` 块名，
+    所以按「行首」匹配，而不是整段开头匹配。
+    """
+    pat = re.compile(r"(?m)^[ \t]*<Subject\s*%d>" % subject)
     hits = []
     for i, p in enumerate(seg.get("promptSegs") or []):
-        txt = (p.get(key) or "").lstrip()
-        if txt.startswith(pats[0]) or txt.startswith(pats[1]):
+        if pat.search(p.get(key) or ""):
             hits.append((i, p))
     return hits
 
@@ -2352,6 +2360,20 @@ def cmd_status(args):
 # ------------------------------------------------- H3 落地八条（可机检的部分）
 H3_SHOT_RE = re.compile(r"^\[Shot\s*(\d+)\]", re.I)
 
+# 2026-10-19 用户钦定：H3 提示词按官方长提示词格式输出，固定六块，顺序不许变
+H3_BLOCKS = (
+    ("subject_definitions:", "主体定义（Subject/Audio 对应哪张图、什么外观、本段开场站位）"),
+    ("summary:", "本段剧情概括"),
+    ("retention_analysis:", "逐 Subject 的保真说明"),
+    ("detailed_description:", "全局风格/画幅/禁止项 + 每个 [Shot N]"),
+    ("overall_soundscape:", "环境声"),
+    ("non_diegetic_music:", "配乐（没有就写 N/A）"),
+)
+# Shot 里不许写死时长：At 00:03.000 / [0-3秒] / 前 2 秒
+TIMECODE_RE = re.compile(
+    r"\bAt\s+\d{1,2}:\d{2}(?::\d{2})?|\b\d{1,2}:\d{2}\.\d{2,3}\b|\[\d+\s*[-–~]\s*\d+\s*秒?\]"
+    r"|前\s*\d+\s*秒|后\s*\d+\s*秒", re.I)
+
 SCENE_GROUPS = {
     "客厅": ("living room", "sofa", "couch", "客厅", "沙发"),
     "卧室": ("bedroom", "卧室"),
@@ -2439,6 +2461,24 @@ def _seg_shots(seg, lang="en"):
     return out
 
 
+def _h3_block_text(seg, name):
+    """取六段式里某一块的英文正文（块名行起，到下一个块名为止）。"""
+    out, on = [], False
+    for p in seg.get("promptSegs") or []:
+        t = (p.get("en") or "").strip()
+        if not t:
+            continue
+        m = re.match(r"^([a-z_]+):", t)
+        if m:
+            on = (m.group(1) + ":") == name
+            if on:
+                out.append(t)
+            continue
+        if on:
+            out.append(t)
+    return "\n".join(out)
+
+
 def _hits(text, words):
     low = (text or "").lower()
     return [w for w in words if w and w in low]
@@ -2466,17 +2506,21 @@ def check_h3_rules(st, issues, warns):
     wide = aspect is not None and aspect >= 1.3
     ots_used = 0
 
-    # 画幅一致性：全局画质块里写死的画幅必须与视频参数一致，否则提示词和实际出图打架
+    # 画幅一致性：detailed_description 首句（或旧版全局块）写死的画幅必须与视频参数一致
     gb = (st.get("meta") or {}).get("globalBlock") or {}
     gb_text = " ".join(str(gb.get(k) or "") for k in ("en", "zh"))
+    for _s in st.get("segments") or []:
+        gb_text += "\n" + " ".join((p.get("en") or "") + " " + (p.get("zh") or "")
+                                   for p in (_s.get("promptSegs") or []))
     declared = [r for r in ("9:16", "16:9", "4:3", "3:4", "1:1", "21:9") if r in gb_text]
     if ratio and declared and ratio not in declared:
-        issues.append("全局画质块写的是 %s，但视频参数是 %s → 提示词和实际画幅打架，"
-                      "模型会按错画幅构图；把这一句改成 %s" % ("、".join(declared), ratio, ratio))
+        issues.append("提示词里写的是 %s 画幅，但视频参数是 %s → 提示词和实际画幅打架，"
+                      "模型会按错画幅构图；把 detailed_description 首句改成 %s" % (
+                          "、".join(declared), ratio, ratio))
     elif ratio and len(set(declared)) > 1:
-        warns.append("全局画质块里出现了多个画幅（%s），只保留 %s 一个" % ("、".join(declared), ratio))
+        warns.append("提示词里出现了多个画幅（%s），只保留 %s 一个" % ("、".join(declared), ratio))
     if "focus held on the face in every shot" in gb_text.lower():
-        warns.append("全局画质块写了 focus held on the face in every shot（每镜都锁脸）→ 和"
+        warns.append("提示词里写了 focus held on the face in every shot（每镜都锁脸）→ 和"
                      "「焦点给前景还是后景」冲突，删掉这句，让每个 Shot 自己决定")
     props = [a for a in st.get("assets") or [] if a.get("type") == "prop"]
     prop_words = []
@@ -2491,6 +2535,30 @@ def check_h3_rules(st, issues, warns):
             warns.append("%s 没有 [Shot N] 分段，H3 会把整段当一个长镜头乱切" % sid)
             continue
         total += len(shots)
+
+        # ⑪ 六段式结构（2026-10-19 用户钦定，按官方 H3 长提示词格式）
+        seg_all = "\n".join((p.get("en") or "") for p in seg.get("promptSegs") or [])
+        miss = [n for n, _ in H3_BLOCKS
+                if not re.search(r"(?im)^[ \t]*" + re.escape(n), seg_all)]
+        if miss:
+            issues.append("%s 缺六段式块：%s → 必须按 subject_definitions / summary / "
+                          "retention_analysis / detailed_description / overall_soundscape / "
+                          "non_diegetic_music 六块输出，块名英文小写加冒号、顶格" % (sid, "、".join(miss)))
+        else:
+            pos = [re.search(r"(?im)^[ \t]*" + re.escape(n), seg_all).start() for n, _ in H3_BLOCKS]
+            if pos != sorted(pos):
+                warns.append("%s 六个块的顺序乱了，应为 subject_definitions → summary → "
+                             "retention_analysis → detailed_description → overall_soundscape → "
+                             "non_diegetic_music" % sid)
+        def_text = _h3_block_text(seg, "subject_definitions:")
+        ret_text = _h3_block_text(seg, "retention_analysis:")
+        no_ret = sorted(set(re.findall(r"<Subject\s*(\d+)>", def_text))
+                        - set(re.findall(r"<Subject\s*(\d+)>", ret_text)))
+        if no_ret:
+            warns.append("%s 的 retention_analysis 漏了 <Subject %s>，保真说明要逐个主体写" % (
+                sid, "、".join(no_ret)))
+        if not def_text.strip():
+            warns.append("%s 的 subject_definitions 是空的，模型认不出 <Subject N> 是谁" % sid)
 
         # 本段出场人物：<Subject K>NAME → K（点名和 <Subject K> 都折算成同一个编号，避免重复计数）
         subj_idx = {}
@@ -2578,8 +2646,12 @@ def check_h3_rules(st, issues, warns):
         elif not _hits(scene_text, POS_ANCHOR):
             warns.append("%s 的场景段写了姿势但没写人在哪（沙发左/右、床、门口…），站位会飘" % sid)
 
-        # ⑩ Shot 不写光影（全局已有）；人物没移动就不写画面位置
+        # ⑩ Shot 不写光影（全局已有）；人物没移动就不写画面位置；不写死时长
         for n, t in shots:
+            tc = TIMECODE_RE.findall(t)
+            if tc:
+                issues.append("%s 的 Shot %d 写死了时长（%s）→ 每个 Shot 只写运镜/景别/动作，"
+                              "镜头长短交给模型，时间码全部删掉" % (sid, n, tc[0]))
             if _hits(t, OTS):
                 ots_used += 1
             lg = _hits(t, LIGHT_WORDS)
@@ -2692,8 +2764,6 @@ def cmd_check(args):
                 warns.append("%s（%s）用了参考音频；建议同时留一条音色提示词做兜底" % (a.get("id"), a.get("name") or ""))
 
     gb = st["meta"].get("globalBlock") or {}
-    if not (gb.get("en") or "").strip():
-        warns.append("没有「全局画质与摄影前置」（视频参数区顶部那一块），H3 会失去统一的画质与镜头口径")
     for seg in st["segments"]:
         sid = seg.get("id")
         pairs = seg.get("promptSegs") or []
@@ -2707,14 +2777,15 @@ def cmd_check(args):
         ed = seg_edited(seg)
         if ed:
             warns.append("%s 有 %d 处中文改动还没同步进英文（AI 需重写对应英文段）" % (sid, len(ed)))
-        if "【禁止项】" not in p or "【强制声明】" not in p:
-            issues.append("%s 提示词缺少固定的【禁止项】/【强制声明】尾部" % sid)
+        if not re.search(r"no on-screen text|no subtitles|no watermark|no logo", p, re.I):
+            warns.append("%s 的 detailed_description 首句没有写禁止字幕/水印/UI 的声明" % sid)
         if re.search(r"永远是说话人|is always the speaker", p):
             issues.append("%s 提示词里还有「S1 永远是说话人」这类句子，删掉（音色由 <Audio> 或固定音色句负责）" % sid)
         if re.search(r"always uses one fixed voice|始终使用一种固定的声音", p):
             warns.append("%s 提示词里还留着行内的旧版声线描述，跑一次 build 会搬进 assets[].voicePrompt" % sid)
-        if re.search(r"\[\d+\s*-\s*\d+\s*秒\]", p):
-            warns.append("%s 提示词里写死了时间码，删掉交给模型" % sid)
+        if TIMECODE_RE.search(p):
+            warns.append("%s 提示词里出现了时间码/时长（%s），镜头长短交给模型" % (
+                sid, TIMECODE_RE.search(p).group(0)))
         sec = float(seg.get("sec") or 0)
         if sec < 5 or sec > 18:
             warns.append("%s 提示词时长 %.0fs 超出 5–18 秒窗口" % (sid, sec))

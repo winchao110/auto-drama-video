@@ -2,7 +2,7 @@
 name: auto-drama-video
 description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。H3 工作流为 MiniMax-H3-Star7chunk-1006（euler/simple 5 步 + 分块解码 + 可选二采高清放大）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
 metadata:
-  version: "3.0.0"
+  version: "3.1.0"
   title: "全本地自动短剧视频生成"
   author: "太阳阶梯jqk8707"
   entry: "SKILL.md（本文件）"
@@ -145,13 +145,24 @@ $PY = 当前环境的 python（Windows 例：python 或 py -3）
     - **每段独立**：一段一个 ComfyUI 任务，模型没有上文。禁止 `still / remains / as before / 仍然 / 依旧 / 如前`
       这类跨段指代；**每段场景 `<Subject N>` 段必须重写"本段开场站位与姿势"**——谁在哪、坐/站/靠/躺、
       手里有什么、朝向谁。上一段结尾的姿势不能靠"仍"字继承，只能重写。
-    - **Shot 只写这一镜的变化**：全局光影只在场景段声明一次，**Shot 里不写任何光影**（灯/光/色温/亮边/阴影）；
-      人物没移动就**不写画面位置**，移动时必须写 `from…to…`，起点与本段开场状态一致，不许瞬移。
-    - **全局画质块**：画幅词必须与 `settings.ratio` 一致（16:9 就写 `horizontal 16:9 framing`），改了比例必须同步；
+    - **Shot 只写这一镜的变化**：全局光影只在 `detailed_description:` 首句声明一次，**Shot 里不写任何光影**
+      （灯/光/色温/亮边/阴影）；人物没移动就**不写画面位置**，移动时必须写 `from…to…`，起点与本段开场状态一致。
+    - **画幅词**必须与 `settings.ratio` 一致（16:9 就写 `horizontal 16:9 framing`），改了比例必须同步；
       不要写 `focus held on the face in every shot`，那会让"焦点给前景还是后景"失效。
 
-    `check` 会逐条卡：窄屏双人同框、Shot 光影词、跨段指代、场景段缺开场姿势、**全局画质块画幅与 ratio 不符** → **硬问题**；
-    人物没动却写画面位置、全片没有关系镜头、全局块锁脸（`focus held on the face in every shot`）→ **建议**。
+    `check` 会逐条卡：窄屏双人同框、Shot 光影词、跨段指代、场景条缺开场姿势、**画幅与 ratio 不符**、
+    **缺六段式块**、**Shot 里写死时长** → **硬问题**；
+    人物没动却写画面位置、全片没有关系镜头、retention_analysis 漏主体 → **建议**。
+
+18. **H3 提示词按六段式输出**（2026-10-19 用户钦定，格式对齐官方长提示词）：
+    `subject_definitions:` → `summary:` → `retention_analysis:` → `detailed_description:` →
+    `overall_soundscape:` → `non_diegetic_music:`，块名英文小写加冒号、顶格另起一行，顺序不许变。
+    - `subject_definitions:` 每个 `<Subject N>` 一条，**有场景图时场景排第一条**，末尾带
+      `Opening state: …`（本段开场站位与姿势）；`<Audio N>` 紧跟它对应的人物条。
+    - `retention_analysis:` 逐个主体写 `fully_preserved - …`，音频写 `reference - …`。
+    - `detailed_description:` 首句写全局风格 + 画幅 + 画质 + 禁止项（字幕/水印/UI/配乐），随后每镜一个 `[Shot N]`。
+    - **`[Shot N]` 里不许写时长**（不写 `At 00:03.000`、不写 `[0-3秒]`），镜头长短交给模型。
+    - 不再有 `【禁止项】` / `【强制声明】` 尾部块，禁止项并进 `detailed_description:` 首句。
 
 ---
 
@@ -250,7 +261,7 @@ $PY scripts/drama.py present --project "$P"
 ```
 
 页面四页：**简介**（钩子/视频简介/风格锁 + 分段总览）、**资产**（提示词 + 出图 + 人物音色）、
-**视频提示词**（全局画质块 + 每段中英对照 + 音色总览）、**成品**（播放器）。
+**视频提示词**（六段式中英对照 + 音色总览；旧项目顶部仍有全局画质块）、**成品**（播放器）。
 
 **音色在「资产」页定**（铁律 12），人物卡图片下方就是音色区：
 - **参考音频**：下拉选参考音库里的音色 → 「▶ 试听」；不满意就「替换音频」或「上传参考音」直接传自己的；
