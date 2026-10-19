@@ -1,8 +1,8 @@
 ---
 name: auto-drama-video
-description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。H3 工作流为 MiniMax-H3-Star7chunk-1006（euler/simple 5 步 + 分块解码 + 可选二采高清放大）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
+description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。H3 工作流为 MiniMax-H3-Star7chunk-1006（euler/simple 5 步 + 分块解码 + 可选二采高清放大）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
 metadata:
-  version: "3.1.0"
+  version: "3.2.0"
   title: "全本地自动短剧视频生成"
   author: "太阳阶梯jqk8707"
   entry: "SKILL.md（本文件）"
@@ -14,7 +14,7 @@ metadata:
 
 **作者：太阳阶梯jqk8707**
 
-**一句话进去，一部剧出来。** 全流程跑在自己机器上：提示词 → 资产图 → 视频，每步之间停下来让你拍板。
+**一句话进去，一部剧出来。** 全流程跑在自己机器上：提示词 → 资产图 → 视频 → 自动合并成整片，每步之间停下来让你拍板。
 
 一份 `drama.json` 是唯一事实源，一份 `workbench.html` 是人机来回改稿的桥。
 **所有生成都直接调 ComfyUI 的 HTTP 接口，不封装客户端，不依赖任何外部技能或第三方库。**
@@ -163,6 +163,13 @@ $PY = 当前环境的 python（Windows 例：python 或 py -3）
     - `detailed_description:` 首句写全局风格 + 画幅 + 画质 + 禁止项（字幕/水印/UI/配乐），随后每镜一个 `[Shot N]`。
     - **`[Shot N]` 里不许写时长**（不写 `At 00:03.000`、不写 `[0-3秒]`），镜头长短交给模型。
     - 不再有 `【禁止项】` / `【强制声明】` 尾部块，禁止项并进 `detailed_description:` 首句。
+
+19. **视频跑完必须合成一条整片再交人审核**（2026-10-19 用户钦定）：
+    全部段 `done` 后，`videos` 会自动调 `merge` 拼成 `项目根/成片.mp4`；**紧接着 `present_files` 把整片呈现给用户**，
+    同时给出工作台的 `?v=` 新地址。不许只报"各段都好了"让用户自己一段段点开看。
+    - 合并完先自己抽几帧对一遍（`ffmpeg -ss` 抽首/中/尾），确认没有错帧、错位、掉音；
+    - 用户提意见要重跑某几段时，跑完再 `merge` 一次（覆盖同名文件），重新呈现整片；
+    - 合并失败（多半是找不到 ffmpeg）要明说，并给出补救：装 ffmpeg 或把路径写进 `settings.ffmpeg`／`DRAMA_FFMPEG`。
 
 ---
 
@@ -320,7 +327,28 @@ $PY scripts/drama.py videos --project "$P"                          # 整批入�
 $PY scripts/drama.py videos --project "$P" --only P01,P03           # 只跑指定段
 $PY scripts/drama.py videos --project "$P" --steps 6 --megapixels 1.2   # 临时调参数
 $PY scripts/drama.py videos --project "$P" --hd --hd-megapixels 1.5     # 临时打开二采高清
+$PY scripts/drama.py merge  --project "$P"                              # 手动重拼成片（默认 成片.mp4）
 ```
+
+### 全部跑完 → 自动合并成片并交人审核
+
+`videos` 跑最后一条时，只要**每一段都 `status == done` 且有视频文件**，脚本会自动调用 `merge`，
+把各段按 `segments` 顺序拼成 `项目根/成片.mp4`（先 `-c copy` 无损；时长对不上或编码不一致时自动回退
+libx264 重编码 + 统一分辨率/帧率/音轨），并把结果写进 `meta.finalVideo / finalVideoAt / finalVideoSec / finalVideoParts`，
+工作台「成品」页顶部会多出一个整片播放器 +「下载整片」。
+
+- 想单独跑某几段对比 → `videos --only P02` 不会触发合并（没全齐）；
+- 全齐但不想合并 → `videos --no-merge`；
+- 只合已生成的段（预览用）→ `merge --partial`；
+- 换了参数重跑某几段之后，重新 `merge` 一次即可，文件名不变、旧成片被覆盖；
+- 合并失败**不算生成失败**：会打印原因（多半是找不到 ffmpeg），各段原片仍然完好。
+
+**合并完必须做的一步**：直接 `present_files` 呈现 `成片.mp4`（连同工作台的 `?v=` 新地址），
+让用户一次看完再提意见——不要只报"四段都好了"让用户自己一段段点开。
+
+**ffmpeg 从哪来**：先看环境变量 `DRAMA_FFMPEG`，再看 `settings.ffmpeg`，然后 PATH，
+最后自动找剪映自带的那份（`%LOCALAPPDATA%\JianyingPro\Apps\*\ffmpeg.exe`，本机已验证可用）。
+都没有就装一个 ffmpeg，或把路径写进上面任一处；`ffprobe` 不需要，时长/分辨率由 `ffmpeg -i` 解析。
 
 视频参数全部在 HTML 的「视频参数」卡里改，`drama.json` 的 `settings` 里对应：
 

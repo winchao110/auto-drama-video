@@ -22,6 +22,7 @@ H3 时长口径：提示词里写 sec 秒，真正传给 API 的是 round(sec * 
 import argparse
 import base64
 import copy
+import glob
 import hashlib
 import json
 import math
@@ -1550,6 +1551,258 @@ def cmd_images(args):
     return rep.summary()
 
 
+# ---------------------------------------------------------------- 合并成片
+FINAL_NAME = "成片.mp4"
+_FFMPEG_CACHE = []
+_FINAL_ARG = None          # 供 _win_argv 用：ffmpeg 在 Windows 下要加 -hide_banner
+
+
+def find_ffmpeg(st=None):
+    """找一个可用的 ffmpeg。优先环境变量 / 项目设置，其次 PATH、剪映自带、常见安装路径。"""
+    if _FFMPEG_CACHE:
+        return _FFMPEG_CACHE[0]
+    cands = []
+    env = (os.environ.get("DRAMA_FFMPEG") or "").strip()
+    if env:
+        cands.append(env)
+    if isinstance(st, dict):
+        c = str((st.get("settings") or {}).get("ffmpeg") or "").strip()
+        if c:
+            cands.append(c)
+    w = shutil.which("ffmpeg")
+    if w:
+        cands.append(w)
+    if os.name == "nt":
+        for base in (os.environ.get("LOCALAPPDATA") or "",
+                     os.environ.get("PROGRAMFILES") or "",
+                     os.environ.get("PROGRAMFILES(X86)") or ""):
+            if not base or not os.path.isdir(base):
+                continue
+            for pat in ("JianyingPro\\Apps\\*\\ffmpeg.exe", "JianyingPro\\*\\ffmpeg.exe",
+                        "ffmpeg\\bin\\ffmpeg.exe", "ffmpeg\\ffmpeg.exe"):
+                cands += sorted(glob.glob(os.path.join(base, pat)), reverse=True)
+    cands += ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg", r"C:\ffmpeg\bin\ffmpeg.exe"]
+    for c in cands:
+        if c and os.path.isfile(c):
+            _FFMPEG_CACHE.append(c)
+            return c
+    return ""
+
+
+def _run_ff(cmd, timeout=1800):
+    """跑 ffmpeg，返回 (returncode, stderr 尾部)。统一吞掉编码问题。"""
+    try:
+        pr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        out = (pr.stdout or b"").decode("utf-8", "replace")
+        if "Duration:" not in out and "video:" not in out:
+            out = (pr.stdout or b"").decode("mbcs", "replace") if os.name == "nt" else out
+        return pr.returncode, out
+    except Exception as e:
+        return -1, str(e)
+
+
+_ENC_CACHE = {}
+
+
+def h264_encoders(ff):
+    """本机 ffmpeg 能用的 H.264 编码器（剪映自带的精简版没有 libx264，只有硬件编码）。"""
+    if ff in _ENC_CACHE:
+        return _ENC_CACHE[ff]
+    rc, out = _run_ff([ff, "-hide_banner", "-encoders"], timeout=60)
+    have = set(re.findall(r"^\s*V[\.\w]*\s+(\S+)", out, re.M))
+    order = [e for e in ("libx264", "h264_nvenc", "h264_qsv", "h264_amf", "h264_mf") if e in have]
+    if not order:
+        order = ["mpeg4"]
+    _ENC_CACHE[ff] = order
+    return order
+
+
+def _enc_args(enc):
+    """各编码器的等价质量参数（约等于 crf 18–20）。"""
+    if enc == "libx264":
+        return ["-c:v", "libx264", "-crf", "18", "-preset", "veryfast"]
+    if enc == "h264_nvenc":
+        return ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "20", "-b:v", "0"]
+    if enc == "h264_qsv":
+        return ["-c:v", "h264_qsv", "-global_quality", "20"]
+    if enc == "h264_amf":
+        return ["-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "20", "-qp_p", "20"]
+    if enc == "h264_mf":
+        return ["-c:v", "h264_mf", "-rate_control", "quality"]
+    return ["-c:v", "mpeg4", "-q:v", "3"]
+
+
+def probe_media(ff, path):
+    """用 ffmpeg -i 探时长与分辨率（不依赖 ffprobe）。"""
+    rc, out = _run_ff([ff, "-hide_banner", "-i", path], timeout=120)
+    info = {"sec": 0.0, "w": 0, "h": 0, "audio": False}
+    m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", out)
+    if m:
+        info["sec"] = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", out)
+    if m:
+        info["w"], info["h"] = int(m.group(1)), int(m.group(2))
+    info["audio"] = "Audio:" in out
+    return info
+
+
+def merge_videos(proj, st=None, out_name=None, only=None, partial=False, quiet=False):
+    """把各段成片按段落顺序拼成一个文件。先尝试无损 `-c copy`，失败再重编码。
+
+    返回 dict：ok / rel / abs / sec / method / reason
+    """
+    st = st or load_state(proj)
+    p = paths(proj)
+    ff = find_ffmpeg(st)
+    if not ff:
+        return {"ok": False, "reason": "没有找到 ffmpeg（装一个，或把路径写进 settings.ffmpeg / 环境变量 DRAMA_FFMPEG）"}
+    segs = [s for s in st["segments"] if s.get("video")]
+    if only:
+        segs = [s for s in segs if s.get("id") in only]
+    parts = []
+    for s in segs:
+        f = os.path.join(proj, s["video"])
+        if os.path.isfile(f):
+            parts.append((s.get("id") or "", f))
+    if not parts:
+        return {"ok": False, "reason": "还没有可合并的成片"}
+    if not partial and not only and len(parts) != len(st["segments"]):
+        return {"ok": False, "reason": "还有 %d 段没生成，等全部完成再合并（或用 --partial）" % (
+            len(st["segments"]) - len(parts))}
+
+    out_name = out_name or FINAL_NAME
+    if not out_name.lower().endswith(".mp4"):
+        out_name += ".mp4"
+    out = os.path.join(proj, out_name)
+    tmp = os.path.join(p["videos"], "_merge_tmp.mp4")
+    infos = [probe_media(ff, path) for _, path in parts]
+    info0 = infos[0]
+    need = sum(i["sec"] for i in infos)
+    # 分段之间分辨率/有无音轨必须一致，否则 concat -c copy 会静默拼出错帧
+    uniform = len({(i["w"], i["h"]) for i in infos}) == 1 and len({i["audio"] for i in infos}) == 1
+
+    # 1) 无损拼接：同一套 H3 参数出来的片子编码一致，copy 最快且不掉画质
+    lst = os.path.join(p["videos"], "_concat.txt")
+    ok = False
+    log = ""
+    method = "copy"
+    if uniform:
+        with open(lst, "w", encoding="utf-8", newline="\n") as f:
+            for _, path in parts:
+                f.write("file '%s'\n" % path.replace("\\", "/").replace("'", "'\\''"))
+        rc, log = _run_ff([ff, "-hide_banner", "-y", "-f", "concat", "-safe", "0",
+                           "-i", lst, "-c", "copy", "-movflags", "+faststart", tmp])
+        ok = rc == 0 and os.path.isfile(tmp) and os.path.getsize(tmp) > 1024
+        out_info = probe_media(ff, tmp) if ok else {"sec": 0, "w": 0, "h": 0}
+        # copy 成功但时长明显对不上（容器/参数不完全一致），也要重编码
+        if ok and need and abs(out_info["sec"] - need) > max(1.5, need * 0.03):
+            ok = False
+    else:
+        print("      分段参数不一致（分辨率或音轨不同），跳过无损拼接，直接重编码", flush=True)
+
+    # 2) 回退：重编码，顺带统一分辨率与帧率
+    if not ok:
+        method = "reencode"
+        w, h = (info0["w"] or 0), (info0["h"] or 0)
+        base = [ff, "-hide_banner", "-y"]
+        for _, path in parts:
+            base += ["-i", path]
+        chains = []
+        for i, ((_, path), mi) in enumerate(zip(parts, infos)):
+            if w and h:
+                chains.append("[%d:v]scale=%d:%d:force_original_aspect_ratio=decrease,"
+                              "pad=%d:%d:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=25[v%d]" % (i, w, h, w, h, i))
+            else:
+                chains.append("[%d:v]setsar=1,fps=25[v%d]" % (i, i))
+            if mi["audio"]:
+                chains.append("[%d:a]aformat=sample_rates=44100:channel_layouts=stereo[a%d]" % (i, i))
+            else:
+                base += ["-f", "lavfi", "-t", "%.3f" % max(mi["sec"], 0.5),
+                         "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+                chains.append("[%d:a]aformat=sample_rates=44100:channel_layouts=stereo[a%d]"
+                              % (len(parts) + i, i))
+        joined = "".join("[v%d][a%d]" % (i, i) for i in range(len(parts)))
+        fc = ";".join(chains) + ";%sconcat=n=%d:v=1:a=1[v][a]" % (joined, len(parts))
+        # 剪映自带的 ffmpeg 没有 libx264，只有硬件编码 → 按可用项逐个试
+        for enc in h264_encoders(ff):
+            cmd = base + ["-filter_complex", fc, "-map", "[v]", "-map", "[a]"] + _enc_args(enc) + [
+                "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+                "-movflags", "+faststart", tmp]
+            print("      重编码尝试编码器 %s …" % enc, flush=True)
+            rc, log = _run_ff(cmd, timeout=3600)
+            ok = rc == 0 and os.path.isfile(tmp) and os.path.getsize(tmp) > 1024
+            if ok:
+                method = "reencode:" + enc
+                break
+            print("      该编码器不可用，换下一个", flush=True)
+
+    if not ok:
+        tail = "\n".join([x for x in log.strip().splitlines() if x.strip()][-6:])
+        return {"ok": False, "reason": "ffmpeg 合并失败（末行：%s）" % tail[-400:]}
+
+    os.replace(tmp, out)
+    try:
+        os.remove(lst)
+    except OSError:
+        pass
+    fin = probe_media(ff, out)
+    rel = os.path.relpath(out, proj).replace("\\", "/")
+    # 只有「全段齐、整片」才登记成正式成片；--only / --partial 只是预览，不改 meta
+    full = (not only) and (not partial) and len(parts) == len(st["segments"])
+    if full:
+        st["meta"]["finalVideo"] = rel
+        st["meta"]["finalVideoAt"] = now_str()
+        st["meta"]["finalVideoSec"] = round(fin["sec"] or need or 0, 2)
+        st["meta"]["finalVideoParts"] = [sid for sid, _ in parts]
+        save_state(proj, st)
+    if not quiet:
+        print("  [✓] %s：%s（%d 段｜%.1f 秒｜%s）" % (
+            "成片已合并" if full else "预览片段已合并（未登记为成片）",
+            rel, len(parts), fin["sec"], method), flush=True)
+    return {"ok": True, "rel": rel, "abs": out, "sec": round(fin["sec"], 2),
+            "method": method, "parts": len(parts), "full": full}
+
+
+def cmd_merge(args):
+    proj = os.path.abspath(args.project)
+    st = load_state(proj)
+    only = [x.strip() for x in (args.only or "").split(",") if x.strip()] or None
+    r = merge_videos(proj, st, out_name=args.out, only=only, partial=args.partial)
+    if not r.get("ok"):
+        print("[×] " + r.get("reason", "合并失败"), flush=True)
+        return 1
+    build_html(proj, st)
+    return 0
+
+
+def _maybe_merge(args, proj, st, rep):
+    """全部段都有成片时自动合并；已经是最新的成片就跳过，不重复劳动。"""
+    if getattr(args, "no_merge", False) or not st.get("segments"):
+        return None
+    if not all(x.get("video") and x.get("status") == "done" for x in st["segments"]):
+        return None
+    fin = st["meta"].get("finalVideo")
+    if fin:
+        fp = os.path.join(proj, fin)
+        try:
+            if os.path.isfile(fp):
+                newest = max(os.path.getmtime(os.path.join(proj, x["video"])) for x in st["segments"])
+                if os.path.getmtime(fp) >= newest:
+                    print("成片已是最新：%s（%.1f 秒，%d 段）" % (
+                        fin, float(st["meta"].get("finalVideoSec") or 0), len(st["segments"])), flush=True)
+                    return {"ok": True, "rel": fin, "sec": st["meta"].get("finalVideoSec") or 0,
+                            "parts": len(st["segments"]), "skipped": True}
+        except OSError:
+            pass
+    r = merge_videos(proj, st, quiet=True)
+    if r.get("ok"):
+        rep.good("成片已合并：%s（%d 段｜%.1f 秒）" % (r["rel"], r["parts"], r["sec"]))
+    else:
+        rep.bad("合并成片失败：%s" % r.get("reason", ""))
+    return r
+
+
 # ---------------------------------------------------------------- 生视频
 def cmd_videos(args):
     proj = os.path.abspath(args.project)
@@ -1617,7 +1870,10 @@ def cmd_videos(args):
     print("视频 VAE：%s｜音频 VAE：%s" % (vvae or "（默认）", avae or "（默认）"), flush=True)
     if not targets:
         print("没有需要生成的视频段（加 --force 可全部重跑）。", flush=True)
-        return 0
+        rep0 = Reporter()
+        _maybe_merge(args, proj, st, rep0)
+        build_html(proj, st)
+        return rep0.summary()
 
     # ---- 1) 先把所有段的参考图 / 参考音上传，工作流全部建好 ----
     rep = Reporter()
@@ -1699,6 +1955,9 @@ def cmd_videos(args):
             die("H3 工作流模板与脚本对不上（%s）。上面几条就是具体是哪个节点的问题。" % H3_WF)
 
     if args.dry or not jobs:
+        if not args.dry:
+            _maybe_merge(args, proj, st, rep)
+            build_html(proj, st)
         return rep.summary()
 
     # ---- 2) 入队：默认一次性全部塞进队列，ComfyUI 连续执行、模型全程驻留显存 ----
@@ -1801,6 +2060,8 @@ def cmd_videos(args):
 
     s["seed"] = next_seed
     save_state(proj, st)
+    # 全部段落都有成片了，自动拼一个整片出来（给用户审核用）
+    _maybe_merge(args, proj, st, rep)
     build_html(proj, st)
     return rep.summary()
 
@@ -2040,8 +2301,42 @@ def make_handler(proj):
                 ".wav": "audio/wav", ".mp3": "audio/mpeg", ".flac": "audio/flac",
                 ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".aac": "audio/aac", ".opus": "audio/ogg",
             }.get(os.path.splitext(ap)[1].lower(), "application/octet-stream")
-            with open(ap, "rb") as f:
-                self._send(200, f.read(), ctype)
+            # 支持 Range：整片几十分钟、几十兆，用户要在播放器里拖动进度条
+            size = os.path.getsize(ap)
+            rng = self.headers.get("Range") or ""
+            m = re.match(r"bytes=(\d*)-(\d*)", rng)
+            if m and (m.group(1) or m.group(2)):
+                start = int(m.group(1) or 0)
+                end = int(m.group(2)) if m.group(2) else size - 1
+                end = min(end, size - 1)
+                if start > end:
+                    start, end = 0, size - 1
+                with open(ap, "rb") as f:
+                    f.seek(start)
+                    body = f.read(end - start + 1)
+                self.send_response(206)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                try:
+                    self.wfile.write(body)
+                except Exception:
+                    pass
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            try:
+                with open(ap, "rb") as f:
+                    shutil.copyfileobj(f, self.wfile)
+            except Exception:
+                pass
 
         def do_GET(self):
             path = unquote(urlparse(self.path).path)
@@ -2061,6 +2356,11 @@ def make_handler(proj):
                 return self._send(200, {"ok": True, "running": running, "tail": tail_log(p)})
             if path.startswith("/assets/") or path.startswith("/videos/") or path.startswith("/voices/"):
                 return self._file(path.lstrip("/"))
+            # 项目根目录的整片（成片.mp4）也要能播：只放行根级、常见媒体后缀，不给目录穿越留口子
+            rel = path.lstrip("/")
+            if rel and "/" not in rel and rel.lower().endswith(
+                    (".mp4", ".mov", ".webm", ".png", ".jpg", ".jpeg", ".webp", ".mp3", ".wav", ".m4a")):
+                return self._file(rel)
             return self._send(404, {"ok": False, "error": "not found"})
 
         def do_POST(self):
@@ -2165,8 +2465,8 @@ def make_handler(proj):
             if path == "/api/run":
                 task = data.get("task")
                 only = data.get("only") or []
-                if task not in ("images", "videos"):
-                    return self._send(400, {"ok": False, "error": "task 只能是 images / videos"})
+                if task not in ("images", "videos", "merge"):
+                    return self._send(400, {"ok": False, "error": "task 只能是 images / videos / merge"})
                 if RUN["proc"] and RUN["proc"].poll() is None:
                     return self._send(409, {"ok": False, "error": "已有生成任务在跑"})
                 cmd = [sys.executable, os.path.abspath(__file__), task, "--project", p["proj"]]
@@ -2354,6 +2654,13 @@ def cmd_status(args):
                 len(s.get("refs") or []),
                 "✓" if seg_prompt(s, st["meta"].get("globalBlock")) else "×",
                 ("✓ " + s["video"]) if s.get("video") else "待生成"), flush=True)
+    fin = st["meta"].get("finalVideo")
+    if fin:
+        print("\n成片：%s（%s 段｜%.1f 秒｜合并于 %s）" % (
+            fin, len(st["meta"].get("finalVideoParts") or []),
+            float(st["meta"].get("finalVideoSec") or 0), st["meta"].get("finalVideoAt") or "?"), flush=True)
+    elif st["segments"] and all(x.get("video") for x in st["segments"]):
+        print("\n成片：还没合并（跑 `merge` 一条命令就出）", flush=True)
     return 0
 
 
@@ -2988,7 +3295,16 @@ def main(argv=None):
     a.add_argument("--serial", action="store_true", help="串行：提交一条等一条（默认整批入队）")
     a.add_argument("--skip-review", dest="skip_review", action="store_true", help="跳过「必须先呈现 HTML」的闸门")
     a.add_argument("--stop-on-error", action="store_true")
+    a.add_argument("--no-merge", dest="no_merge", action="store_true",
+                   help="全部跑完也不自动合并成片（默认会自动合并成 成片.mp4）")
     a.set_defaults(func=cmd_videos)
+
+    a = sub.add_parser("merge", help="把各段成片拼成一个整片（默认 成片.mp4）")
+    a.add_argument("--project", required=True)
+    a.add_argument("--only", default="")
+    a.add_argument("--out", default="", help="输出文件名，默认沿用 meta.finalVideo 或 成片.mp4")
+    a.add_argument("--partial", action="store_true", help="允许只合并已生成的段（默认要求全段齐）")
+    a.set_defaults(func=cmd_merge)
 
     a = sub.add_parser("voices", help="参考音库")
     a.add_argument("--project", required=True)

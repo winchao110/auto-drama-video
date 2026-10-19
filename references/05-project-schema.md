@@ -114,6 +114,8 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `meta.stage` | 1 提示词 / 2 资产图 / 3 视频 | AI |
 | `meta.globalBlock` | 「全局画质与摄影前置」的 `en` / `zh` / `edited`；`build` 会自动把各段首重复的 `【GLOBAL…】` 段抽到这里，送 H3 时再拼回每段最前面 | 脚本抽取，人在页面改 |
 | `meta.synopsis` | 视频简介（发布文案用） | AI 写，人可改 |
+| `meta.finalVideo` | 整片相对路径，默认 `成片.mp4`；全部段跑完后 `videos` 自动合并写入 | 脚本 |
+| `meta.finalVideoSec` / `finalVideoAt` / `finalVideoParts` | 整片时长、合并时间、参与合并的段 id | 脚本 |
 | `segments[].sec` | 5–18（提示词声明的时长） | AI |
 | `segments[].genSec` | `round(sec×5/6)`，脚本自动算，**不要手填** | 脚本 |
 | `segments[].cast` | 本段出场资产 id，顺序 = Subject 顺序 | AI |

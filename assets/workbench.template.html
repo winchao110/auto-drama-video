@@ -137,6 +137,11 @@
   .vcard video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
   .vcard .vb{padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}
   .vcard .vb .id{font-weight:600}
+  .finbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:18px}
+  .finbox video{width:100%;display:block;background:#000;max-height:70vh}
+  .finbox .finhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;font-size:12.5px}
+  .finbox .finhead .t{font-weight:600}
+  .finbox .finhead .hint{margin:0}
   .banner{display:none;margin:10px 32px 0;padding:9px 14px;border-radius:8px;background:#fff4e5;border:1px solid #f0d9b5;color:#8a5a12;font-size:12.5px;align-items:center;gap:12px}
   .banner.on{display:flex}
   .banner.ok{background:var(--ok-soft);border-color:#cbe0d7;color:var(--ok)}
@@ -227,6 +232,19 @@
   }
   function assetUrl(a) { return a.image ? (a.image + "?v=" + (a.imageVer || 0)) : ""; }
   function videoUrl(s) { return s.video ? (s.video + "?v=" + (s.videoVer || 0)) : ""; }
+  /* 合并成片：全部段落跑完后自动生成，路径存在 meta.finalVideo */
+  function finalUrl() {
+    var m = STATE.meta || {};
+    if (!m.finalVideo) return "";
+    var t = String(m.finalVideoAt || "").replace(/[^0-9]/g, "");
+    return m.finalVideo + "?v=" + (t || "1");
+  }
+  function finalSecs() {
+    var s = (STATE.meta || {}).finalVideoSec;
+    if (!s) return "";
+    s = Number(s);
+    return (Math.floor(s / 60) ? Math.floor(s / 60) + " 分 " : "") + (s % 60).toFixed(1) + " 秒";
+  }
   /* 下拉选项：只给真实存在的模型；列表空（离线/读取失败）时给一条占位，绝不把旧值塞进列表 */
   function selOptions(list, emptyLabel) {
     if (!list || !list.length) return [["", emptyLabel || "（ComfyUI 里没读到模型）"]];
@@ -1184,7 +1202,7 @@
   /* ---------- 页面：成品 ---------- */
   function renderFinal() {
     var v = h("section", "page");
-    v.appendChild(pageHead("成品", "每生成一段，视频就落在这里。生成时整批入队，ComfyUI 连续跑，模型只加载一次。"));
+    v.appendChild(pageHead("成品", "全部段落跑完后自动拼成一个整片放在最上面，可以直接看完整条；下面仍是各段原片。生成时整批入队，ComfyUI 连续跑，模型只加载一次。"));
     v.appendChild(flowbar());
     var dirBar = h("div", "tools");
     dirBar.style.margin = "12px 0 2px";
@@ -1198,6 +1216,28 @@
     v.appendChild(dirBar);
     var done = segs().filter(function (s) { return !!s.video; });
     var all = segs();
+    /* 成片：全部合并好的整片，放在最上面给人一次看完 */
+    var fin = finalUrl();
+    if (fin) {
+      var box = h("div", "finbox");
+      var vd = h("video");
+      vd.src = fin; vd.controls = true; vd.preload = "metadata"; vd.playsInline = true;
+      box.appendChild(vd);
+      var head = h("div", "finhead");
+      head.appendChild(h("span", "t", "成片（整片）"));
+      var parts = ((STATE.meta || {}).finalVideoParts || []).length;
+      var meta = [];
+      if (parts) meta.push(parts + " 段合并");
+      if (finalSecs()) meta.push(finalSecs());
+      if (meta.length) head.appendChild(h("span", "tag", meta.join(" · ")));
+      var dlf = h("a", "btn sm", "下载整片");
+      dlf.href = fin; dlf.download = ((STATE.meta || {}).finalVideo || "final.mp4").split("/").pop();
+      head.appendChild(dlf);
+      var at = (STATE.meta || {}).finalVideoAt;
+      if (at) head.appendChild(h("span", "hint", "合并于 " + at));
+      box.appendChild(head);
+      v.appendChild(box);
+    }
     if (!done.length) {
       v.appendChild(h("div", "empty", "还没有生成的视频。先到「视频提示词」页确认提示词与配音，再点生成。"));
     } else {
@@ -1228,6 +1268,10 @@
         var go = h("button", "btn primary", "整批补齐剩余 " + rest + " 段");
         go.onclick = function () { runTask("videos", []); };
         t.appendChild(go);
+      } else if (done.length >= 2) {
+        var mg = h("button", "btn", fin ? "重新合并成片" : "合并成片");
+        mg.onclick = function () { runTask("merge", []); };
+        t.appendChild(mg);
       }
       v.appendChild(t);
     }
