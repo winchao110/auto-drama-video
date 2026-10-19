@@ -77,12 +77,36 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 - **Python 3.9+**（只用标准库，不需要 `pip install` 任何东西）
 - **本地 ComfyUI** 已启动（默认 `http://127.0.0.1:8188`）
 - ComfyUI 侧需要（脚本自动读它们暴露的节点与模型列表）：
-  - **Star7 系列 H3 节点**：`MiniMaxH3ChunkEnhancedLoaderStar7`、`MiniMaxH3PromptImportStar7`、`MiniMaxH3MaterialPromptStar7`、`MiniMaxH3OneClickHDStar7` 等
+  - **自定义节点**：**必须先装齐下表 4 个仓库**，缺一个工作流就提交不了（见下节）
   - **VHS**（`VHS_VideoCombine`）用于 mp4 输出；工作流里还用到 rgthree / KJNodes
   - **模型**：H3 主模型 + H3 LoRA + 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧 Qwen-Image 2.1 UNet + 8B CLIP + VAE
   - 具体文件名见 `使用手册.md` 第二章，或直接看工作台参数区的下拉
 
 > **不需要联网**。除了本地 ComfyUI，全程不访问外部服务（也不下载任何权重）。
+
+### ComfyUI 需要安装的自定义节点
+
+内嵌的两份工作流（H3 视频 + Qwen-Image 2.1 生图）依赖下面 4 个自定义节点仓库。
+**缺节点时 ComfyUI 会直接报 `node type not found` / 提交被拒，工作台参数区也会读不到模型下拉**，装完重启 ComfyUI 再跑。
+
+| 仓库 | 提供什么 | 用在哪 |
+|---|---|---|
+| [`star7code/minimax-h3-chunk-star7`](https://github.com/star7code/minimax-h3-chunk-star7) | Star7chunk 系列 H3 节点（`MiniMaxH3ChunkEnhancedLoaderStar7`、`MiniMaxH3PromptImportStar7`、`MiniMaxH3MaterialPromptStar7`、`MiniMaxH3OneClickHDStar7`、分块解码等） | 视频工作流主干 |
+| [`star7code/minimax-h3-fp16-exact-star7`](https://github.com/star7code/minimax-h3-fp16-exact-star7) | H3 fp16 精确计算相关节点 | 视频工作流 |
+| [`tl2012tl/TE-Speed-QwenImage21`](https://github.com/tl2012tl/TE-Speed-QwenImage21) | Qwen-Image 2.1 推理加速 | 生图工作流（25 步） |
+| [`winchao110/TaiYang_MultiImage`](https://github.com/winchao110/TaiYang_MultiImage) | 多图输入 / 参考图槽位 | 生图与参考图挂载 |
+
+```bash
+cd <ComfyUI>/custom_nodes
+git clone https://github.com/star7code/minimax-h3-fp16-exact-star7.git
+git clone https://github.com/star7code/minimax-h3-chunk-star7.git
+git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
+git clone https://github.com/winchao110/TaiYang_MultiImage.git
+# 各自按仓库 README 装 requirements（如有），然后重启 ComfyUI
+```
+
+装好的自检：WorkBuddy 里跑 `python scripts/drama.py status --project "<项目>"`，
+ComfyUI 在线且 `images --dry` / `videos --dry` 能过 `verify_graph()`，就说明节点齐了。
 
 ---
 

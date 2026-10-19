@@ -155,6 +155,25 @@ $PY scripts/drama.py status --project "$P"
 `status` 会打印 ComfyUI 是否在线。**不在线就先让用户启动本地 ComfyUI**（桌面版 / `run_nvidia_gpu.bat`）。
 第 1 阶段不需要 ComfyUI，可以先出提示词。
 
+**ComfyUI 报节点缺失（`node type not found` / `value_not_in_list` / 参数区下拉读不到模型）时，先让用户把这 4 个自定义节点装到 `ComfyUI/custom_nodes/` 再重启 ComfyUI，不要改工作流绕开：**
+
+| 仓库 | 提供 |
+|---|---|
+| <https://github.com/star7code/minimax-h3-chunk-star7> | Star7chunk 系列 H3 节点（`MiniMaxH3ChunkEnhancedLoaderStar7` / `MiniMaxH3PromptImportStar7` / `MiniMaxH3MaterialPromptStar7` / `MiniMaxH3OneClickHDStar7` / 分块解码） |
+| <https://github.com/star7code/minimax-h3-fp16-exact-star7> | H3 fp16 精确计算节点 |
+| <https://github.com/tl2012tl/TE-Speed-QwenImage21> | Qwen-Image 2.1 生图加速 |
+| <https://github.com/winchao110/TaiYang_MultiImage> | 多图输入 / 参考图槽位 |
+
+```bash
+cd <ComfyUI>/custom_nodes
+git clone https://github.com/star7code/minimax-h3-fp16-exact-star7.git
+git clone https://github.com/star7code/minimax-h3-chunk-star7.git
+git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
+git clone https://github.com/winchao110/TaiYang_MultiImage.git
+```
+
+装完用 `images --dry` / `videos --dry` 验证 `verify_graph()` 能过，再入队。
+
 ---
 
 ## 第 1 阶段：提示词（一次出全三样）
