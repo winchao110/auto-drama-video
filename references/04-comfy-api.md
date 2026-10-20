@@ -77,24 +77,26 @@ curl -s --noproxy '*' "http://127.0.0.1:8188/view?filename=xxx.mp4&subfolder=dra
 | `391` | MiniMaxH3ChunkEnhancedLoaderStar7 | `unet_name` | H3 主模型 |
 | `311` | LoraLoaderModelOnly | `lora_name` / `strength_model` | 默认 `turbo_v4_step600`、强度 0.75；选「不挂」把整条摘掉并把下游接到 `391` |
 | `408` | Star7VedaSparseAttention | `enabled` / `predictor` / `generated_sparsity` / `reference_sparsity` | **VEDA 稀疏注意力（可选）** ← `settings.h3Veda`（默认 false）；关着提交前**整节点摘掉**、`363.model` 直连 `313`，上游 313 不能丢 |
+| `363` | MiniMaxH3ActivationChunkStar7 | `attention_backend` / `chunk_tokens` / `mlp_chunk_tokens` / `qkv_chunk_tokens` | **显存分块加速**；`attention_backend` ← `settings.h3Attn`（默认 `comfy_kitchen_int8`）。可选值以节点定义为准，`existing` 表示不动现有内核 |
 | `376` | MiniMaxH3OneClickHDStar7 | `enable_hd` / `target_megapixels` | **二采高清放大** ← `settings.h3Hd` / `h3HdMegapixels`（默认 false / 1.5） |
 | `395` | MiniMaxH3FaceRefineLatentStar7 | `enable_refine` | 一键人脸修复，技能里**默认关**（`false`，直通） |
 | `339` | Star7VideoWorkflowExport | — | 提交前**整节点摘掉**：只会多写一份带工作流的视频，还抢 `pick_video` |
 
-采样链：`391 → 311 → 313(SigmaShift 6/3) → [408(VEDA，可选) →] 363(分块加速) → 275 → 128(基本引导器) → 127(euler·simple·5 步) → 376(二采) → 395(人脸) → 377(分块解码) → 150`。
+采样链：`391 → 311 → 313(SigmaShift 6/3) → [408(VEDA，可选) →] 363(分块加速, attention_backend←h3Attn) → 275 → 128(基本引导器) → 127(euler·simple·5 步) → 376(二采) → 395(人脸) → 377(分块解码) → 150`。
 2026-10-20 版工作流（用户导出）本身不带 `360` 实时预览；`408` 按用户要求以可选节点形式留在模板里，
 `settings.h3Veda = false` 时提交前被摘掉，图里就是「313 → 363」直连。
 
 ### 换模板时的自检：`verify_graph()`
 
-`video_graph()` 建好图后 `verify_graph()` 会核对五件事，任一条不过就退出并打印具体节点，
+`video_graph()` 建好图后 `verify_graph()` 会核对六件事，任一条不过就退出并打印具体节点，
 **不带病入队**（`videos --dry` 也跑这套自检）：
 
 1. 所有 `["节点id", 输出口]` 连线是否仍指向存在的节点（摘节点后最容易断在这里）；
 2. `H3_NODE` 里点名的节点是否都在模板里；
 3. 关键值是否真写进去：提示词非空、宽高是 `int`、步数/种子/保存前缀、参考图列表与槽位数一致、`audio_mode` 与是否挂参考音一致；
 4. 二采节点 `376` 是否存在（缺了说明模板不是新版）；
-5. VEDA 开关与图结构是否一致：`veda=true` 但图上没有 `408`、或 `veda=false` 却还留着 `408`，都算错。
+5. VEDA 开关与图结构是否一致：`veda=true` 但图上没有 `408`、或 `veda=false` 却还留着 `408`，都算错；
+6. 显存分块加速节点 `363` 在不在，以及 `attention_backend` 是否等于本次要写的 `h3Attn`。
 
 ### 参考图槽位怎么确定
 

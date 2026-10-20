@@ -210,14 +210,14 @@
   var SEED_MODES = [["fixed", "固定（种子不变）"], ["increment", "递增（每次 +1）"], ["decrement", "递减（每次 -1）"], ["randomize", "随机（每次换）"]];
   /* 模型选项全部来自已连接的 ComfyUI：unet=diffusion_models，lora=loras，clip=text_encoders，vae=vae
      规矩：下拉里只放 ComfyUI 此刻真实存在的文件；页面每次打开 / 切到这两页都重新读，绝不复用上次的列表。 */
-  var MODELS = { unet: [], lora: [], clip: [], vae: [], error: "", loaded: false, ts: "" };
+  var MODELS = { unet: [], lora: [], clip: [], vae: [], attn: [], error: "", loaded: false, ts: "" };
   var MODEL_DEFAULTS = __MODEL_DEFAULTS__;
   var MODEL_SLOT = { imgUnet: "unet", imgClip: "clip", imgVae: "vae",
                      h3Model: "unet", h3Lora: "lora", h3Clip: "clip",
-                     h3VideoVae: "vae", h3AudioVae: "vae" };
+                     h3VideoVae: "vae", h3AudioVae: "vae", h3Attn: "attn" };
   var MODEL_LABEL = { imgUnet: "生图 UNet", imgClip: "生图 CLIP", imgVae: "生图 VAE",
                       h3Model: "H3 主模型", h3Lora: "LoRA", h3Clip: "CLIP",
-                      h3VideoVae: "视频 VAE", h3AudioVae: "音频 VAE" };
+                      h3VideoVae: "视频 VAE", h3AudioVae: "音频 VAE", h3Attn: "加速后端" };
   var MODEL_FIXED = [];          /* 本轮读取判定为「已不存在」并自动改掉的项（明细） */
   function fixedNames() {
     return MODEL_FIXED.map(function (x) { return x.name; }).join("、");
@@ -226,7 +226,8 @@
     if (!MODELS.loaded) return "正在从已连接的 ComfyUI 读取模型列表…";
     if (MODELS.error) return "读取失败：" + MODELS.error + "。ComfyUI 起来后点「刷新模型列表」重读。";
     var s = "已从 ComfyUI 实时读取（" + (MODELS.ts || "刚刚") + "）：主模型 " + MODELS.unet.length +
-      " / LoRA " + MODELS.lora.length + " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length;
+      " / LoRA " + MODELS.lora.length + " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length +
+      " / 加速后端 " + (MODELS.attn || []).length;
     if (MODEL_FIXED.length) s += "｜有 " + MODEL_FIXED.length + " 项已不在 ComfyUI（" + fixedNames() + "），已切到可用项，记得保存";
     return s;
   }
@@ -276,6 +277,7 @@
   function applyModels(j) {
     MODELS.unet = j.unet || []; MODELS.lora = j.lora || [];
     MODELS.clip = j.clip || []; MODELS.vae = j.vae || [];
+    MODELS.attn = j.attn || [];
     MODELS.error = j.error || ""; MODELS.ts = j.ts || ""; MODELS.loaded = true;
     MODELS.at = Date.now();
     alignModels();
@@ -291,7 +293,8 @@
         if (silent) return;
         if (MODEL_FIXED.length) toast(MODEL_FIXED.map(function (x) { return x.name + " " + x.detail; }).join("；") + "（已切到可用模型，记得保存）", 6500);
         else toast("模型列表已刷新：主模型 " + MODELS.unet.length + " / LoRA " + MODELS.lora.length +
-          " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length);
+          " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length +
+          " / 加速后端 " + (MODELS.attn || []).length);
       })
       .catch(function (e) {
         MODELS.loaded = true;
@@ -1162,6 +1165,19 @@
       g.appendChild(field("宽高比", "settings.ratio", { type: "select", options: RATIOS, hint: "短剧建议 9:16" }));
       g.appendChild(field("分辨率（百万像素）", "settings.megapixels", { type: "number", step: 0.1, min: 0.2, max: 4, hint: "9:16 · 0.9 ≈ 704×1280" }));
       g.appendChild(field("生成步数", "settings.steps", { type: "number", step: 1, min: 1, max: 60, hint: "默认 5（turbo_v4 蒸馏 LoRA 按 5 步走）" }));
+
+      /* --- 显存加速后端：363 显存分块加速节点的 attention_backend，选项现读 ComfyUI 的节点定义 --- */
+      var attnOpts = (MODELS.attn && MODELS.attn.length)
+        ? MODELS.attn.map(function (x) { return [x, x]; })
+        : [["", "（ComfyUI 里没读到后端列表）"]];
+      g.appendChild(field("显存加速后端（显存分块加速节点 363）", "settings.h3Attn", {
+        type: "select",
+        options: attnOpts,
+        hint: "决定 363 显存分块加速节点用哪种注意力内核，列表实时读自已连接的 ComfyUI。"
+            + "existing = 不动现有内核；comfy_kitchen_int8 = 工作流原值（2080 Ti 上验证过，默认）；"
+            + "sla_ / sol_ / vsa_ 系列按算力档分 sm75 与 sm80+；hybrid_* 是把 comfy_kitchen 与其中一种混用。"
+            + "选了本机节点里没有的值，生成前会直接拦下来，不会跑到一半才报错。"
+      }));
 
       /* --- VEDA 稀疏注意力：默认不勾。勾了才把 408 节点留在图上真跑，没勾整颗从图上摘掉 --- */
       g.appendChild(field("MiniMax H3 VEDA 加速", "settings.h3Veda", {

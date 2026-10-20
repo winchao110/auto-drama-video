@@ -64,7 +64,7 @@ H3_NODE = {"prompt": "334", "promptKey": "prompt",
            "core": "275", "duration": "135", "steps": "126", "seed": "131", "save": "150",
            "refs": "429", "audios": "430", "unet": "391", "lora": "311",
            "clip": "130", "videoVae": "121", "audioVae": "122",
-           "hd": "376", "face": "395", "export": "339", "veda": "408"}
+           "hd": "376", "face": "395", "export": "339", "veda": "408", "chunk": "363"}
 # 参考音：新工作流用 TaiYangMultiAudioLoader(430) 多路输出，直接接到 star7 的 ref_audio_0/1
 AUDIO_NODE = []
 AUDIO_SLOTS = 2
@@ -77,6 +77,27 @@ DEFAULT_H3_LORA = "MiniMaxH3\\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.saf
 DEFAULT_H3_CLIP = "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
 DEFAULT_H3_VIDEO_VAE = "MiniMaxH3\\minimax_h3_video_vae_int8_convrot1.safetensors"
 DEFAULT_H3_AUDIO_VAE = "MiniMaxH3\\minimax_h3_audio_vae_fp32.safetensors"
+# 显存分块加速节点(363 MiniMaxH3ActivationChunkStar7) 的 attention_backend：
+# 决定这节点用哪种注意力内核跑（现有内核 / comfy_kitchen int8 / SLA / SOL / VSA / 各种 hybrid）。
+# 选项由 ComfyUI 自己的节点定义给（object_info），这里只是离线时的兜底列表，顺序与节点一致；
+# 提交前会拿服务端列表对一遍，选了个本机没有的会直接报错而不是跑到一半炸。
+H3_ATTN_BACKENDS = [
+    "existing",
+    "comfy_kitchen_int8",
+    "sla_sm75_qk_int8_pv_fp16", "sla_sm75_all_int8", "sol_sm75_all_int8", "vsa_sm75",
+    "hybrid_sm75_ck_sla_all_int8", "hybrid_sm75_ck_sol_all_int8", "hybrid_sm75_ck_vsa",
+    "sla_sm80+_qk_int8_pv_bf16", "sla_sm80+_all_int8", "sol_sm80+_bf16_official",
+    "sol_sm80+_all_int8", "vsa_sm80+",
+    "hybrid_sm80+_ck_sla_all_int8", "hybrid_sm80+_ck_sol_all_int8",
+    "hybrid_sm80+_ck_sla_qk_int8_pv_bf16", "hybrid_sm80+_ck_sol_bf16_official",
+    "hybrid_sm80+_ck_vsa",
+]
+DEFAULT_H3_ATTN = "comfy_kitchen_int8"
+# attention_backend 的中文说明（只用于页面/日志提示，不参与提交）
+H3_ATTN_NOTE = {
+    "existing": "不动现有内核，沿用 ComfyUI 当前装的那套",
+    "comfy_kitchen_int8": "comfy_kitchen int8 内核（工作流原值，2080 Ti 上验证过）",
+}
 # 生图（Qwen-Image 2.1）默认三件套 + 默认采样步数
 DEFAULT_IMG_UNET = "Qwen-Image\\qwen_image_2.1_int8_convrot.safetensors"
 DEFAULT_IMG_CLIP = "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors"
@@ -252,7 +273,7 @@ def comfy_models(addr, force=True):
     不缓存：每次打开页面 / 切页 / 点刷新都重新读一遍，避免下拉里出现已经删掉的模型。
     force 参数只为兼容老调用保留，行为上永远现读。
     """
-    data = {"unet": [], "lora": [], "clip": [], "vae": [], "error": "",
+    data = {"unet": [], "lora": [], "clip": [], "vae": [], "attn": [], "error": "",
             "ts": time.strftime("%H:%M:%S")}
 
     def combo(node, key):
@@ -275,6 +296,8 @@ def comfy_models(addr, force=True):
         data["lora"] = combo("LoraLoaderModelOnly", "lora_name")
         data["clip"] = combo("CLIPLoader", "clip_name")
         data["vae"] = combo("VAELoader", "vae_name")
+        # 显存分块加速节点(363) 的注意力后端：这是枚举值不是文件，读不到就退回离线兜底列表
+        data["attn"] = combo("MiniMaxH3ActivationChunkStar7", "attention_backend") or list(H3_ATTN_BACKENDS)
     except Exception as e:
         data["error"] = str(e)[:200]
     return data
@@ -455,7 +478,7 @@ REMEMBER_KEYS = (
     "imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels",
     "steps", "comfy", "h3Model", "h3Lora", "h3LoraStrength",
     "h3Clip", "h3VideoVae", "h3AudioVae",
-    "h3Veda", "h3Hd", "h3HdMegapixels", "seed", "afterGenerate", "charSheet",
+    "h3Veda", "h3Attn", "h3Hd", "h3HdMegapixels", "seed", "afterGenerate", "charSheet",
 )
 
 
@@ -477,6 +500,7 @@ def builtin_settings():
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE,
         "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
         "h3Veda": False,
+        "h3Attn": DEFAULT_H3_ATTN,
         "h3Hd": False,
         "h3HdMegapixels": DEFAULT_HD_MP,
         "seed": 0,
@@ -576,6 +600,7 @@ def new_state(title="未命名短剧", source=""):
             "h3VideoVae": mem["h3VideoVae"],
             "h3AudioVae": mem["h3AudioVae"],
             "h3Veda": mem["h3Veda"],
+            "h3Attn": mem.get("h3Attn") or DEFAULT_H3_ATTN,
             "h3Hd": mem["h3Hd"],
             "h3HdMegapixels": mem["h3HdMegapixels"],
             "h3Wf": H3_WF_TAG,
@@ -610,7 +635,7 @@ def migrate(st):
     mem = load_user_settings()
     for k in ("imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels", "steps", "comfy",
               "h3Model", "h3Lora", "h3LoraStrength", "h3Clip", "h3VideoVae", "h3AudioVae",
-              "seed", "afterGenerate", "h3Veda", "h3Hd", "h3HdMegapixels"):
+              "seed", "afterGenerate", "h3Veda", "h3Attn", "h3Hd", "h3HdMegapixels"):
         s.setdefault(k, mem[k])
     # 生图步数必须是可以直接填进 KSampler 的整数：空值 / 乱填一律回落到默认 25
     try:
@@ -800,6 +825,7 @@ def build_html(proj, st=None):
         "imgUnet": DEFAULT_IMG_UNET, "imgClip": DEFAULT_IMG_CLIP, "imgVae": DEFAULT_IMG_VAE,
         "h3Model": DEFAULT_H3_MODEL, "h3Lora": DEFAULT_H3_LORA, "h3Clip": DEFAULT_H3_CLIP,
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE, "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
+        "h3Attn": DEFAULT_H3_ATTN,
     }, ensure_ascii=False).replace("</", "<\\/")
     html = (tpl.replace("__TITLE__", title)
                .replace("__PROJECT_DIR__", proj_js)
@@ -1225,11 +1251,13 @@ def veda_predictors(addr):
 def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_avail=1,
                 audio_files=(), unet="", lora="", lora_strength=0.75,
                 clip="", video_vae="", audio_vae="",
-                hd=False, hd_mp=DEFAULT_HD_MP, veda=False):
+                hd=False, hd_mp=DEFAULT_HD_MP, veda=False, attn=""):
     """按 Ref2VA 填参。sec 这里已经是"实际传给 API"的秒数（gen_sec 算过）。
 
     veda=False（默认）：把 VEDA 稀疏注意力节点整颗从图上摘掉，下游直接接回 SigmaShift，
     后端既不会加载 VEDA 预测模型，也不会装注意力补丁——效果等同于这条工作流本来就没有它。
+
+    attn：显存分块加速节点(363) 的 attention_backend，决定用哪种注意力内核；空 = 保留模板原值。
     """
     g = copy.deepcopy(tpl)
     core = g[H3_NODE["core"]]["inputs"]
@@ -1298,6 +1326,11 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
                     ins["model"] = upstream
             g.pop(vn, None)
 
+    # 显存分块加速节点的注意力后端（自适应内核）：枚举值，本机 ComfyUI 里没有的选项提交前会被拦下来
+    cn2 = H3_NODE.get("chunk")
+    if attn and cn2 and cn2 in g:
+        g[cn2]["inputs"]["attention_backend"] = str(attn)
+
     # 参考图：清掉模板里残留的槽位，只挂本段实际用到的
     for k in [k for k in list(core.keys()) if k.startswith("ref_images.")]:
         core.pop(k)
@@ -1325,7 +1358,7 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
     return g, used
 
 
-def verify_graph(g, ref_files=None, audio_files=None, veda=False):
+def verify_graph(g, ref_files=None, audio_files=None, veda=False, attn=None):
     """提交前自检：节点映射对不对、引用的节点还在不在、关键值写没写进去。
     返回问题列表（空 = 可以入队）。模板一换就靠这个第一时间发现对不上。"""
     problems = []
@@ -1386,6 +1419,14 @@ def verify_graph(g, ref_files=None, audio_files=None, veda=False):
             problems.append("勾了 VEDA 加速，但图上没有 %s 节点（模板 %s 与 H3_NODE 对不上）" % (vn, H3_WF))
         if not veda and vn in g:
             problems.append("没勾 VEDA 加速，节点 %s 却还在图上（摘除逻辑没生效）" % vn)
+    # 6) 显存分块加速的注意力后端：节点必须在，且写进去的值要与预期一致（空值会让节点回落到它自己的默认）
+    cn = H3_NODE.get("chunk")
+    if cn and cn not in g:
+        problems.append("模板里缺少显存分块加速节点（H3_NODE['chunk'] = %r）" % cn)
+    elif cn and attn:
+        got = g[cn]["inputs"].get("attention_backend")
+        if got != attn:
+            problems.append("加速后端没写进节点 %s（期望 %r，实际 %r）" % (cn, attn, got))
     return problems
 
 
@@ -1900,6 +1941,7 @@ def cmd_videos(args):
     hd_mp = DEFAULT_HD_MP if hd_mp in (None, "") else float(hd_mp)
     _vflag = getattr(args, "veda", None)
     veda = bool(s.get("h3Veda")) if _vflag is None else bool(_vflag)
+    attn = (getattr(args, "attn", "") or s.get("h3Attn") or DEFAULT_H3_ATTN).strip()
     unet = (s.get("h3Model") or "").strip()
     lora = (s.get("h3Lora") or "").strip()
     lora_s = s.get("h3LoraStrength")
@@ -1913,6 +1955,19 @@ def cmd_videos(args):
                                 else "关（只跑一采）"), flush=True)
     print("VEDA 加速：%s" % ("开 · 稀疏注意力补丁生效（快，但需要 VEDA 预测模型在场）" if veda
                              else "关（节点不进图，纯完整注意力）"), flush=True)
+    print("显存加速后端：%s%s" % (attn, ("（%s）" % H3_ATTN_NOTE[attn]) if attn in H3_ATTN_NOTE else ""), flush=True)
+    # 加速后端是枚举：选了个本机 ComfyUI 没有的，提交会直接被节点拒绝，开跑前先对一遍
+    if not args.dry:
+        usable = None
+        try:
+            usable = (comfy_models(addr).get("attn") or None)
+        except Exception:
+            usable = None
+        if usable and attn not in usable:
+            die("显存加速后端 %r 不在本机 ComfyUI 的可选值里。\n"
+                "  可用：%s\n"
+                "  ① 在「视频参数 → 显存加速后端」里选一个上面的值；② 或加 --attn <值> 临时指定。"
+                % (attn, "、".join(usable)), code=4)
     if veda:
         want = ((tpl.get(H3_NODE.get("veda") or "") or {}).get("inputs") or {}).get("predictor") or ""
         have = None if args.dry else veda_predictors(addr)
@@ -1973,9 +2028,9 @@ def cmd_videos(args):
                     names, max(1, len(names)), anames,
                     unet=unet, lora=lora, lora_strength=lora_s,
                     clip=clip_m, video_vae=vvae, audio_vae=avae,
-                    hd=hd, hd_mp=hd_mp, veda=veda,
+                    hd=hd, hd_mp=hd_mp, veda=veda, attn=attn,
                 )
-                probs = verify_graph(probe, names, anames, veda=veda)
+                probs = verify_graph(probe, names, anames, veda=veda, attn=attn)
                 for pr in probs:
                     rep.bad("%s 工作流自检：%s" % (sid, pr))
                 if not probs:
@@ -1992,7 +2047,7 @@ def cmd_videos(args):
                 "drama/" + safe_id(sid), uploaded, outputs_avail, audio_names,
                 unet=unet, lora=lora, lora_strength=lora_s,
                 clip=clip_m, video_vae=vvae, audio_vae=avae,
-                hd=hd, hd_mp=hd_mp, veda=veda,
+                hd=hd, hd_mp=hd_mp, veda=veda, attn=attn,
             )
             if used < len(uploaded):
                 print("      注意：本段上传 %d 张参考图，实际挂载 %d 张（Picture 编号需与实际挂载一致）" % (len(uploaded), used), flush=True)
@@ -2009,7 +2064,7 @@ def cmd_videos(args):
 
     # ---- 工作流自检：拿第一条任务核对一遍，对不上就别往队列里塞 ----
     if jobs:
-        bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"), veda=veda)
+        bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"), veda=veda, attn=attn)
         if bad:
             for b in bad:
                 print("  [×] " + b, flush=True)
@@ -2411,6 +2466,7 @@ def make_handler(proj):
                 data = comfy_models(addr2, force=True)
                 return self._send(200, {"ok": True, "unet": data["unet"], "lora": data["lora"],
                                         "clip": data["clip"], "vae": data["vae"],
+                                        "attn": data.get("attn") or list(H3_ATTN_BACKENDS),
                                         "ts": data["ts"], "error": data["error"]})
             if path == "/api/runstatus":
                 running = bool(RUN["proc"] and RUN["proc"].poll() is None)
@@ -3211,10 +3267,11 @@ def cmd_check(args):
             issues.append("H3 工作流模板缺少节点：%s（模板 %s 与 H3_NODE 映射对不上）" % (
                 ", ".join("%s=%s" % (k, H3_NODE.get(k)) for k in miss), H3_WF))
         else:
-            print("工作流：%s｜%d 个节点｜步数 %s｜二采高清 %s｜VEDA %s%s" % (
+            print("工作流：%s｜%d 个节点｜步数 %s｜二采高清 %s｜VEDA %s｜加速后端 %s%s" % (
                 H3_WF, len(tpl), st["settings"].get("steps"),
                 "开（目标 %s MP）" % st["settings"].get("h3HdMegapixels") if st["settings"].get("h3Hd") else "关",
                 "开" if st["settings"].get("h3Veda") else "关",
+                st["settings"].get("h3Attn") or DEFAULT_H3_ATTN,
                 "｜参考音 %d 路" % AUDIO_SLOTS), flush=True)
     except Exception as e:
         issues.append("H3 工作流模板读取失败（%s）：%s" % (H3_WF, e))
@@ -3357,6 +3414,9 @@ def main(argv=None):
     a.add_argument("--veda", dest="veda", action="store_true", default=None,
                    help="临时打开 VEDA 稀疏注意力加速（需要 ComfyUI 里已有 VEDA 预测模型）")
     a.add_argument("--no-veda", dest="veda", action="store_false", help="临时关闭 VEDA 加速")
+    a.add_argument("--attn", dest="attn", default="", metavar="后端",
+                   help="临时指定显存加速后端（363 节点的 attention_backend），"
+                        "如 comfy_kitchen_int8 / existing / vsa_sm75 / hybrid_sm80+_ck_vsa")
     a.add_argument("--timeout", type=int, default=14400)
     a.add_argument("--dry", action="store_true")
     a.add_argument("--serial", action="store_true", help="串行：提交一条等一条（默认整批入队）")

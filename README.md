@@ -63,7 +63,7 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 已保存的模型若不存在，会自动切到可用默认项并给出提示。UNet / LoRA / CLIP / VAE 全部来自你 ComfyUI 自己的 `models` 目录。
 
 **⑥ 参数记忆跨项目**
-生图与视频参数（20 项：三件套模型、步数、比例、百万像素、种子、二采、人物视图模板…）存技能目录 `settings.user.json`，
+生图与视频参数（21 项：三件套模型、步数、比例、百万像素、种子、二采、人物视图模板…）存技能目录 `settings.user.json`，
 新剧 `init` 自动沿用。**只记参数，不记剧情/资产/提示词。**
 
 **⑦ 审核闸门**
@@ -216,6 +216,7 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 | 步数 / 种子 / 生成后控制 | 默认 5 步、`fixed` 可改 `increment / decrement / randomize` |
 | 比例 / 百万像素 | 同时决定视频分辨率（例：0.9MP → 640×1120） |
 | 二采高清放大 | 默认关；开了可设目标像素（默认 1.5MP） |
+| 显存加速后端 | 默认 `comfy_kitchen_int8`；决定 363 节点用哪种注意力内核（existing / sla_ / sol_ / vsa_ / hybrid_，选项实时读 ComfyUI） |
 | VEDA 加速 | 默认**不勾**；勾了才把 `Star7VedaSparseAttention(408)` 留在工作流里，需要 ComfyUI 里已有 VEDA 预测模型 |
 
 同一个人在页面上调过的值就是这一轮的唯一口径，脚本原样执行、不再追问，也**不会**擅自换成"更好"的值。
@@ -290,6 +291,7 @@ auto-drama-video/
 --img-steps 30 --unet "…" --clip "…" --vae "…"   # 临时换生图三件套
 --hd --hd-megapixels 1.8   # 临时开二采高清
 --veda                     # 临时开 VEDA 稀疏注意力（需 VEDA 模型）
+--attn vsa_sm75            # 临时换显存加速后端（363 的 attention_backend）
 ```
 
 ---
