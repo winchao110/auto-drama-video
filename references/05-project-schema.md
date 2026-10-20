@@ -12,6 +12,7 @@
   videos/             分段视频（P01.mp4）
   voices/             参考音（v1.wav / v2.wav）
   .run.log            HTML 里点「生成」时的日志
+  .drama-skill        技能目录指针（每次保存自动写；把 启动工作台.bat 单独复制进项目时靠它找回技能）
 ```
 
 ## 二、命令

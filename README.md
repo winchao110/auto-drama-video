@@ -105,22 +105,24 @@ git clone https://github.com/winchao110/TaiYang_MultiImage.git
 # 各自按仓库 README 装 requirements（如有），然后重启 ComfyUI
 ```
 
-装好的自检：WorkBuddy 里跑 `python scripts/drama.py status --project "<项目>"`，
+装好的自检：在任意终端跑 `python scripts/drama.py status --project "<项目>"`，
 ComfyUI 在线且 `images --dry` / `videos --dry` 能过 `verify_graph()`，就说明节点齐了。
 
 ---
 
 ## 安装
 
-本技能是 WorkBuddy / CodeBuddy 的技能包，本质是一个目录：
+本技能是一个**纯目录**技能包，不绑定任何平台：一个 `SKILL.md` + `scripts/` + `references/` + `assets/`，
+没有平台私有接口、没有私有 SDK、不用注册。**任何智能体都能装，随便放哪都能跑**——`scripts/drama.py`
+内部所有路径都按自身位置解析，你把它克隆到 D 盘某个角落一样能用。
 
 ```bash
-# 用户级（所有项目可用）
-git clone https://github.com/winchao110/auto-drama-video.git \
-  ~/.workbuddy/skills/auto-drama-video
+git clone https://github.com/winchao110/auto-drama-video.git <你的智能体技能目录>/auto-drama-video
 ```
 
-Windows 路径：`C:\Users\<用户名>\.workbuddy\skills\auto-drama-video`
+「技能目录」各家框架命名不同（多是 `~/.<框架名>/skills/`，也有放在应用安装目录里的），
+本技能不挑位置。**判定装好只有两条**：放到该框架能读到 `SKILL.md` 的目录里，且能用 Python 跑到
+`scripts/drama.py`。只走命令行、不用对话的话，连「技能目录」都不需要，直接 `git clone` 到任意位置即可。
 
 **可选**：在技能目录建 `config.json` 指定默认路径（不进仓库，本机专用）
 
@@ -133,13 +135,17 @@ Windows 路径：`C:\Users\<用户名>\.workbuddy\skills\auto-drama-video`
 
 对应环境变量：`DRAMA_PROJECT_ROOT` / `DRAMA_COMFY_OUTPUT`。
 
+**Windows 一键启动器**：`启动工作台.bat` 里没有任何硬编码路径——技能目录按「本文件所在目录 →
+`AUTO_DRAMA_HOME` → 当前目录 → 项目里的 `.drama-skill` 指针」找，Python 按「`AUTO_DRAMA_PY` →
+`py -3` → `python`」找。换机器、换盘符、把 bat 单独复制进项目文件夹，都不用改一行。
+
 ---
 
 ## 快速开始
 
 ### 对话方式（推荐）
 
-在 WorkBuddy 里直接说，三种说法都认：
+把下面几种说法直接发给你的智能体，三种都认：
 
 - 「**全本地自动短剧视频生成，剧名《星巴克社死》，这是原文：……**」
 - 「**用全本地自动短剧视频生成，把我这篇改成短剧**」+ 附件
@@ -226,14 +232,15 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 ├─ assets/           资产图（文件名即资产 id：c1.png / s1.png / p1.png）
 ├─ 成片.mp4          整片（全部段跑完自动合并，给用户一次看完）
 ├─ videos/           分段（P01.mp4 …）
-└─ voices/           参考音
+├─ voices/           参考音
+└─ .drama-skill      技能目录指针（自动生成，启动器靠它定位技能）
 ```
 
 技能目录结构：
 
 ```
 auto-drama-video/
-├─ SKILL.md                    主流程与 18 条铁律（给智能体看）
+├─ SKILL.md                    主流程与 19 条铁律（给智能体看）
 ├─ 使用手册.md                  中文说明书（给人看）
 ├─ assets/workbench.template.html   工作台模板
 ├─ references/
@@ -318,7 +325,7 @@ auto-drama-video/
 | 文件 | 什么时候看 |
 |---|---|
 | `使用手册.md` | 中文说明书：怎么唤起、四页怎么用、参数怎么调、常见问题 |
-| `SKILL.md` | 主流程 + 18 条铁律（智能体执行口径） |
+| `SKILL.md` | 主流程 + 19 条铁律（智能体执行口径） |
 | `references/01` + `h3-wenxi-v2-template.md` | 写 H3 提示词 |
 | `references/02` + `03` | 写资产提示词 |
 | `references/04` | 调接口、排错 |

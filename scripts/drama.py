@@ -440,7 +440,7 @@ def review_gate(st, skip, what, with_images=False):
         return
     die(
         "当前提示词版本还没呈现给用户，不能直接%s。\n"
-        "  正确顺序：build → present_files 把页面打开给人看 → present 登记 → 再%s。\n"
+        "  正确顺序：build → 把页面真打开给人看 → present 登记 → 再%s。\n"
         "  如果提示词改过、人改过中文还没同步英文、或资产图刚生成/换过，都必须重新 build 并再呈现一次。\n"
         "  确认要跳过：加 --skip-review。" % (what, what),
         code=3,
@@ -774,6 +774,12 @@ def save_state(proj, st):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(st, f, ensure_ascii=False, indent=2)
     os.replace(tmp, p["json"])
+    # 留一个技能目录指针：把「启动工作台.bat」单独复制进项目文件夹时，启动器靠它找回本技能
+    try:
+        with open(os.path.join(proj, ".drama-skill"), "w", encoding="utf-8") as f:
+            f.write(SKILL_DIR + "\n")
+    except Exception:
+        pass
 
 
 def load_wf(name):

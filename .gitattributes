@@ -1,0 +1,4 @@
+# 源码统一 LF；Windows 批处理必须 CRLF，否则 cmd 解析会错位（会执行出半截命令行）
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
