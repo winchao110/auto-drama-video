@@ -80,7 +80,8 @@ curl -s --noproxy '*' "http://127.0.0.1:8188/view?filename=xxx.mp4&subfolder=dra
 | `395` | MiniMaxH3FaceRefineLatentStar7 | `enable_refine` | 一键人脸修复，技能里**默认关**（`false`，直通） |
 | `339` | Star7VideoWorkflowExport | — | 提交前**整节点摘掉**：只会多写一份带工作流的视频，还抢 `pick_video` |
 
-采样链：`391 → 311 → 313(SigmaShift 6/3) → 408(VEDA 稀疏) → 363(分块加速) → 275 / 360(实时预览) → 128 → 127(euler·simple·5 步) → 376(二采) → 395(人脸) → 377(分块解码) → 150`。
+采样链：`391 → 311 → 313(SigmaShift 6/3) → 363(分块加速) → 275 → 128(基本引导器) → 127(euler·simple·5 步) → 376(二采) → 395(人脸) → 377(分块解码) → 150`。
+（2026-10-20 版工作流已去掉 `408` VEDA 稀疏注意力与 `360` 实时预览两个节点，其余节点 id 与入参口径不变。）
 
 ### 换模板时的自检：`verify_graph()`
 

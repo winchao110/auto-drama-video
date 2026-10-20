@@ -132,7 +132,7 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频那 13 个参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
 | `settings.h3Hd` | 二采高清放大开关（默认 `false`）→ 工作流 `376.enable_hd` | 人在「视频提示词」页开/关 |
 | `settings.h3HdMegapixels` | 二采目标像素（默认 `1.5`），只在该开关打开时生效 | 人在页面改 |
-| `settings.h3Wf` | 当前 H3 工作流标记（`star7chunk-1006`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 dmad LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
+| `settings.h3Wf` | 当前 H3 工作流标记（`star7chunk-1006noveda`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 dmad LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
 | `image` / `video` / `status` | 由生成脚本写 | 脚本 |
 
 ### 四条纪律

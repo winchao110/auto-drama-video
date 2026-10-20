@@ -74,7 +74,7 @@
  "128": {
   "inputs": {
    "model": [
-    "360",
+    "275",
     0
    ],
    "conditioning": [
@@ -266,24 +266,6 @@
    "title": "视频与工作流导出 - Star7"
   }
  },
- "360": {
-  "inputs": {
-   "preview_enabled": true,
-   "preview_model": "taeh3.safetensors",
-   "preview_fps": 5,
-   "preview_resolution": "1024",
-   "preview_quality": 80,
-   "first_step_only": false,
-   "model": [
-    "275",
-    0
-   ]
-  },
-  "class_type": "MiniMaxH3LivePreviewStar7",
-  "_meta": {
-   "title": "MiniMax H3 实时预览 - Star7"
-  }
- },
  "363": {
   "inputs": {
    "mlp_chunk_tokens": 8192,
@@ -296,7 +278,7 @@
    "disable_dynamic_prefetch": "关闭",
    "attention_backend": "comfy_kitchen_int8",
    "model": [
-    "408",
+    "313",
     0
    ]
   },
@@ -393,25 +375,6 @@
   "class_type": "MiniMaxH3FaceRefineLatentStar7",
   "_meta": {
    "title": "MiniMax H3 一键人脸修复 - Star7"
-  }
- },
- "408": {
-  "inputs": {
-   "enabled": true,
-   "predictor": "minimax_h3_t2va_veda_8nfe_600step_preview_fp8.safetensors",
-   "generated_sparsity": "90%",
-   "reference_sparsity": "90%",
-   "full_attention_layers": "",
-   "full_attention_steps": "",
-   "verbose": true,
-   "model": [
-    "313",
-    0
-   ]
-  },
-  "class_type": "Star7VedaSparseAttention",
-  "_meta": {
-   "title": "MiniMax H3 VEDA 稀疏注意力 - Star7"
   }
  },
  "429": {

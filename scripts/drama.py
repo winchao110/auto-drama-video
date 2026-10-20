@@ -55,9 +55,10 @@ TPL_PATH = os.path.join(SKILL_DIR, "assets", "workbench.template.html")
 Q_WF = {"quality25": "qwen-image21.quality25.api.json"}
 Q_NODE = {"prompt": "517", "latent": "514", "seed": "524", "save": "508",
           "unet": "523", "clip": "518", "vae": "519", "steps": "515"}
-# H3 工作流：MiniMax-H3-Star7chunk-1006（2026-10-19 换 CLIP 为 Qwen3VL-8B，其余节点与参数未动）
+# H3 工作流：MiniMax-H3-Star7chunk-1006（2026-10-20 换成用户导出版本：去掉 VEDA 稀疏注意力与实时预览，
+# 采样链变成 391 → 311 → 313 → 363 → 126/275；其余节点 id 与入参口径完全不变）
 H3_WF = "minimax-h3.ref2va.api.json"
-H3_WF_TAG = "star7chunk-1006qwen3vl8b"   # 换工作流时改这个，老项目会自动对齐一次
+H3_WF_TAG = "star7chunk-1006noveda"   # 换工作流时改这个，老项目会自动对齐一次
 H3_NODE = {"prompt": "334", "promptKey": "prompt",
            "core": "275", "duration": "135", "steps": "126", "seed": "131", "save": "150",
            "refs": "429", "audios": "430", "unet": "391", "lora": "311",
@@ -335,7 +336,7 @@ def open_in_explorer(path):
     return path
 
 
-# Veda 稀疏注意力只编译了 3 个时长档（见 ComfyUI 日志的 "Tile plan: nearest trained size ... plans: ... x 5.2 / 10.1 / 14.4 s"）。
+# H3 只有 3 个干净时长档（5.2 / 10.1 / 14.4 s）。
 # 帧数会被 ComfyMathExpression 补齐到 5 (mod 17)，所以能正好落在档位上的只有 243 帧（10.125s）和 345 帧（14.375s）。
 VEDA_PLAN_SECS = (5.2, 10.1, 14.4)
 
@@ -347,7 +348,7 @@ def h3_frames(sec):
 
 
 def veda_plan(sec):
-    """返回 (本片时长, 会被就近吸附到的 Veda 档位秒数, 差值)。等距时和 ComfyUI 一样取更长的那档。"""
+    """返回 (本片时长, 会被就近吸附到的干净档位秒数, 差值)。等距时和 ComfyUI 一样取更长的那档。"""
     dur = h3_frames(sec) / 24.0
     plan = min(VEDA_PLAN_SECS, key=lambda p: (abs(p - dur), -p))
     return dur, plan, abs(plan - dur)
@@ -3155,7 +3156,7 @@ def cmd_check(args):
     except Exception as e:
         issues.append("H3 工作流模板读取失败（%s）：%s" % (H3_WF, e))
 
-    # Veda 档位对齐：只编译了 5.2 / 10.1 / 14.4 三档，落在档间会明显变慢（日志里 "Tile plan" 会显示吸附到哪档）
+    # 帧数档对齐：干净档只有 5.2 / 10.1 / 14.4 秒三档，落在档间会明显变慢（帧数会被 134 补齐到 5 (mod 17)）
     try:
         off = []
         rows = []
@@ -3166,12 +3167,12 @@ def cmd_check(args):
             rows.append("%s %ds/%d帧→%.2fs(档%.1f)" % (sg["id"], sec, fr, dur, plan))
             if d > 0.4:
                 off.append("%s 差 %.2fs" % (sg["id"], d))
-        print("时长与 Veda 档位：%s" % "｜".join(rows), flush=True)
+        print("时长与帧数档位：%s" % "｜".join(rows), flush=True)
         if off:
-            warns.append("这些段没落在 Veda 编译档（5.2 / 10.1 / 14.4 秒）上，采样会慢三到六成：%s。"
+            warns.append("这些段没落在干净档（5.2 / 10.1 / 14.4 秒）上，采样会慢三到六成：%s。"
                          "能精确对齐的帧数是 243 帧（10.125s）与 345 帧（14.375s）" % "、".join(off))
     except Exception as e:
-        warns.append("Veda 档位检查失败：%s" % e)
+        warns.append("帧数档位检查失败：%s" % e)
 
     # H3 落地八条 + 构图连续性四铁律（画幅同框 / 关系镜头 / 逐段独立 / Shot 不写光影与位置）
     try:
