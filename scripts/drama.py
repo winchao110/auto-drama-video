@@ -55,15 +55,16 @@ TPL_PATH = os.path.join(SKILL_DIR, "assets", "workbench.template.html")
 Q_WF = {"quality25": "qwen-image21.quality25.api.json"}
 Q_NODE = {"prompt": "517", "latent": "514", "seed": "524", "save": "508",
           "unet": "523", "clip": "518", "vae": "519", "steps": "515"}
-# H3 工作流：MiniMax-H3-Star7chunk-1006（2026-10-20 换成用户导出版本：去掉 VEDA 稀疏注意力与实时预览，
-# 采样链变成 391 → 311 → 313 → 363 → 126/275；其余节点 id 与入参口径完全不变）
+# H3 工作流：MiniMax-H3-Star7chunk-1006api专用（2026-10-20 换用户导出版）。这一版没有实时预览节点，
+# VEDA 稀疏注意力按用户要求做成「可选」：模板里留着 408，settings.h3Veda 不勾时提交前整颗摘掉。
+# 采样链 391 → 311 → 313 →[408]→ 363 → 126/275；其余节点 id 与入参口径完全不变）
 H3_WF = "minimax-h3.ref2va.api.json"
-H3_WF_TAG = "star7chunk-1006noveda"   # 换工作流时改这个，老项目会自动对齐一次
+H3_WF_TAG = "star7chunk-1006api-optveda"   # 换工作流时改这个，老项目会自动对齐一次
 H3_NODE = {"prompt": "334", "promptKey": "prompt",
            "core": "275", "duration": "135", "steps": "126", "seed": "131", "save": "150",
            "refs": "429", "audios": "430", "unet": "391", "lora": "311",
            "clip": "130", "videoVae": "121", "audioVae": "122",
-           "hd": "376", "face": "395", "export": "339"}
+           "hd": "376", "face": "395", "export": "339", "veda": "408"}
 # 参考音：新工作流用 TaiYangMultiAudioLoader(430) 多路输出，直接接到 star7 的 ref_audio_0/1
 AUDIO_NODE = []
 AUDIO_SLOTS = 2
@@ -454,7 +455,7 @@ REMEMBER_KEYS = (
     "imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels",
     "steps", "comfy", "h3Model", "h3Lora", "h3LoraStrength",
     "h3Clip", "h3VideoVae", "h3AudioVae",
-    "h3Hd", "h3HdMegapixels", "seed", "afterGenerate", "charSheet",
+    "h3Veda", "h3Hd", "h3HdMegapixels", "seed", "afterGenerate", "charSheet",
 )
 
 
@@ -475,6 +476,7 @@ def builtin_settings():
         "h3Clip": DEFAULT_H3_CLIP,
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE,
         "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
+        "h3Veda": False,
         "h3Hd": False,
         "h3HdMegapixels": DEFAULT_HD_MP,
         "seed": 0,
@@ -573,6 +575,7 @@ def new_state(title="未命名短剧", source=""):
             "h3Clip": mem["h3Clip"],
             "h3VideoVae": mem["h3VideoVae"],
             "h3AudioVae": mem["h3AudioVae"],
+            "h3Veda": mem["h3Veda"],
             "h3Hd": mem["h3Hd"],
             "h3HdMegapixels": mem["h3HdMegapixels"],
             "h3Wf": H3_WF_TAG,
@@ -607,7 +610,7 @@ def migrate(st):
     mem = load_user_settings()
     for k in ("imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels", "steps", "comfy",
               "h3Model", "h3Lora", "h3LoraStrength", "h3Clip", "h3VideoVae", "h3AudioVae",
-              "seed", "afterGenerate", "h3Hd", "h3HdMegapixels"):
+              "seed", "afterGenerate", "h3Veda", "h3Hd", "h3HdMegapixels"):
         s.setdefault(k, mem[k])
     # 生图步数必须是可以直接填进 KSampler 的整数：空值 / 乱填一律回落到默认 25
     try:
@@ -1197,11 +1200,31 @@ def loader_outputs(addr):
         return 1
 
 
+def veda_predictors(addr):
+    """VEDA 稀疏注意力节点认哪些预测模型。没下载模型时 ComfyUI 会在加载阶段直接报错，
+    所以勾了 VEDA 就先跟这边对一遍；读不到（离线 / 节点没装）返回 None，不拦。"""
+    try:
+        info = comfy_api.object_info(addr, "Star7VedaSparseAttention") or {}
+        node = info.get("Star7VedaSparseAttention") or {}
+        v = ((node.get("input") or {}).get("required") or {}).get("predictor")
+        if isinstance(v, list) and len(v) > 1 and isinstance(v[1], dict) and isinstance(v[1].get("options"), list):
+            return [str(x) for x in v[1]["options"]]
+        if isinstance(v, list) and isinstance(v[0], list):
+            return [str(x) for x in v[0]]
+    except Exception:
+        return None
+    return None
+
+
 def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_avail=1,
                 audio_files=(), unet="", lora="", lora_strength=0.75,
                 clip="", video_vae="", audio_vae="",
-                hd=False, hd_mp=DEFAULT_HD_MP):
-    """按 Ref2VA 填参。sec 这里已经是"实际传给 API"的秒数（gen_sec 算过）。"""
+                hd=False, hd_mp=DEFAULT_HD_MP, veda=False):
+    """按 Ref2VA 填参。sec 这里已经是"实际传给 API"的秒数（gen_sec 算过）。
+
+    veda=False（默认）：把 VEDA 稀疏注意力节点整颗从图上摘掉，下游直接接回 SigmaShift，
+    后端既不会加载 VEDA 预测模型，也不会装注意力补丁——效果等同于这条工作流本来就没有它。
+    """
     g = copy.deepcopy(tpl)
     core = g[H3_NODE["core"]]["inputs"]
     g[H3_NODE["prompt"]]["inputs"][H3_NODE.get("promptKey") or "value"] = prompt
@@ -1256,6 +1279,19 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
                     ins["model"] = upstream
             g.pop(ln, None)
 
+    # VEDA 稀疏注意力：默认不勾 → 整颗节点摘掉，把引用它的下游（363 分块加速）接回它的上游（313）。
+    # 勾了才留在图上真跑；VEDA 需要额外预测模型，缺模型时后端会在加载阶段直接报错，
+    # 所以 cmd_videos 提交前会先对一遍 ComfyUI 里的 predictor 列表。
+    vn = H3_NODE.get("veda")
+    if vn and vn in g:
+        if not veda:
+            upstream = g[vn]["inputs"].get("model")
+            for _nid, node in list(g.items()):
+                ins = node.get("inputs") or {}
+                if ins.get("model") == [vn, 0]:
+                    ins["model"] = upstream
+            g.pop(vn, None)
+
     # 参考图：清掉模板里残留的槽位，只挂本段实际用到的
     for k in [k for k in list(core.keys()) if k.startswith("ref_images.")]:
         core.pop(k)
@@ -1283,7 +1319,7 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
     return g, used
 
 
-def verify_graph(g, ref_files=None, audio_files=None):
+def verify_graph(g, ref_files=None, audio_files=None, veda=False):
     """提交前自检：节点映射对不对、引用的节点还在不在、关键值写没写进去。
     返回问题列表（空 = 可以入队）。模板一换就靠这个第一时间发现对不上。"""
     problems = []
@@ -1337,6 +1373,13 @@ def verify_graph(g, ref_files=None, audio_files=None):
     nd = H3_NODE.get("hd")
     if nd and nd not in g:
         problems.append("模板里缺少二采高清节点（H3_NODE['hd'] = %r）" % nd)
+    # 5) VEDA：勾了必须留在图上，没勾必须已经摘干净（摘漏了会把没下载模型的人也拖进加载失败）
+    vn = H3_NODE.get("veda")
+    if vn:
+        if veda and vn not in g:
+            problems.append("勾了 VEDA 加速，但图上没有 %s 节点（模板 %s 与 H3_NODE 对不上）" % (vn, H3_WF))
+        if not veda and vn in g:
+            problems.append("没勾 VEDA 加速，节点 %s 却还在图上（摘除逻辑没生效）" % vn)
     return problems
 
 
@@ -1849,6 +1892,8 @@ def cmd_videos(args):
     if hd_mp is None:
         hd_mp = s.get("h3HdMegapixels")
     hd_mp = DEFAULT_HD_MP if hd_mp in (None, "") else float(hd_mp)
+    _vflag = getattr(args, "veda", None)
+    veda = bool(s.get("h3Veda")) if _vflag is None else bool(_vflag)
     unet = (s.get("h3Model") or "").strip()
     lora = (s.get("h3Lora") or "").strip()
     lora_s = s.get("h3LoraStrength")
@@ -1860,6 +1905,15 @@ def cmd_videos(args):
     print("H3 参数：%s｜%s MP｜%d 步｜%dx%d｜待生成 %d 段" % (ratio, mp, steps, w, h, len(targets)), flush=True)
     print("二采高清放大：%s" % (("开 · 放大到 %.2f MP（一采 %dx%d 之后再做一次精修）" % (hd_mp, w, h)) if hd
                                 else "关（只跑一采）"), flush=True)
+    print("VEDA 加速：%s" % ("开 · 稀疏注意力补丁生效（快，但需要 VEDA 预测模型在场）" if veda
+                             else "关（节点不进图，纯完整注意力）"), flush=True)
+    if veda:
+        want = ((tpl.get(H3_NODE.get("veda") or "") or {}).get("inputs") or {}).get("predictor") or ""
+        have = None if args.dry else veda_predictors(addr)
+        if want and have is not None and want not in have:
+            die("勾了 VEDA 加速，但 ComfyUI 里没有这个预测模型：%s\n"
+                "  ① 把 VEDA 预测模型放到 ComfyUI 的对应模型目录，让它出现在 Star7VedaSparseAttention 的 predictor 列表里；\n"
+                "  ② 或者在「视频参数」里取消勾选 VEDA 加速，退回完整注意力。" % want, code=4)
     print("主模型：%s" % (unet or "（按工作流默认）"), flush=True)
     print("LoRA：%s（强度 %s）" % (lora or "不挂", lora_s if lora else "-"), flush=True)
     print("CLIP：%s" % (clip_m or "（按工作流默认）"), flush=True)
@@ -1913,9 +1967,9 @@ def cmd_videos(args):
                     names, max(1, len(names)), anames,
                     unet=unet, lora=lora, lora_strength=lora_s,
                     clip=clip_m, video_vae=vvae, audio_vae=avae,
-                    hd=hd, hd_mp=hd_mp,
+                    hd=hd, hd_mp=hd_mp, veda=veda,
                 )
-                probs = verify_graph(probe, names, anames)
+                probs = verify_graph(probe, names, anames, veda=veda)
                 for pr in probs:
                     rep.bad("%s 工作流自检：%s" % (sid, pr))
                 if not probs:
@@ -1932,7 +1986,7 @@ def cmd_videos(args):
                 "drama/" + safe_id(sid), uploaded, outputs_avail, audio_names,
                 unet=unet, lora=lora, lora_strength=lora_s,
                 clip=clip_m, video_vae=vvae, audio_vae=avae,
-                hd=hd, hd_mp=hd_mp,
+                hd=hd, hd_mp=hd_mp, veda=veda,
             )
             if used < len(uploaded):
                 print("      注意：本段上传 %d 张参考图，实际挂载 %d 张（Picture 编号需与实际挂载一致）" % (len(uploaded), used), flush=True)
@@ -1949,7 +2003,7 @@ def cmd_videos(args):
 
     # ---- 工作流自检：拿第一条任务核对一遍，对不上就别往队列里塞 ----
     if jobs:
-        bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"))
+        bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"), veda=veda)
         if bad:
             for b in bad:
                 print("  [×] " + b, flush=True)
@@ -2385,9 +2439,11 @@ def make_handler(proj):
                 if not isinstance(st, dict):
                     return self._send(400, {"ok": False, "error": "缺少 state"})
                 cur = load_state(p["proj"])
-                st.setdefault("settings", {}).update(
-                    {k: v for k, v in cur["settings"].items() if not st["settings"].get(k)}
-                )
+                # 只补「页面没传」的字段：传了 false / 0 / 空串就照传。
+                # 原来用 falsy 判断，勾选类开关（h3Hd / h3Veda）一旦取消勾选就会被磁盘里的 true 顶回去。
+                merged = dict(cur.get("settings") or {})
+                merged.update({k: v for k, v in (st.get("settings") or {}).items() if v is not None})
+                st["settings"] = merged
                 st = preserve_server_fields(st, cur)
                 st = migrate(st)
                 save_state(p["proj"], st)
@@ -3143,15 +3199,16 @@ def cmd_check(args):
     # 工作流模板与脚本映射是否对齐（换模板后最容易在这里翻车）
     try:
         tpl = load_wf(H3_WF)
-        miss = [k for k in ("prompt", "core", "duration", "steps", "seed", "save", "refs", "hd")
+        miss = [k for k in ("prompt", "core", "duration", "steps", "seed", "save", "refs", "hd", "veda")
                 if H3_NODE.get(k) not in tpl]
         if miss:
             issues.append("H3 工作流模板缺少节点：%s（模板 %s 与 H3_NODE 映射对不上）" % (
                 ", ".join("%s=%s" % (k, H3_NODE.get(k)) for k in miss), H3_WF))
         else:
-            print("工作流：%s｜%d 个节点｜步数 %s｜二采高清 %s%s" % (
+            print("工作流：%s｜%d 个节点｜步数 %s｜二采高清 %s｜VEDA %s%s" % (
                 H3_WF, len(tpl), st["settings"].get("steps"),
                 "开（目标 %s MP）" % st["settings"].get("h3HdMegapixels") if st["settings"].get("h3Hd") else "关",
+                "开" if st["settings"].get("h3Veda") else "关",
                 "｜参考音 %d 路" % AUDIO_SLOTS), flush=True)
     except Exception as e:
         issues.append("H3 工作流模板读取失败（%s）：%s" % (H3_WF, e))
@@ -3291,6 +3348,9 @@ def main(argv=None):
     a.add_argument("--hd", dest="hd", action="store_true", default=None, help="临时打开二采高清放大")
     a.add_argument("--no-hd", dest="hd", action="store_false", help="临时关闭二采高清放大")
     a.add_argument("--hd-megapixels", dest="hd_megapixels", type=float, default=None, help="二采目标像素，默认 1.5")
+    a.add_argument("--veda", dest="veda", action="store_true", default=None,
+                   help="临时打开 VEDA 稀疏注意力加速（需要 ComfyUI 里已有 VEDA 预测模型）")
+    a.add_argument("--no-veda", dest="veda", action="store_false", help="临时关闭 VEDA 加速")
     a.add_argument("--timeout", type=int, default=14400)
     a.add_argument("--dry", action="store_true")
     a.add_argument("--serial", action="store_true", help="串行：提交一条等一条（默认整批入队）")

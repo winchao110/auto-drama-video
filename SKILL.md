@@ -1,8 +1,8 @@
 ---
 name: auto-drama-video
-description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。H3 工作流为 MiniMax-H3-Star7chunk-1006（euler/simple 5 步 + 分块解码 + 可选二采高清放大）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
+description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。H3 工作流为 MiniMax-H3-Star7chunk-1006（euler/simple 5 步 + 分块解码 + 可选二采高清放大 + 可选 VEDA 稀疏注意力加速）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
 metadata:
-  version: "3.2.0"
+  version: "3.3.0"
   title: "全本地自动短剧视频生成"
   author: "太阳阶梯jqk8707"
   entry: "SKILL.md（本文件）"
@@ -104,7 +104,7 @@ $PY = 当前环境的 python（Windows 例：python 或 py -3）
 13. **换 H3 工作流 = 换模板 + 同步 `H3_NODE` 映射，不带病入队**。模板换代（v2.8.0 → `Star7chunk-1006`）时：
     - 只改 `references/workflows/minimax-h3.ref2va.api.json` 和 `scripts/drama.py` 顶部的 `H3_NODE` / `DEFAULT_H3_*`，
       **不要**在 `video_graph()` 里写死节点 id；
-    - 提交前 `verify_graph()` 会核对节点映射、断链、关键值（宽高/步数/种子/参考图槽位/audio_mode/二采节点），
+    - 提交前 `verify_graph()` 会核对节点映射、断链、关键值（宽高/步数/种子/参考图槽位/audio_mode/二采节点/VEDA 开关），
       有一条不过就**退出并指出是哪个节点**，`--dry` 也会跑这套自检；
     - 老项目（`settings.h3Wf` ≠ `H3_WF_TAG`）只对齐一次**上一代默认值**（旧 `dmad` LoRA / 4 步），
       用户自己改过的模型 / LoRA / 步数一律不动（铁律 11）。
@@ -327,6 +327,7 @@ $PY scripts/drama.py videos --project "$P"                          # 整批入�
 $PY scripts/drama.py videos --project "$P" --only P01,P03           # 只跑指定段
 $PY scripts/drama.py videos --project "$P" --steps 6 --megapixels 1.2   # 临时调参数
 $PY scripts/drama.py videos --project "$P" --hd --hd-megapixels 1.5     # 临时打开二采高清
+$PY scripts/drama.py videos --project "$P" --veda                       # 临时打开 VEDA 加速（需 VEDA 模型）
 $PY scripts/drama.py merge  --project "$P"                              # 手动重拼成片（默认 成片.mp4）
 ```
 
@@ -363,16 +364,17 @@ libx264 重编码 + 统一分辨率/帧率/音轨），并把结果写进 `meta.
 | 随机种 | `seed` | 0 = 每次随机；每段按「生成后控制」往后推 |
 | 生成后控制 | `afterGenerate` | `fixed` / `increment` / `decrement` / `randomize` |
 | 宽高比 / 百万像素 / 步数 | `ratio` / `megapixels` / `steps` | 一采分辨率；步数默认 5（turbo_v4 蒸馏 LoRA 按 5 步走） |
+| VEDA 加速 | `h3Veda` | **默认关**。勾了才把 `Star7VedaSparseAttention(408)` 留在图上；不勾提交前整颗摘掉、下游直连 313。开之前 ComfyUI 里必须有 VEDA 预测模型，缺模型会在加载阶段报错 |
 | 二采高清放大 | `h3Hd` | **默认关**。开 → `MiniMaxH3OneClickHDStar7.enable_hd = true`，一采后再放大精修一轮 |
 | 二采目标像素（MP） | `h3HdMegapixels` | **默认 1.5**；只在开关打开时生效，关闭时输入框置灰 |
 
 ### 参数记忆：这些项会跟着人走到下一部剧
 
 生图参数（UNet / CLIP / VAE / 步数 / 比例 / 百万像素 / 人物视图模板）+ 视频参数（主模型 / LoRA / 强度 / CLIP /
-视频 VAE / 音频 VAE / 步数 / 种子 / 生成后控制 / 二采 / ComfyUI 地址）**保存在技能目录的 `settings.user.json`**，不随项目丢失：
+视频 VAE / 音频 VAE / 步数 / 种子 / 生成后控制 / VEDA / 二采 / ComfyUI 地址）**保存在技能目录的 `settings.user.json`**，不随项目丢失：
 
 - **写**：工作台点任何一次「保存参数 / 保存」都会顺带写一遍（`/api/save` → `remember_settings()`），
-  以最后一次保存为准；只写 `REMEMBER_KEYS` 里那 19 个参数项；
+  以最后一次保存为准；只写 `REMEMBER_KEYS` 里那 20 个参数项；
 - **读**：`new_state()` 和 `migrate()` 都优先用记忆值——新项目 `init` 直接继承；老项目缺字段也吃记忆值，
   项目里已经写了的字段不会被覆盖（项目仍然是这一轮的最终口径，铁律 11 不变）；
 - **不记**：剧情、钩子、简介、风格锁、资产、提示词、音色、审核登记。别把"记住参数"理解成"记住这部剧"；
@@ -381,12 +383,13 @@ libx264 重编码 + 统一分辨率/帧率/音轨），并把结果写进 `meta.
 
 ### 第 3 阶段用的 H3 工作流（`references/workflows/minimax-h3.ref2va.api.json`）
 
-来源：`MiniMax-H3-Star7chunk-1006api专用.json`（用户导出，2026-10-20 替换；相比上一版去掉了 VEDA 稀疏注意力与实时预览）。
-节点 id、入参口径与上一版完全一致，`H3_NODE` 映射不用改。链路：
+来源：`MiniMax-H3-Star7chunk-1006api专用.json`（用户导出，2026-10-20 替换；这一版本身不带实时预览节点，
+VEDA 稀疏注意力按用户要求以「可选节点」形式留在模板里）。节点 id、入参口径与上一版完全一致，`H3_NODE` 映射不用改。链路：
 
 ```
-增强载入(391) → LoRA turbo_v4(311) → SigmaShift 6/3(313) → 显存分块加速(363)
- → 基本引导器(128) → 采样器(127, euler/simple/5 步)
+增强载入(391) → LoRA turbo_v4(311) → SigmaShift 6/3(313)
+ → VEDA 稀疏注意力(408, 可选：勾了才留在图上)
+ → 显存分块加速(363) → 基本引导器(128) → 采样器(127, euler/simple/5 步)
  → 一键高清放大(376, enable_hd 由 h3Hd 控制) → 一键人脸修复(395, 默认关)
  → 分块解码(377) → VideoCombine(150, nvenc h264 5Mbps)
 ```
@@ -394,6 +397,12 @@ libx264 重编码 + 统一分辨率/帧率/音轨），并把结果写进 `meta.
 - 提示词走 `MiniMaxH3PromptImportStar7(334).prompt`（纯文本，不是旧版的 `PrimitiveStringMultiline.value`）。
 - 参考图 `TaiYangMultiImageLoader(429)` 16 路输出、参考音 `TaiYangMultiAudioLoader(430)` 8 路输出；
   技能最多挂 `AUDIO_SLOTS = 2` 路参考音（`ref_audio_0/1` ← `<Audio 1>/<Audio 2>`）。
+- **VEDA 加速（可选，默认不开）**：`Star7VedaSparseAttention(408)`，接在 313 与 363 之间。
+  `h3Veda = false` 时 `video_graph()` 会把整颗节点从图上摘掉、把 363 的 `model` 接回 313——后端收到的图里
+  根本没有这一环，既不会加载 VEDA 预测模型、也不会装注意力补丁；只有勾选后才原样提交。
+  预测模型由节点自己的 `predictor` 决定（本机可用值见 `Star7VedaSparseAttention.predictor`，当前是
+  `minimax_h3_t2va_veda_8nfe_600step_preview_fp8.safetensors`）。勾着跑时 `videos` 会先对一遍 ComfyUI 的
+  predictor 列表，缺模型直接退出并提示，不会带着跑一半才在加载阶段失败。
 - **二采高清**：`MiniMaxH3OneClickHDStar7(376)`，`enable_hd` + `target_megapixels`。关着节点仍在链上直通，
   不改模型图结构；打开后每段多一采，耗时约成一采的 1.6–2 倍。
 - **导出节点 `Star7VideoWorkflowExport(339)` 提交前会被摘掉**：它只是再写一份带工作流的视频，

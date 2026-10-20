@@ -64,9 +64,10 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
     "h3Clip": "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors",
     "h3VideoVae": "MiniMaxH3\\minimax_h3_video_vae_int8_convrot1.safetensors",
     "h3AudioVae": "MiniMaxH3\\minimax_h3_audio_vae_fp32.safetensors",
+    "h3Veda": false,
     "h3Hd": false,
     "h3HdMegapixels": 1.5,
-    "h3Wf": "star7chunk-1006qwen3vl8b",
+    "h3Wf": "star7chunk-1006api-optveda",
     "seed": 0,
     "afterGenerate": "fixed"
   },
@@ -130,9 +131,10 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `voices[].file` | 项目内相对路径；空 = 该音色还没绑音频 | 人上传 |
 | `settings.*` | HTML 里的全局生成参数 | 人在 HTML 改，生成时读取 |
 | `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频那 13 个参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
+| `settings.h3Veda` | VEDA 稀疏注意力开关（默认 `false`）。`true` 才把 `408` 留在图上；`false` 提交前整节点摘掉、`363.model` 直连 `313` | 人在「视频提示词」页勾选 |
 | `settings.h3Hd` | 二采高清放大开关（默认 `false`）→ 工作流 `376.enable_hd` | 人在「视频提示词」页开/关 |
 | `settings.h3HdMegapixels` | 二采目标像素（默认 `1.5`），只在该开关打开时生效 | 人在页面改 |
-| `settings.h3Wf` | 当前 H3 工作流标记（`star7chunk-1006noveda`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 dmad LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
+| `settings.h3Wf` | 当前 H3 工作流标记（`star7chunk-1006api-optveda`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 dmad LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
 | `image` / `video` / `status` | 由生成脚本写 | 脚本 |
 
 ### 四条纪律
