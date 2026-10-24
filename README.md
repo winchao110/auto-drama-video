@@ -79,29 +79,29 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 - ComfyUI 侧需要（脚本自动读它们暴露的节点与模型列表）：
   - **自定义节点**：**必须先装齐下表 4 个仓库**，缺一个工作流就提交不了（见下节）
   - **VHS**（`VHS_VideoCombine`）用于 mp4 输出；工作流里还用到 rgthree / KJNodes
-  - **模型**：H3 主模型 + H3 LoRA + 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧 Qwen-Image 2.1 UNet + 8B CLIP + VAE
+  - **模型**：H3 主模型 + H3 LoRA（可叠到 3 条）+ 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧 Qwen-Image 2.1 UNet + 8B CLIP + VAE
   - 具体文件名见 `使用手册.md` 第二章，或直接看工作台参数区的下拉
 
 > **不需要联网**。除了本地 ComfyUI，全程不访问外部服务（也不下载任何权重）。
 
 ### ComfyUI 需要安装的自定义节点
 
-内嵌的两份工作流（H3 视频 + Qwen-Image 2.1 生图）依赖下面 4 个自定义节点仓库。
+内嵌的两份工作流（H3 视频 + Qwen-Image 2.1 生图）里，H3 那条走的是 **ComfyUI 原生的 MiniMax H3 节点链**，
+主干节点随 ComfyUI 本体（≥ 0.42）就有；另外还需要下面 3 个仓库。
 **缺节点时 ComfyUI 会直接报 `node type not found` / 提交被拒，工作台参数区也会读不到模型下拉**，装完重启 ComfyUI 再跑。
 
 | 仓库 | 提供什么 | 用在哪 |
 |---|---|---|
-| [`star7code/minimax-h3-chunk-star7`](https://github.com/star7code/minimax-h3-chunk-star7) | Star7chunk 系列 H3 节点（`MiniMaxH3ChunkEnhancedLoaderStar7`、`MiniMaxH3PromptImportStar7`、`MiniMaxH3MaterialPromptStar7`、`MiniMaxH3OneClickHDStar7`、分块解码等） | 视频工作流主干 |
-| [`star7code/minimax-h3-fp16-exact-star7`](https://github.com/star7code/minimax-h3-fp16-exact-star7) | H3 fp16 精确计算相关节点 | 视频工作流 |
+| ComfyUI 本体（≥ 0.42） | `MiniMaxH3ReferenceToVideo`、`MiniMaxH3SigmaShift`、`MiniMaxChunkFeedForward`、`MiniMaxLowVRAMAttention`、`ModelAttentionBackend`、`BlockSparseAttention`、`ResolutionSelector`、`SaveVideo`、`CreateVideo`，以及 comfy kitchen 量化注意力 | 视频工作流主干 |
+| [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) | `ModelPreviewOverrideKJ`（采样过程中的低分辨率预览） | 视频工作流 |
+| [`winchao110/TaiYang_MultiImage`](https://github.com/winchao110/TaiYang_MultiImage) | 多图 / 多音轨输入（`TaiYangMultiImageLoader`、`TaiYangMultiAudioLoader`） | 参考图与参考音挂载 |
 | [`tl2012tl/TE-Speed-QwenImage21`](https://github.com/tl2012tl/TE-Speed-QwenImage21) | Qwen-Image 2.1 推理加速 | 生图工作流（25 步） |
-| [`winchao110/TaiYang_MultiImage`](https://github.com/winchao110/TaiYang_MultiImage) | 多图输入 / 参考图槽位 | 生图与参考图挂载 |
 
 ```bash
 cd <ComfyUI>/custom_nodes
-git clone https://github.com/star7code/minimax-h3-fp16-exact-star7.git
-git clone https://github.com/star7code/minimax-h3-chunk-star7.git
-git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
+git clone https://github.com/kijai/ComfyUI-KJNodes.git
 git clone https://github.com/winchao110/TaiYang_MultiImage.git
+git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
 # 各自按仓库 README 装 requirements（如有），然后重启 ComfyUI
 ```
 
@@ -206,18 +206,20 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 | 比例 | 人物 **4:3**、场景 16:9、道具 1:1 |
 | 人物视图模板 | 中文框即是唯一口径：左大幅脸部特写 \| 中无头全身 \| 右有头背面 的三段式定设图 |
 
-### 视频参数（MiniMax H3 · Star7chunk-1006）
+### 视频参数（MiniMax H3 · 原生 Ref2VA）
 
 | 参数 | 说明 |
 |---|---|
-| 主模型 / LoRA / LoRA 强度 | 下拉现读；默认 `minimax_h3_hybrid_fl2va_ref2va_b25-49-int8` + `turbo_v4_step600` @ 0.75 |
+| 主模型 | 下拉现读；默认 `minimax_h3_hybrid_fl2va_ref2va_b25-49-int8` |
+| **LoRA ×3 + 强度 ×3** | 三个独立位置，按 1→2→3 串联。**1 号位默认挂 `dmad_full_dareties_v4_step600` @ 0.8，2、3 号位默认「（不挂 LoRA）」**。哪格留空，那颗 LoRA 节点整颗摘掉、链条自动接回去；想叠风格 LoRA 就在 2 号位选 `MysticXXX_MMH3-V1` @ 0.35 |
 | **CLIP** | 必须 **32B H3 专用**（5120 维），见下方"已踩过的坑" |
-| **视频 VAE / 音频 VAE** | 下拉现读，默认 `minimax_h3_video_vae_int8_convrot1` + `minimax_h3_audio_vae_fp32` |
+| **视频 VAE / 音频 VAE** | 下拉现读，默认 `minimax_h3_video_vae_int8_convrot` + `minimax_h3_audio_vae_fp32` |
 | 步数 / 种子 / 生成后控制 | 默认 5 步、`fixed` 可改 `increment / decrement / randomize` |
-| 比例 / 百万像素 | 同时决定视频分辨率（例：0.9MP → 640×1120） |
-| 二采高清放大 | 默认关；开了可设目标像素（默认 1.5MP） |
-| 显存加速后端 | 默认 `comfy_kitchen_int8`；决定 363 节点用哪种注意力内核（existing / sla_ / sol_ / vsa_ / hybrid_，选项实时读 ComfyUI） |
-| VEDA 加速 | 默认**不勾**；勾了才把 `Star7VedaSparseAttention(408)` 留在工作流里，需要 ComfyUI 里已有 VEDA 预测模型 |
+| 比例 / 百万像素 | 写进分辨率选择器，由它按 32 对齐算出实际宽高（例：9:16 · 0.9MP → 704×1280） |
+| **模型稀疏注意力** | 一个勾选：勾上启用块稀疏注意力（省显存、更快），取消就把节点整颗从工作流摘掉、走完整注意力 |
+| **模型注意力加速后端** | 两档：`comfy kitchen`（量化 INT8，默认）/ `pytorch`（原生，最兼容） |
+| **分块前馈 · 分块数 / 序列阈值** | 默认 2 块 / 4096。显存紧就调大块数、调小阈值 |
+| **低显存注意力 · 头分块数** | 默认 4。注意力按头分几份算，越大越省显存越慢 |
 
 同一个人在页面上调过的值就是这一轮的唯一口径，脚本原样执行、不再追问，也**不会**擅自换成"更好"的值。
 
@@ -253,7 +255,7 @@ auto-drama-video/
 │  ├─ 04-comfy-api.md               接口与排错
 │  ├─ 05-project-schema.md          drama.json 字段表
 │  └─ workflows/
-│     ├─ minimax-h3.ref2va.api.json        H3 视频工作流（Star7chunk-1006）
+│     ├─ minimax-h3.ref2va.api.json        H3 视频工作流（原生 Ref2VA，28 节点）
 │     └─ qwen-image21.quality25.api.json   生图工作流（25 步）
 └─ scripts/
    ├─ drama.py           主程序（init/build/serve/images/videos/check/…）

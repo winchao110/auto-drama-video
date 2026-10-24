@@ -131,6 +131,10 @@
   .pair textarea{min-height:96px;font-size:13px}
   .pair .edited{background:var(--accent);color:#fff;border-radius:20px;padding:0 7px;font-size:10px;letter-spacing:.06em}
   .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  /* LoRA 三格：左边序号 + 下拉/数字，三行等高，和右边强度列逐行对齐 */
+  .lorarow{display:flex;align-items:center;gap:6px}
+  .lorano{flex:none;width:13px;font-size:11px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+  .lorarow select,.lorarow input{flex:1;min-width:0}
   .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
   .vcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .vcard .vwrap{aspect-ratio:9/16;max-height:520px;background:#0d0d0f;display:flex;align-items:center;justify-content:center;color:#5c5c5c;font-size:12px}
@@ -210,14 +214,14 @@
   var SEED_MODES = [["fixed", "固定（种子不变）"], ["increment", "递增（每次 +1）"], ["decrement", "递减（每次 -1）"], ["randomize", "随机（每次换）"]];
   /* 模型选项全部来自已连接的 ComfyUI：unet=diffusion_models，lora=loras，clip=text_encoders，vae=vae
      规矩：下拉里只放 ComfyUI 此刻真实存在的文件；页面每次打开 / 切到这两页都重新读，绝不复用上次的列表。 */
-  var MODELS = { unet: [], lora: [], clip: [], vae: [], attn: [], error: "", loaded: false, ts: "" };
+  var MODELS = { unet: [], lora: [], clip: [], vae: [], error: "", loaded: false, ts: "" };
   var MODEL_DEFAULTS = __MODEL_DEFAULTS__;
   var MODEL_SLOT = { imgUnet: "unet", imgClip: "clip", imgVae: "vae",
                      h3Model: "unet", h3Lora: "lora", h3Clip: "clip",
-                     h3VideoVae: "vae", h3AudioVae: "vae", h3Attn: "attn" };
+                     h3VideoVae: "vae", h3AudioVae: "vae" };
   var MODEL_LABEL = { imgUnet: "生图 UNet", imgClip: "生图 CLIP", imgVae: "生图 VAE",
                       h3Model: "H3 主模型", h3Lora: "LoRA", h3Clip: "CLIP",
-                      h3VideoVae: "视频 VAE", h3AudioVae: "音频 VAE", h3Attn: "加速后端" };
+                      h3VideoVae: "视频 VAE", h3AudioVae: "音频 VAE" };
   var MODEL_FIXED = [];          /* 本轮读取判定为「已不存在」并自动改掉的项（明细） */
   function fixedNames() {
     return MODEL_FIXED.map(function (x) { return x.name; }).join("、");
@@ -226,8 +230,7 @@
     if (!MODELS.loaded) return "正在从已连接的 ComfyUI 读取模型列表…";
     if (MODELS.error) return "读取失败：" + MODELS.error + "。ComfyUI 起来后点「刷新模型列表」重读。";
     var s = "已从 ComfyUI 实时读取（" + (MODELS.ts || "刚刚") + "）：主模型 " + MODELS.unet.length +
-      " / LoRA " + MODELS.lora.length + " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length +
-      " / 加速后端 " + (MODELS.attn || []).length;
+      " / LoRA " + MODELS.lora.length + " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length;
     if (MODEL_FIXED.length) s += "｜有 " + MODEL_FIXED.length + " 项已不在 ComfyUI（" + fixedNames() + "），已切到可用项，记得保存";
     return s;
   }
@@ -277,7 +280,6 @@
   function applyModels(j) {
     MODELS.unet = j.unet || []; MODELS.lora = j.lora || [];
     MODELS.clip = j.clip || []; MODELS.vae = j.vae || [];
-    MODELS.attn = j.attn || [];
     MODELS.error = j.error || ""; MODELS.ts = j.ts || ""; MODELS.loaded = true;
     MODELS.at = Date.now();
     alignModels();
@@ -293,8 +295,7 @@
         if (silent) return;
         if (MODEL_FIXED.length) toast(MODEL_FIXED.map(function (x) { return x.name + " " + x.detail; }).join("；") + "（已切到可用模型，记得保存）", 6500);
         else toast("模型列表已刷新：主模型 " + MODELS.unet.length + " / LoRA " + MODELS.lora.length +
-          " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length +
-          " / 加速后端 " + (MODELS.attn || []).length);
+          " / CLIP " + MODELS.clip.length + " / VAE " + MODELS.vae.length);
       })
       .catch(function (e) {
         MODELS.loaded = true;
@@ -1116,20 +1117,55 @@
       var unetOpts = selOptions(getModelList("unet"));
       var loraOpts = [["", "（不挂 LoRA）"]].concat(getModelList("lora").map(function (x) { return [x, x]; }));
       var tip = modelTip();
+      /* --- LoRA 三个位置：1 号位默认挂主 LoRA，2、3 号位默认「不挂」，都可自选 --- */
+      function loraStack(label, keys, kind, hint) {
+        var wrap = h("div", "field");
+        wrap.appendChild(h("label", null, label));
+        keys.forEach(function (k, i) {
+          var box, path = "settings." + k, last = (i === keys.length - 1);
+          if (kind === "select") {
+            box = h("select");
+            loraOpts.forEach(function (v) {
+              var op = h("option", null, v[1]); op.value = v[0]; box.appendChild(op);
+            });
+            box.value = get(path) || "";
+            if (box.selectedIndex < 0) box.selectedIndex = 0;
+            box.addEventListener("change", function () { set(path, box.value); markDirty(); });
+            box.title = "LoRA 位置 " + (i + 1) + (i === 0 ? "（默认挂主 LoRA）" : "（可选，留空即不挂）");
+          } else {
+            box = h("input"); box.type = "number"; box.step = 0.05; box.min = -2; box.max = 2;
+            var v0 = get(path); box.value = (v0 == null ? "" : v0);
+            box.addEventListener("input", function () {
+              set(path, box.value === "" ? "" : Number(box.value)); markDirty();
+            });
+            box.title = "位置 " + (i + 1) + " 的强度";
+          }
+          /* 序号 + 控件包一行：三格逐行对齐，左边下拉和右边强度靠同一个序号配对 */
+          var row = h("div", "lorarow");
+          row.appendChild(h("span", "lorano", String(i + 1)));
+          row.appendChild(box);
+          box.style.marginBottom = "0";
+          row.style.marginBottom = last ? "0" : "8px";
+          wrap.appendChild(row);
+        });
+        if (hint) wrap.appendChild(h("div", "hint", hint));
+        return wrap;
+      }
       g.appendChild(field("H3 主模型（models/diffusion_models）", "settings.h3Model", { type: "select", options: unetOpts, hint: tip }));
-      g.appendChild(field("LoRA（models/loras）", "settings.h3Lora", { type: "select", options: loraOpts, hint: "选了就接 LoaderModelOnly 节点，不选则整条 LoRA 节点摘掉" }));
-      g.appendChild(field("LoRA 强度", "settings.h3LoraStrength", { type: "number", step: 0.05, min: -2, max: 2, hint: "默认 0.75" }));
+      g.appendChild(loraStack("LoRA（models/loras）", ["h3Lora", "h3Lora2", "h3Lora3"], "select"));
+      g.appendChild(loraStack("LoRA 强度", ["h3LoraStrength", "h3Lora2Strength", "h3Lora3Strength"], "number",
+        "3 个位置按 1 → 2 → 3 串联，默认只挂 1 号位；选「（不挂 LoRA）」= 空着，那颗节点整颗摘掉。"));
       g.appendChild(field("CLIP（models/text_encoders）", "settings.h3Clip", {
         type: "select", options: selOptions(getModelList("clip")),
-        hint: "接了 CLIPLoader 节点 130；H3 走 minimax 类型，现用 Qwen3VL-8B"
+        hint: "接 CLIPLoader 节点 38；H3 走 minimax 类型，主模型 20G 那版要 32B（5120 维），8B 会在采样器报形状不匹配"
       }));
       g.appendChild(field("视频 VAE（models/vae）", "settings.h3VideoVae", {
         type: "select", options: selOptions(getModelList("vae")),
-        hint: "接 VAELoader 节点 121，条件载入与分块解码都用它"
+        hint: "接 VAELoader 节点 36，参考图编码与视频解码都用它"
       }));
       g.appendChild(field("音频 VAE（models/vae）", "settings.h3AudioVae", {
         type: "select", options: selOptions(getModelList("vae")),
-        hint: "接 VAELoader 节点 122，音频 latent 编解码用它"
+        hint: "接 VAELoader 节点 37，音频 latent 解码用它"
       }));
 
       /* --- 随机种 + 生成后控制 --- */
@@ -1162,52 +1198,39 @@
       tools2.appendChild(rf);
       g.appendChild(h("div", "field")).appendChild(tools2);
 
-      g.appendChild(field("宽高比", "settings.ratio", { type: "select", options: RATIOS, hint: "短剧建议 9:16" }));
-      g.appendChild(field("分辨率（百万像素）", "settings.megapixels", { type: "number", step: 0.1, min: 0.2, max: 4, hint: "9:16 · 0.9 ≈ 704×1280" }));
-      g.appendChild(field("生成步数", "settings.steps", { type: "number", step: 1, min: 1, max: 60, hint: "默认 5（turbo_v4 蒸馏 LoRA 按 5 步走）" }));
-
-      /* --- 显存加速后端：363 显存分块加速节点的 attention_backend，选项现读 ComfyUI 的节点定义 --- */
-      var attnOpts = (MODELS.attn && MODELS.attn.length)
-        ? MODELS.attn.map(function (x) { return [x, x]; })
-        : [["", "（ComfyUI 里没读到后端列表）"]];
-      g.appendChild(field("显存加速后端（显存分块加速节点 363）", "settings.h3Attn", {
+      g.appendChild(field("宽高比", "settings.ratio", { type: "select", options: RATIOS, hint: "短剧建议 9:16；实际宽高由 ResolutionSelector 按宽高比 + 下面的像素算出来" }));
+      g.appendChild(field("分辨率（百万像素）", "settings.megapixels", { type: "number", step: 0.1, min: 0.2, max: 4, hint: "9:16 · 0.9 ≈ 704×1280（宽度按 32 对齐）" }));
+      g.appendChild(field("生成步数", "settings.steps", { type: "number", step: 1, min: 1, max: 60, hint: "默认 5（dmad_v4 step600 蒸馏 LoRA 按 4–5 步走）" }));
+      /* --- 加速与显存：一个勾选 + 一个下拉 + 三个分块数字（节点内部其它参数不暴露） --- */
+      g.appendChild(field("模型稀疏注意力", "settings.h3Sparse", {
+        type: "check",
+        checkLabel: "开启块稀疏注意力（sol-attn 自适应）",
+        checkLabelOn: "块稀疏注意力已开启（sol-attn 自适应）",
+        checkLabelOff: "开启块稀疏注意力（sol-attn 自适应）",
+        hint: "打勾 = 采样时只对最相关的注意力块做完整计算，明显省显存、也更快；取消 = 这个节点整颗从工作流里摘掉，"
+            + "退回完整注意力，最稳。节点内部的稀疏度、阈值、起止步数等参数按工作流原值走，本页不暴露。"
+      }));
+      g.appendChild(field("模型注意力加速后端", "settings.h3Attn", {
         type: "select",
-        options: attnOpts,
-        hint: "决定 363 显存分块加速节点用哪种注意力内核，列表实时读自已连接的 ComfyUI。"
-            + "existing = 不动现有内核；comfy_kitchen_int8 = 工作流原值（2080 Ti 上验证过，默认）；"
-            + "sla_ / sol_ / vsa_ 系列按算力档分 sm75 与 sm80+；hybrid_* 是把 comfy_kitchen 与其中一种混用。"
-            + "选了本机节点里没有的值，生成前会直接拦下来，不会跑到一半才报错。"
+        options: [["comfy kitchen attention", "comfy kitchen（量化 INT8 · 快，默认）"],
+                  ["pytorch attention", "pytorch（原生实现 · 稳，稍慢）"]],
+        hint: "决定注意力用哪套内核。comfy kitchen = ComfyUI 自带的量化 INT8 注意力，快且省显存，默认用它；"
+            + "pytorch = 原生实现，兼容性最好，遇到黑图或注意力相关报错先切回这一档。"
       }));
-
-      /* --- VEDA 稀疏注意力：默认不勾。勾了才把 408 节点留在图上真跑，没勾整颗从图上摘掉 --- */
-      g.appendChild(field("MiniMax H3 VEDA 加速", "settings.h3Veda", {
-        type: "check",
-        checkLabel: "开启 VEDA 加速（需先下载 VEDA 模型）",
-        checkLabelOn: "VEDA 加速已开启（需 VEDA 模型在场）",
-        checkLabelOff: "开启 VEDA 加速（需先下载 VEDA 模型）",
-        hint: "默认关：提交的工作流里没有这一环，走完整注意力，最稳、不需要额外模型。"
-            + "开：采样前挂 VEDA 稀疏注意力补丁，跳过大部分候选注意力块；ComfyUI 里必须已经有 VEDA 预测模型"
-            + "（Star7VedaSparseAttention 的 predictor 那一栏能看到），否则会在加载阶段报错。"
+      g.appendChild(field("分块前馈 · 分块数", "settings.h3Chunks", {
+        type: "number", step: 1, min: 1, max: 16, integer: true,
+        hint: "前馈层切成几块依次算（默认 2）。调大更省显存峰值，但会更慢；显存够就保持 2。"
       }));
-
-      /* --- 二采高清放大：默认关闭，打开后一采完成再做一次 latent 放大 + 低强度精修 --- */
-      var hdOn = !!STATE.settings.h3Hd;
-      g.appendChild(field("MiniMax H3 二采高清放大", "settings.h3Hd", {
-        type: "check",
-        checkLabel: "开启二采（关着只跑一采）",
-        hint: "关：一次采样出片，最快、最省显存。开：一采完成后再做一次 latent 放大，按目标像素补细节，人脸和远景更实；每段耗时会明显变长。",
-        onchange: function (on) {
-          var i = hdField && hdField.querySelector("input");
-          if (i) { i.disabled = !on; i.style.opacity = on ? "1" : ".5"; }
-        }
+      g.appendChild(field("分块前馈 · 序列阈值", "settings.h3SeqThreshold", {
+        type: "number", step: 1, min: 256, max: 65536, integer: true,
+        hint: "序列长度超过这个值才启用分块（默认 4096）。设小一点会更早开始分块、更省显存，代价是略慢。"
       }));
-      var hdField = field("二采目标像素（MP）", "settings.h3HdMegapixels", {
-        type: "number", step: 0.1, min: 1, max: 4,
-        hint: hdOn ? "默认 1.5。一采是 " + (STATE.settings.megapixels || 0.7) + " MP，二采把它放大到这个像素再精修一轮" : "开关关闭时这一项不生效"
-      });
-      var hdInp = hdField.querySelector("input");
-      if (hdInp) { hdInp.disabled = !hdOn; hdInp.style.opacity = hdOn ? "1" : ".5"; }
-      g.appendChild(hdField);
+      g.appendChild(field("低显存注意力 · 头分块数", "settings.h3HeadChunks", {
+        type: "number", step: 1, min: 1, max: 16, integer: true,
+        hint: "注意力按头分成几份依次算（默认 4）。越大越省显存、越慢；显存爆了先把它加到 8 试试。"
+      }));
+      g.appendChild(h("div", "hint",
+        "二采高清放大和 VEDA 稀疏加速这两项，这一版工作流里没有对应节点，已从本页移除。"));
     }));
 
     v.appendChild(voiceSummary());

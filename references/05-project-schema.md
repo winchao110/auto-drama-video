@@ -60,16 +60,21 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
     "steps": 5,
     "comfy": "http://127.0.0.1:8188",
     "h3Model": "MiniMaxH3\\minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
-    "h3Lora": "MiniMaxH3\\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
-    "h3LoraStrength": 0.75,
-    "h3Clip": "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors",
-    "h3VideoVae": "MiniMaxH3\\minimax_h3_video_vae_int8_convrot1.safetensors",
-    "h3AudioVae": "MiniMaxH3\\minimax_h3_audio_vae_fp32.safetensors",
-    "h3Veda": false,
-    "h3Attn": "comfy_kitchen_int8",
-    "h3Hd": false,
-    "h3HdMegapixels": 1.5,
-    "h3Wf": "star7chunk-1006api-optveda",
+    "h3Lora": "MiniMaxH3\\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors",
+    "h3LoraStrength": 0.8,
+    "h3Lora2": "",
+    "h3Lora2Strength": 0.75,
+    "h3Lora3": "",
+    "h3Lora3Strength": 0.75,
+    "h3Clip": "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+    "h3VideoVae": "minimax_h3_video_vae_int8_convrot.safetensors",
+    "h3AudioVae": "minimax_h3_audio_vae_fp32.safetensors",
+    "h3Sparse": true,
+    "h3Attn": "comfy kitchen attention",
+    "h3Chunks": 2,
+    "h3SeqThreshold": 4096,
+    "h3HeadChunks": 4,
+    "h3Wf": "native-ref2va-20261023b",
     "seed": 0,
     "afterGenerate": "fixed"
   },
@@ -132,12 +137,17 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `assets[].voicePromptZh` | 上面的中文对照 | AI 写，人可改 |
 | `voices[].file` | 项目内相对路径；空 = 该音色还没绑音频 | 人上传 |
 | `settings.*` | HTML 里的全局生成参数 | 人在 HTML 改，生成时读取 |
-| `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频那 13 个参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
-| `settings.h3Attn` | 显存分块加速节点 `363` 的 `attention_backend`（默认 `comfy_kitchen_int8`）。可选值现读 ComfyUI 的 `MiniMaxH3ActivationChunkStar7`；选成本机没有的值，`videos` 开跑前直接退出 | 人在「视频提示词」页下拉选择 |
-| `settings.h3Veda` | VEDA 稀疏注意力开关（默认 `false`）。`true` 才把 `408` 留在图上；`false` 提交前整节点摘掉、`363.model` 直连 `313` | 人在「视频提示词」页勾选 |
-| `settings.h3Hd` | 二采高清放大开关（默认 `false`）→ 工作流 `376.enable_hd` | 人在「视频提示词」页开/关 |
-| `settings.h3HdMegapixels` | 二采目标像素（默认 `1.5`），只在该开关打开时生效 | 人在页面改 |
-| `settings.h3Wf` | 当前 H3 工作流标记（`star7chunk-1006api-optveda`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 dmad LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
+| `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频那 17 个参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
+| `settings.ratio` / `megapixels` | 画幅与分辨率，写进 `ResolutionSelector(252)`；实际宽高由节点按 32 对齐算出 | 人在「视频提示词」页选 / 改 |
+| `settings.h3Lora` / `h3Lora2` / `h3Lora3` | 三个 LoRA 位置，依次写进节点 `53` / `400` / `490`，按 1→2→3 串联。**1 号位默认挂主 LoRA，2、3 号位默认空（不挂）**；哪一格空就那颗节点整颗摘掉、链条重接 | 人在页面选 |
+| `settings.h3LoraStrength` / `h3Lora2Strength` / `h3Lora3Strength` | 与三格一一对应的强度（1 号位默认 0.8，2、3 号位默认 0.75，-2～2） | 人在页面改 |
+| `settings.h3Wf` | 当前 H3 工作流标记（`native-ref2va-20261023`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 turbo LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
+| `settings.h3Sparse` | 块稀疏注意力开关（默认 `true`）→ 决定 `BlockSparseAttention(332)` 在不在图上；节点内部稀疏参数不暴露 | 人在「视频提示词」页勾选 |
+| `settings.h3Attn` | 注意力后端 → `ModelAttentionBackend(331).attention`。只有 `comfy kitchen attention`（默认）/ `pytorch attention` 两档，其它值在 `migrate()` 里回落到默认 | 人在页面下拉 |
+| `settings.h3Chunks` | 分块前馈的 `chunks`（默认 2，1–16）→ `MiniMaxChunkFeedForward(401)` | 人在页面改 |
+| `settings.h3SeqThreshold` | 分块前馈的 `seq_threshold`（默认 4096，256–65536）→ `401.seq_threshold` | 人在页面改 |
+| `settings.h3HeadChunks` | 低显存注意力的 `head_chunks`（默认 4，1–16）→ `MiniMaxLowVRAMAttention(403)` | 人在页面改 |
+| `settings.h3Hd` / `h3HdMegapixels` / `h3Veda` | **已废弃**（新工作流没有二采高清 / VEDA）。`H3_RETIRED_KEYS` 在 `migrate()` 里直接 `pop` 掉，页面也不再显示 | **脚本清理** |
 | `image` / `video` / `status` | 由生成脚本写 | 脚本 |
 
 ### 四条纪律

@@ -335,7 +335,7 @@ subject_definitions:
 | 前提 | `assets[].voice` 指向 `voices[]`，且音频文件真实存在 | 没挂参考音频，只有文字描述 |
 | 存在哪 | 音频文件 `voices/vN.ext` | `assets[].voicePrompt`（英文）+ `voicePromptZh`（中文对照） |
 | 写进提示词 | `<Audio N>` 参考句 | "整部剧只用这一种音色"句 |
-| H3 行为 | `audio_mode` 切 **`仅作音频参考 / Reference Only`**，音频接 `ref_audio_0/1` | `audio_mode` 保持 **`模型原生生成 / Native`**，按文字造声 |
+| H3 行为 | 音频接 `ref_audio_0..N`，按参考音的音色/语速说话 | 不接任何参考音，按文字描述造声 |
 
 **为什么音色描述不写在每一段里**：写进 `assets[]` 之后，同一个人物所有分镜共用同一条描述，
 不会出现"第 1 段冷一点、第 4 段甜一点"。这也是"一个人的音色整部剧一样"的机器保证。
@@ -345,12 +345,12 @@ subject_definitions:
 | 项 | 规则 |
 |---|---|
 | 绑定位置 | 资产 `voice` 字段（只对 `type = character` 生效），音频在 `voices[].file` |
-| 取哪几路 | 按 `cast` 顺序取前 **2** 个"已绑定且音频文件真实存在"的人物 |
-| 工作流槽位 | 第 1 路 → `ref_audio_0`；第 2 路 → `ref_audio_1`（`TaiYangMultiAudioLoader` 的第 0/1 个输出） |
+| 取哪几路 | 按 `cast` 顺序取前 **3** 个"已绑定且音频文件真实存在"的人物 |
+| 工作流槽位 | 第 1/2/3 路 → `ref_audio_0` / `ref_audio_1` / `ref_audio_2`（`TaiYangMultiAudioLoader` 的第 0/1/2 个输出，节点上限 3 路） |
 | 提示词标签 | `<Audio 1>` / `<Audio 2>`（**1 起数**，与 `<Picture 1>` 同规矩；`ref_audio_0` = `<Audio 1>`） |
 | 写在哪一段 | 该人物的 `<Subject K>` 段末尾，K = 该人物在 `cast` 里的下标 + 1 |
-| 第 3 人起 | 挂不上参考音 → 自动退回路 B，写他的固定音色句，不会没有声音设定 |
-| `audio_mode` | 有任一路 → `仅作音频参考 / Reference Only`；没有 → `模型原生生成 / Native` |
+| 第 4 人起 | 挂不上参考音 → 自动退回路 B，写他的固定音色句，不会没有声音设定 |
+| 参考音开关 | 新工作流没有 `audio_mode`：挂了 `ref_audio_*` 就是参考音，没挂就是模型原生生成 |
 
 ### 5.2 路 A 固定句（逐字，不许改写语义）
 

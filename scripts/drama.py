@@ -55,65 +55,82 @@ TPL_PATH = os.path.join(SKILL_DIR, "assets", "workbench.template.html")
 Q_WF = {"quality25": "qwen-image21.quality25.api.json"}
 Q_NODE = {"prompt": "517", "latent": "514", "seed": "524", "save": "508",
           "unet": "523", "clip": "518", "vae": "519", "steps": "515"}
-# H3 工作流：MiniMax-H3-Star7chunk-1006api专用（2026-10-20 换用户导出版）。这一版没有实时预览节点，
-# VEDA 稀疏注意力按用户要求做成「可选」：模板里留着 408，settings.h3Veda 不勾时提交前整颗摘掉。
-# 采样链 391 → 311 → 313 →[408]→ 363 → 126/275；其余节点 id 与入参口径完全不变）
+# H3 工作流：MiniMax-H3 原生 Ref2VA（2026-10-23 换用户导出的「API 专用」版，19:23 那一版含 LowVRAMAttention）。
+# 全部是 ComfyUI 本体自带的 H3 节点：没有二采高清、没有 VEDA、没有分块解码 / 人脸精修。
+# 采样链 192 → 53 → 400 →[490 可选]→ 333 →[332 可选]→ 331 → 401 → 403 → 329 →{261,408}；宽高由 252 ResolutionSelector 算。
+# 53 / 400 / 490 就是页面上的三个 LoRA 位置，空着的那格整颗摘掉，链条自动接回去。
 H3_WF = "minimax-h3.ref2va.api.json"
-H3_WF_TAG = "star7chunk-1006api-optveda"   # 换工作流时改这个，老项目会自动对齐一次
-H3_NODE = {"prompt": "334", "promptKey": "prompt",
-           "core": "275", "duration": "135", "steps": "126", "seed": "131", "save": "150",
-           "refs": "429", "audios": "430", "unet": "391", "lora": "311",
-           "clip": "130", "videoVae": "121", "audioVae": "122",
-           "hd": "376", "face": "395", "export": "339", "veda": "408", "chunk": "363"}
-# 参考音：新工作流用 TaiYangMultiAudioLoader(430) 多路输出，直接接到 star7 的 ref_audio_0/1
-AUDIO_NODE = []
-AUDIO_SLOTS = 2
-DEFAULT_H3_MODEL = "MiniMaxH3\\minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
-DEFAULT_H3_LORA = "MiniMaxH3\\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors"
-# 2026-10-19 换工作流时改的 CLIP（32B → Qwen3VL-8B）；视频/音频 VAE 未动
-# 注意：导出文件里写的是 Qwen-Image\qwen3vl_8b（4096 维），实测与 H3 的 20G 主模型（要 5120 维）
-# 在采样器直接报 mat1/mat2 形状不匹配，所以默认仍停在被验证可用的 32B H3 专用 CLIP，
-# 8B 那版在下拉里随时可选（生图用 8B 是对的）。
-DEFAULT_H3_CLIP = "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
-DEFAULT_H3_VIDEO_VAE = "MiniMaxH3\\minimax_h3_video_vae_int8_convrot1.safetensors"
-DEFAULT_H3_AUDIO_VAE = "MiniMaxH3\\minimax_h3_audio_vae_fp32.safetensors"
-# 显存分块加速节点(363 MiniMaxH3ActivationChunkStar7) 的 attention_backend：
-# 决定这节点用哪种注意力内核跑（现有内核 / comfy_kitchen int8 / SLA / SOL / VSA / 各种 hybrid）。
-# 选项由 ComfyUI 自己的节点定义给（object_info），这里只是离线时的兜底列表，顺序与节点一致；
-# 提交前会拿服务端列表对一遍，选了个本机没有的会直接报错而不是跑到一半炸。
-H3_ATTN_BACKENDS = [
-    "existing",
-    "comfy_kitchen_int8",
-    "sla_sm75_qk_int8_pv_fp16", "sla_sm75_all_int8", "sol_sm75_all_int8", "vsa_sm75",
-    "hybrid_sm75_ck_sla_all_int8", "hybrid_sm75_ck_sol_all_int8", "hybrid_sm75_ck_vsa",
-    "sla_sm80+_qk_int8_pv_bf16", "sla_sm80+_all_int8", "sol_sm80+_bf16_official",
-    "sol_sm80+_all_int8", "vsa_sm80+",
-    "hybrid_sm80+_ck_sla_all_int8", "hybrid_sm80+_ck_sol_all_int8",
-    "hybrid_sm80+_ck_sla_qk_int8_pv_bf16", "hybrid_sm80+_ck_sol_bf16_official",
-    "hybrid_sm80+_ck_vsa",
-]
-DEFAULT_H3_ATTN = "comfy_kitchen_int8"
-# attention_backend 的中文说明（只用于页面/日志提示，不参与提交）
-H3_ATTN_NOTE = {
-    "existing": "不动现有内核，沿用 ComfyUI 当前装的那套",
-    "comfy_kitchen_int8": "comfy_kitchen int8 内核（工作流原值，2080 Ti 上验证过）",
+H3_WF_TAG = "native-ref2va-20261023b"   # 换工作流时改这个，老项目会自动对齐一次
+H3_NODE = {"prompt": "424", "promptKey": "value",
+           "core": "413", "res": "252", "duration": "259", "steps": "261", "seed": "407", "save": "417",
+           "refs": "421", "audios": "414",
+           "unet": "192", "lora": "53", "lora2": "400", "lora3": "490",
+           "clip": "38", "videoVae": "36", "audioVae": "37",
+           "sparse": "332", "attn": "331", "chunkff": "401", "lowvram": "403"}
+# 三个 LoRA 位置的节点 id，顺序即串联顺序。前两个在模板里（53 / 400），
+# 第三个（490）模板里没有，由 video_graph() 按 400 复制一颗出来，只在该格挂了 LoRA 时才留在图上。
+H3_LORA_NODES = (H3_NODE["lora"], H3_NODE["lora2"], H3_NODE["lora3"])
+# 宽高比 → ResolutionSelector 的 aspect_ratio 枚举（值必须与 ComfyUI 节点定义逐字一致）
+H3_RATIO_OPTS = {
+    "1:1": "1:1 (Square)",
+    "2:3": "2:3 (Portrait Photo)",
+    "3:2": "3:2 (Photo)",
+    "3:4": "3:4 (Portrait Standard)",
+    "4:3": "4:3 (Standard)",
+    "9:16": "9:16 (Portrait Widescreen)",
+    "16:9": "16:9 (Widescreen)",
+    "21:9": "21:9 (Ultrawide)",
 }
+# 参考图 / 参考音挂到 Ref2VA 节点上的槽位上限（节点定义：ref_image 0–9，ref_audio 0–3）
+REF_IMAGE_SLOTS = 9
+# 参考音：TaiYangMultiAudioLoader(414) 多路输出，接到 MiniMaxH3ReferenceToVideo 的 ref_audio_0..2
+AUDIO_NODE = []
+AUDIO_SLOTS = 3
+# ModelAttentionBackend(331) 的注意力后端：只这两档，值必须与节点定义逐字一致
+H3_ATTN_OPTS = ["comfy kitchen attention", "pytorch attention"]
+DEFAULT_H3_ATTN = "comfy kitchen attention"
+H3_ATTN_NOTE = {
+    "comfy kitchen attention": "Comfy Kitchen 量化 INT8 注意力（快、省显存，N 卡/A 卡可用，默认）",
+    "pytorch attention": "PyTorch 原生注意力（最稳、最兼容，慢一些）",
+}
+# MiniMaxChunkFeedForward(401)：把前馈层切成 chunks 份算，序列超过 seq_threshold 才分块
+DEFAULT_H3_CHUNKS = 2
+DEFAULT_H3_SEQ_THRESHOLD = 4096
+# MiniMaxLowVRAMAttention(403)：注意力按头分成 head_chunks 份算，降显存峰值
+DEFAULT_H3_HEAD_CHUNKS = 4
+# 块稀疏注意力 BlockSparseAttention(332)：页面只给一个开关，节点内部参数（sol-attn / τ=1.3 等）保持模板原值
+DEFAULT_H3_SPARSE = True
+DEFAULT_H3_MODEL = "MiniMaxH3\\minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
+DEFAULT_H3_LORA = "MiniMaxH3\\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors"
+# 视频 LoRA 做成三个独立位置：1 号位默认挂主 LoRA（dmad_v4），2、3 号位默认「不挂」，页面上由人自选。
+# 三条按 1 → 2 → 3 顺序串联在 unet 与 SigmaShift 之间；哪一格空着就把那颗节点整颗从链上摘掉。
+H3_LORA_SLOTS = 3
+DEFAULT_H3_LORA_STRENGTH = 0.8          # 1 号位强度默认（dmad_v4 step600 蒸馏 LoRA）
+DEFAULT_H3_LORA_SLOT_STRENGTH = 0.75    # 2、3 号位强度默认：选上 LoRA 但没填强度时用它
+DEFAULT_H3_CLIP = "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
+DEFAULT_H3_VIDEO_VAE = "minimax_h3_video_vae_int8_convrot.safetensors"
+DEFAULT_H3_AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
+
 # 生图（Qwen-Image 2.1）默认三件套 + 默认采样步数
 DEFAULT_IMG_UNET = "Qwen-Image\\qwen_image_2.1_int8_convrot.safetensors"
 DEFAULT_IMG_CLIP = "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors"
 DEFAULT_IMG_VAE = "Qwen-Image\\qwen_image_2.1_vae_bf16.safetensors"
 DEFAULT_IMG_STEPS = 25          # 生图采样步数，工作台「生图参数 → 步数」可改（整数）
-# 上一代工作流的默认值：老项目里仍是这两个值时，随新工作流自动对齐一次
+# 上一代工作流的默认值：老项目里仍是这些值时，随新工作流自动对齐一次
 LEGACY_H3_LORA = "MiniMaxH3\\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors"
+LEGACY_H3_LORAS = (
+    "MiniMaxH3\\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
+    "MiniMaxH3\\minimax_h3_turbo_v4_step600_comfyui_lar-convert.safetensors",
+)
 LEGACY_H3_STEPS = 4
 DEFAULT_H3_STEPS = 5
-DEFAULT_HD_MP = 1.5
+# 新工作流里已经不存在的设置项：老项目里残留的话，加载时统一清掉，页面不再显示
+# （h3Attn 这一项保留：新版变成了 ModelAttentionBackend 的注意力后端下拉，枚举与旧版完全不同）
+H3_RETIRED_KEYS = ("h3Hd", "h3HdMegapixels", "h3Veda")
 SEED_MODES = ("fixed", "increment", "decrement", "randomize")
-AUDIO_NATIVE = "模型原生生成 / Native"
-AUDIO_REF_ONLY = "仅作音频参考 / Reference Only"
 
 # 音色只有两条路，二者互斥，都由 sync_voice_tags() 写进对应 <Subject K> 段末尾：
-#   ① 用了参考音频 → 写 <Audio N> 句（H3 里 ref_audio_0/1 对应 <Audio 1>/<Audio 2>，1 起数）
+#   ① 用了参考音频 → 写 <Audio N> 句（H3 里 ref_audio_0..2 对应 <Audio 1>..<Audio 3>，1 起数）
 #   ② 没用参考音频 → 写"固定音色提示词"句（来自 assets[].voicePrompt，整部剧同一句）
 # 两句都是"机器管理的句子"：换音色 / 换参考音 / 撤掉 时先按原文删掉再插新的，不会叠加。
 AUDIO_TAG_EN = (
@@ -273,7 +290,7 @@ def comfy_models(addr, force=True):
     不缓存：每次打开页面 / 切页 / 点刷新都重新读一遍，避免下拉里出现已经删掉的模型。
     force 参数只为兼容老调用保留，行为上永远现读。
     """
-    data = {"unet": [], "lora": [], "clip": [], "vae": [], "attn": [], "error": "",
+    data = {"unet": [], "lora": [], "clip": [], "vae": [], "error": "",
             "ts": time.strftime("%H:%M:%S")}
 
     def combo(node, key):
@@ -282,22 +299,11 @@ def comfy_models(addr, force=True):
         opts = spec[0] if spec and isinstance(spec[0], list) else []
         return [str(x) for x in opts]
 
-    def merge(*lists):
-        out = []
-        for lst in lists:
-            for x in lst or []:
-                if x not in out:
-                    out.append(x)
-        return out
-
     try:
-        data["unet"] = merge(combo("MiniMaxH3ChunkEnhancedLoaderStar7", "unet_name"),
-                             combo("UNETLoader", "unet_name"))
+        data["unet"] = combo("UNETLoader", "unet_name")
         data["lora"] = combo("LoraLoaderModelOnly", "lora_name")
         data["clip"] = combo("CLIPLoader", "clip_name")
         data["vae"] = combo("VAELoader", "vae_name")
-        # 显存分块加速节点(363) 的注意力后端：这是枚举值不是文件，读不到就退回离线兜底列表
-        data["attn"] = combo("MiniMaxH3ActivationChunkStar7", "attention_backend") or list(H3_ATTN_BACKENDS)
     except Exception as e:
         data["error"] = str(e)[:200]
     return data
@@ -360,22 +366,10 @@ def open_in_explorer(path):
     return path
 
 
-# H3 只有 3 个干净时长档（5.2 / 10.1 / 14.4 s）。
-# 帧数会被 ComfyMathExpression 补齐到 5 (mod 17)，所以能正好落在档位上的只有 243 帧（10.125s）和 345 帧（14.375s）。
-VEDA_PLAN_SECS = (5.2, 10.1, 14.4)
-
-
 def h3_frames(sec):
     """复刻工作流里的 ComfyMathExpression：max(5, round(a*24)) + (5 - (n % 17)) % 17。"""
     n = max(5, int(math.floor(float(sec) * 24 + 0.5)))
     return n + (5 - (n % 17)) % 17
-
-
-def veda_plan(sec):
-    """返回 (本片时长, 会被就近吸附到的干净档位秒数, 差值)。等距时和 ComfyUI 一样取更长的那档。"""
-    dur = h3_frames(sec) / 24.0
-    plan = min(VEDA_PLAN_SECS, key=lambda p: (abs(p - dur), -p))
-    return dur, plan, abs(plan - dur)
 
 
 def gen_sec(sec):
@@ -476,9 +470,11 @@ def review_gate(st, skip, what, with_images=False):
 USER_SETTINGS_PATH = os.path.join(SKILL_DIR, "settings.user.json")
 REMEMBER_KEYS = (
     "imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels",
-    "steps", "comfy", "h3Model", "h3Lora", "h3LoraStrength",
+    "steps", "comfy", "h3Model",
+    "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength", "h3Lora3", "h3Lora3Strength",
     "h3Clip", "h3VideoVae", "h3AudioVae",
-    "h3Veda", "h3Attn", "h3Hd", "h3HdMegapixels", "seed", "afterGenerate", "charSheet",
+    "h3Sparse", "h3Attn", "h3Chunks", "h3SeqThreshold", "h3HeadChunks",
+    "seed", "afterGenerate", "charSheet",
 )
 
 
@@ -495,14 +491,20 @@ def builtin_settings():
         "comfy": "http://127.0.0.1:8188",
         "h3Model": DEFAULT_H3_MODEL,
         "h3Lora": DEFAULT_H3_LORA,
-        "h3LoraStrength": 0.75,
+        "h3LoraStrength": DEFAULT_H3_LORA_STRENGTH,
+        # 2、3 号位默认留空：页面上显示「（不挂 LoRA）」，要用自己选
+        "h3Lora2": "",
+        "h3Lora2Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
+        "h3Lora3": "",
+        "h3Lora3Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
         "h3Clip": DEFAULT_H3_CLIP,
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE,
         "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
-        "h3Veda": False,
+        "h3Sparse": DEFAULT_H3_SPARSE,
         "h3Attn": DEFAULT_H3_ATTN,
-        "h3Hd": False,
-        "h3HdMegapixels": DEFAULT_HD_MP,
+        "h3Chunks": DEFAULT_H3_CHUNKS,
+        "h3SeqThreshold": DEFAULT_H3_SEQ_THRESHOLD,
+        "h3HeadChunks": DEFAULT_H3_HEAD_CHUNKS,
         "seed": 0,
         "afterGenerate": "fixed",
         "charSheet": {"en": CHAR_BLOCK, "zh": CHAR_BLOCK_ZH, "edited": False},
@@ -532,6 +534,12 @@ def load_user_settings():
                 if isinstance(v.get(kk), str) and v[kk].strip():
                     cs[kk] = v[kk]
             cs["edited"] = bool(v.get("edited"))
+            continue
+        # 上一代工作流的 turbo LoRA 不再作为默认：记忆里还是它的话，按新工作流的 dmad_v4 走
+        if k == "h3Lora" and str(v).strip() in LEGACY_H3_LORAS:
+            continue
+        # 注意力后端只剩两档：记忆里还是旧版的 comfy_kitchen_int8 / sla_* 就别带进来
+        if k == "h3Attn" and str(v).strip() not in H3_ATTN_OPTS:
             continue
         base[k] = copy.deepcopy(v)
     return base
@@ -596,13 +604,18 @@ def new_state(title="未命名短剧", source=""):
             "h3Model": mem["h3Model"],
             "h3Lora": mem["h3Lora"],
             "h3LoraStrength": mem["h3LoraStrength"],
+            "h3Lora2": mem.get("h3Lora2") or "",
+            "h3Lora2Strength": mem.get("h3Lora2Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
+            "h3Lora3": mem.get("h3Lora3") or "",
+            "h3Lora3Strength": mem.get("h3Lora3Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
             "h3Clip": mem["h3Clip"],
             "h3VideoVae": mem["h3VideoVae"],
             "h3AudioVae": mem["h3AudioVae"],
-            "h3Veda": mem["h3Veda"],
+            "h3Sparse": bool(mem.get("h3Sparse", DEFAULT_H3_SPARSE)),
             "h3Attn": mem.get("h3Attn") or DEFAULT_H3_ATTN,
-            "h3Hd": mem["h3Hd"],
-            "h3HdMegapixels": mem["h3HdMegapixels"],
+            "h3Chunks": int(mem.get("h3Chunks") or DEFAULT_H3_CHUNKS),
+            "h3SeqThreshold": int(mem.get("h3SeqThreshold") or DEFAULT_H3_SEQ_THRESHOLD),
+            "h3HeadChunks": int(mem.get("h3HeadChunks") or DEFAULT_H3_HEAD_CHUNKS),
             "h3Wf": H3_WF_TAG,
             "seed": mem["seed"],
             "afterGenerate": mem["afterGenerate"],
@@ -634,9 +647,37 @@ def migrate(st):
     # 缺项用「技能里记住的参数」补，而不是硬编码默认：老项目没写的字段也能吃到用户上次的设置
     mem = load_user_settings()
     for k in ("imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels", "steps", "comfy",
-              "h3Model", "h3Lora", "h3LoraStrength", "h3Clip", "h3VideoVae", "h3AudioVae",
-              "seed", "afterGenerate", "h3Veda", "h3Attn", "h3Hd", "h3HdMegapixels"):
+              "h3Model", "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength",
+              "h3Lora3", "h3Lora3Strength", "h3Clip", "h3VideoVae", "h3AudioVae",
+              "h3Sparse", "h3Attn", "h3Chunks", "h3SeqThreshold", "h3HeadChunks",
+              "seed", "afterGenerate"):
         s.setdefault(k, mem[k])
+    # 三个 LoRA 位置：名字必须是字符串（空 = 不挂），强度必须是数字
+    for i, sfx in ((1, ""), (2, "2"), (3, "3")):
+        nm = s.get("h3Lora" + sfx)
+        s["h3Lora" + sfx] = "" if nm in (None, "") else str(nm).strip()
+        k = "h3LoraStrength" + sfx
+        try:
+            sv = float(s.get(k))
+        except (TypeError, ValueError):
+            sv = DEFAULT_H3_LORA_SLOT_STRENGTH if i > 1 else DEFAULT_H3_LORA_STRENGTH
+        s[k] = min(2.0, max(-2.0, sv))
+    # 新工作流里没有二采高清 / VEDA：老项目残留的一律清掉，页面也不再显示
+    for k in H3_RETIRED_KEYS:
+        s.pop(k, None)
+    # 注意力后端：旧版存的是 comfy_kitchen_int8 / sla_* 那一套枚举，新节点只认两档——不认识就回默认
+    if s.get("h3Attn") not in H3_ATTN_OPTS:
+        s["h3Attn"] = DEFAULT_H3_ATTN
+    s["h3Sparse"] = bool(s.get("h3Sparse"))
+    # 三个分块参数都必须是正整数，越界/乱填回落到默认
+    for k, dflt, lo, hi in (("h3Chunks", DEFAULT_H3_CHUNKS, 1, 16),
+                            ("h3SeqThreshold", DEFAULT_H3_SEQ_THRESHOLD, 256, 65536),
+                            ("h3HeadChunks", DEFAULT_H3_HEAD_CHUNKS, 1, 16)):
+        try:
+            iv = int(float(s.get(k)))
+        except (TypeError, ValueError):
+            iv = dflt
+        s[k] = min(hi, max(lo, iv))
     # 生图步数必须是可以直接填进 KSampler 的整数：空值 / 乱填一律回落到默认 25
     try:
         iv = int(float(s.get("imgSteps")))
@@ -657,11 +698,12 @@ def migrate(st):
     cs.setdefault("edited", bool(mcs.get("edited")))
     s["charSheet"] = cs
 
-    # 工作流换代（旧 dmad LoRA + 4 步 beta 调度 → turbo_v4 LoRA + 5 步 simple 调度）：
+    # 工作流换代（分块链 → H3 原生 Ref2VA，主 LoRA 换成 dmad_v4 step600）：
     # 只有项目里还留着"上一代默认值"时才自动对齐一次，用户自己改过的模型/LoRA/步数一律不动。
     if s.get("h3Wf") != H3_WF_TAG:
-        print("[i] H3 工作流已换成 %s：老项目按上一代默认值对齐一次（模型/LoRA/步数）" % H3_WF_TAG, flush=True)
-        if not (s.get("h3Lora") or "").strip() or (s.get("h3Lora") or "").strip() == LEGACY_H3_LORA:
+        print("[i] H3 工作流已换成 %s：老项目按上一代默认值对齐一次（LoRA/步数）" % H3_WF_TAG, flush=True)
+        cur_lora = (s.get("h3Lora") or "").strip()
+        if not cur_lora or cur_lora in LEGACY_H3_LORAS:
             s["h3Lora"] = DEFAULT_H3_LORA
         if s.get("steps") in (None, "", LEGACY_H3_STEPS):
             s["steps"] = DEFAULT_H3_STEPS
@@ -824,8 +866,8 @@ def build_html(proj, st=None):
     model_defaults = json.dumps({
         "imgUnet": DEFAULT_IMG_UNET, "imgClip": DEFAULT_IMG_CLIP, "imgVae": DEFAULT_IMG_VAE,
         "h3Model": DEFAULT_H3_MODEL, "h3Lora": DEFAULT_H3_LORA, "h3Clip": DEFAULT_H3_CLIP,
+        "h3Lora2": "", "h3Lora3": "",
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE, "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
-        "h3Attn": DEFAULT_H3_ATTN,
     }, ensure_ascii=False).replace("</", "<\\/")
     html = (tpl.replace("__TITLE__", title)
                .replace("__PROJECT_DIR__", proj_js)
@@ -921,7 +963,7 @@ def voice_binding(st, seg):
       kind = "none"   → 两条都没有，不写句子（check 会报成硬问题）
 
     Subject 编号 = cast 下标 + 1（人物在前、场景道具在后，和 <Picture N> 同序）。
-    每段最多挂 AUDIO_SLOTS 路参考音；第 3 个人物起自动退回"固定音色提示词"，
+    每段最多挂 AUDIO_SLOTS 路参考音；超出的人物自动退回"固定音色提示词"，
     这样每个人物都一定有音色依据，不会有人物没声音设定。
     """
     amap = {a.get("id"): a for a in st.get("assets") or []}
@@ -1232,65 +1274,47 @@ def loader_outputs(addr):
         return 1
 
 
-def veda_predictors(addr):
-    """VEDA 稀疏注意力节点认哪些预测模型。没下载模型时 ComfyUI 会在加载阶段直接报错，
-    所以勾了 VEDA 就先跟这边对一遍；读不到（离线 / 节点没装）返回 None，不拦。"""
-    try:
-        info = comfy_api.object_info(addr, "Star7VedaSparseAttention") or {}
-        node = info.get("Star7VedaSparseAttention") or {}
-        v = ((node.get("input") or {}).get("required") or {}).get("predictor")
-        if isinstance(v, list) and len(v) > 1 and isinstance(v[1], dict) and isinstance(v[1].get("options"), list):
-            return [str(x) for x in v[1]["options"]]
-        if isinstance(v, list) and isinstance(v[0], list):
-            return [str(x) for x in v[0]]
-    except Exception:
-        return None
-    return None
-
-
 def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_avail=1,
-                audio_files=(), unet="", lora="", lora_strength=0.75,
+                audio_files=(), unet="", loras=None,
                 clip="", video_vae="", audio_vae="",
-                hd=False, hd_mp=DEFAULT_HD_MP, veda=False, attn=""):
-    """按 Ref2VA 填参。sec 这里已经是"实际传给 API"的秒数（gen_sec 算过）。
+                ratio="9:16", megapixels=0.8,
+                sparse=True, attn="", chunks=None, seq_threshold=None, head_chunks=None):
+    """按 H3 原生 Ref2VA 填参。sec 这里已经是"实际传给 API"的秒数（gen_sec 算过）。
 
-    veda=False（默认）：把 VEDA 稀疏注意力节点整颗从图上摘掉，下游直接接回 SigmaShift，
-    后端既不会加载 VEDA 预测模型，也不会装注意力补丁——效果等同于这条工作流本来就没有它。
+    loras：三个 LoRA 位置，形如 [("xxx.safetensors", 0.8), ("", None), ("", None)]，最多 3 条、
+    顺序即串联顺序；名字为空表示这一格不挂，对应的节点会被整颗摘掉、链条自动接回去。
 
-    attn：显存分块加速节点(363) 的 attention_backend，决定用哪种注意力内核；空 = 保留模板原值。
+    宽高不再写死在条件节点上：新工作流由 ResolutionSelector(252) 按「宽高比 + 像素」算好，
+    再连线进 MiniMaxH3ReferenceToVideo(413) 的 width/height。w/h 只用于日志与帧数换算。
     """
     g = copy.deepcopy(tpl)
     core = g[H3_NODE["core"]]["inputs"]
     g[H3_NODE["prompt"]]["inputs"][H3_NODE.get("promptKey") or "value"] = prompt
-    core["width"] = w
-    core["height"] = h
+
+    # 宽高比 + 分辨率：写到 ResolutionSelector 上（枚举值必须与节点定义逐字一致）
+    rn = H3_NODE.get("res")
+    if rn and rn in g:
+        g[rn]["inputs"]["aspect_ratio"] = H3_RATIO_OPTS.get(str(ratio), H3_RATIO_OPTS["9:16"])
+        try:
+            g[rn]["inputs"]["megapixels"] = float(megapixels)
+        except (TypeError, ValueError):
+            g[rn]["inputs"]["megapixels"] = 0.8
+    elif isinstance(core.get("width"), int):
+        # 兜底：模板里万一是直接写死的整数
+        core["width"], core["height"] = int(w), int(h)
+
     g[H3_NODE["duration"]]["inputs"]["value"] = float(sec)
     g[H3_NODE["steps"]]["inputs"]["steps"] = int(steps)
     g[H3_NODE["seed"]]["inputs"]["noise_seed"] = int(seed)
     g[H3_NODE["save"]]["inputs"]["filename_prefix"] = prefix
     g[H3_NODE["refs"]]["inputs"]["image_files"] = json.dumps(ref_files, ensure_ascii=False)
 
-    # 二采高清：开关关闭时节点仍在链上，只是直通（不做放大），避免改动模型图结构
-    nd = H3_NODE.get("hd")
-    if nd and nd in g:
-        g[nd]["inputs"]["enable_hd"] = bool(hd)
-        try:
-            g[nd]["inputs"]["target_megapixels"] = float(hd_mp or DEFAULT_HD_MP)
-        except (TypeError, ValueError):
-            g[nd]["inputs"]["target_megapixels"] = DEFAULT_HD_MP
-
-    # 导出节点（Star7VideoWorkflowExport）会再写一份带工作流的视频，批量跑用不上，
-    # 还会让 history.outputs 里出现两个视频、挑错文件，直接摘掉，只留 VHS_VideoCombine。
-    ex = H3_NODE.get("export")
-    if ex:
-        g.pop(ex, None)
-
     # 主模型（H3 unet）
     if unet and H3_NODE["unet"] in g:
         g[H3_NODE["unet"]]["inputs"]["unet_name"] = unet
 
-    # CLIP / 视频 VAE / 音频 VAE：条件节点(275) 与分块解码(377) 都是连线引用这三个加载节点，
-    # 所以只改加载节点的输入即可，两处一起生效。
+    # CLIP / 视频 VAE / 音频 VAE：只改加载节点；条件节点(413)与解码节点(253/254)是连线引用，
+    # 改一处两处一起生效。
     cn = H3_NODE.get("clip")
     if clip and cn and cn in g:
         g[cn]["inputs"]["clip_name"] = clip
@@ -1299,66 +1323,117 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
         if name and nid and nid in g:
             g[nid]["inputs"]["vae_name"] = name
 
-    # LoRA：选了就设名字与强度；选"不挂"就把下游 model 直接接到 unet 节点上
-    ln = H3_NODE["lora"]
-    if ln in g:
-        if lora:
-            g[ln]["inputs"]["lora_name"] = lora
-            g[ln]["inputs"]["strength_model"] = float(lora_strength if lora_strength is not None else 1.0)
+    def _drop_node(nid):
+        """把一个节点从 model 链上摘掉，让它的下游直接接回它的上游。"""
+        if nid not in g:
+            return
+        upstream = g[nid]["inputs"].get("model")
+        for _nid, node in list(g.items()):
+            ins = node.get("inputs") or {}
+            if ins.get("model") == [nid, 0]:
+                ins["model"] = upstream
+        g.pop(nid, None)
+
+    # 三个 LoRA 位置串联：53（1 号位）→ 400（2 号位）→ 490（3 号位，按 400 复制）→ SigmaShift(333)。
+    # 空的格子整颗摘掉；摘完重新从 unet 一路接回去，保证下游拿到的永远是链条最后一个。
+    def _norm_slot(p):
+        """把 (名字, 强度) 规整成字符串 + 浮点；名字空 = 这一格不挂。"""
+        if isinstance(p, (list, tuple)):
+            name = (p[0] or "").strip() if len(p) > 0 else ""
+            raw = p[1] if len(p) > 1 else None
         else:
-            upstream = g[ln]["inputs"].get("model")
-            for _nid, node in list(g.items()):
-                ins = node.get("inputs") or {}
-                if ins.get("model") == [ln, 0]:
-                    ins["model"] = upstream
-            g.pop(ln, None)
+            name, raw = (p or "").strip(), None
+        try:
+            strength = float(raw) if raw not in (None, "") else DEFAULT_H3_LORA_STRENGTH
+        except (TypeError, ValueError):
+            strength = DEFAULT_H3_LORA_STRENGTH
+        return name, strength
 
-    # VEDA 稀疏注意力：默认不勾 → 整颗节点摘掉，把引用它的下游（363 分块加速）接回它的上游（313）。
-    # 勾了才留在图上真跑；VEDA 需要额外预测模型，缺模型时后端会在加载阶段直接报错，
-    # 所以 cmd_videos 提交前会先对一遍 ComfyUI 里的 predictor 列表。
-    vn = H3_NODE.get("veda")
-    if vn and vn in g:
-        if not veda:
-            upstream = g[vn]["inputs"].get("model")
-            for _nid, node in list(g.items()):
-                ins = node.get("inputs") or {}
-                if ins.get("model") == [vn, 0]:
-                    ins["model"] = upstream
-            g.pop(vn, None)
+    slots = [_norm_slot(p) for p in (loras or [])][:H3_LORA_SLOTS]
+    while len(slots) < H3_LORA_SLOTS:
+        slots.append(("", DEFAULT_H3_LORA_SLOT_STRENGTH))
 
-    # 显存分块加速节点的注意力后端（自适应内核）：枚举值，本机 ComfyUI 里没有的选项提交前会被拦下来
-    cn2 = H3_NODE.get("chunk")
-    if attn and cn2 and cn2 in g:
-        g[cn2]["inputs"]["attention_backend"] = str(attn)
+    third = H3_LORA_NODES[2]
+    # 第 3 格模板里没有：真要挂第 3 条时，才按第 2 格的样子复制一颗（连线下面统一重排）
+    if slots[2][0] and H3_LORA_NODES[1] in g and third not in g:
+        g[third] = copy.deepcopy(g[H3_LORA_NODES[1]])
+
+    active = []
+    for i, nid in enumerate(H3_LORA_NODES):
+        if nid not in g:
+            continue
+        name, strength = slots[i]
+        if not name:
+            g.pop(nid, None)
+            continue
+        g[nid]["inputs"]["lora_name"] = name
+        g[nid]["inputs"]["strength_model"] = strength
+        active.append(nid)
+
+    prev = [H3_NODE["unet"], 0]
+    for nid in active:
+        g[nid]["inputs"]["model"] = prev
+        prev = [nid, 0]
+    # 原来指向 LoRA 链的节点（333 SigmaShift）改指链条末端；一条都没挂就直连 unet
+    for _nid, node in g.items():
+        if _nid in H3_LORA_NODES:
+            continue
+        ins = node.get("inputs") or {}
+        m = ins.get("model")
+        if isinstance(m, list) and len(m) == 2 and m[0] in H3_LORA_NODES:
+            ins["model"] = prev
+
+    # 块稀疏注意力(332)：页面只有一个开关。关掉就把整颗节点从图上摘掉，333 直接接回 331；
+    # 节点内部的 sol-attn / tau / min_tokens 这些参数保持在模板里的原值，不往页面暴露。
+    sn = H3_NODE.get("sparse")
+    if sn and sn in g and not sparse:
+        _drop_node(sn)
+
+    # 注意力后端(331)：枚举两档（comfy kitchen attention / pytorch attention）
+    an = H3_NODE.get("attn")
+    if attn and an and an in g:
+        g[an]["inputs"]["attention"] = str(attn)
+
+    # 分块前馈(401)：前馈层切几份算；序列超过阈值才分块
+    fn = H3_NODE.get("chunkff")
+    if fn and fn in g:
+        if chunks not in (None, ""):
+            g[fn]["inputs"]["chunks"] = int(chunks)
+        if seq_threshold not in (None, ""):
+            g[fn]["inputs"]["seq_threshold"] = int(seq_threshold)
+
+    # 低显存注意力(403)：注意力按头分成几份算，压低显存峰值
+    vn4 = H3_NODE.get("lowvram")
+    if vn4 and vn4 in g and head_chunks not in (None, ""):
+        g[vn4]["inputs"]["head_chunks"] = int(head_chunks)
 
     # 参考图：清掉模板里残留的槽位，只挂本段实际用到的
     for k in [k for k in list(core.keys()) if k.startswith("ref_images.")]:
         core.pop(k)
     used = 0
     for i in range(len(ref_files)):
-        if i >= outputs_avail:
+        if i >= min(outputs_avail, REF_IMAGE_SLOTS):
             break
         core["ref_images.ref_image_%d" % i] = [H3_NODE["refs"], i]
         used += 1
 
-    # 参考音：有就切"仅作音频参考"，没有就交回模型原生生成
+    # 参考音：有就挂 ref_audio_N；没有就把多音轨加载节点整个摘掉（少加载一个节点）
     for k in [k for k in list(core.keys()) if k.startswith("ref_audio_")]:
         core.pop(k)
     anode = H3_NODE["audios"]
     audios = [x for x in (audio_files or []) if x][:AUDIO_SLOTS]
     if audios and anode in g:
-        cur = g[anode]["inputs"].get("audio_files")
-        g[anode]["inputs"]["audio_files"] = json.dumps(audios, ensure_ascii=False) if isinstance(cur, str) else list(audios)
+        g[anode]["inputs"]["audio_files"] = json.dumps(audios, ensure_ascii=False)
         for i in range(len(audios)):
             core["ref_audio_%d" % i] = [anode, i]
-        core["audio_mode"] = AUDIO_REF_ONLY
     else:
         g.pop(anode, None)
-        core["audio_mode"] = AUDIO_NATIVE
     return g, used
 
 
-def verify_graph(g, ref_files=None, audio_files=None, veda=False, attn=None):
+def verify_graph(g, ref_files=None, audio_files=None, ratio=None, megapixels=None,
+                 sparse=None, attn=None, chunks=None, seq_threshold=None, head_chunks=None,
+                 loras=None):
     """提交前自检：节点映射对不对、引用的节点还在不在、关键值写没写进去。
     返回问题列表（空 = 可以入队）。模板一换就靠这个第一时间发现对不上。"""
     problems = []
@@ -1369,7 +1444,7 @@ def verify_graph(g, ref_files=None, audio_files=None, veda=False, attn=None):
             if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str) and v[0] not in ids:
                 problems.append("节点 %s 的输入 %s 指向已删除的节点 %s" % (nid, k, v[0]))
     # 2) H3_NODE 里点名的节点都得在模板里
-    for key in ("prompt", "core", "duration", "steps", "seed", "save", "refs",
+    for key in ("prompt", "core", "res", "duration", "steps", "seed", "save", "refs",
                 "unet", "clip", "videoVae", "audioVae"):
         nid = H3_NODE.get(key)
         if not nid or nid not in g:
@@ -1380,8 +1455,35 @@ def verify_graph(g, ref_files=None, audio_files=None, veda=False, attn=None):
         if not str(g[H3_NODE["prompt"]]["inputs"].get(pk) or "").strip():
             problems.append("提示词没写进节点 %s.%s" % (H3_NODE["prompt"], pk))
         core = g[H3_NODE["core"]]["inputs"]
-        if not isinstance(core.get("width"), int) or not isinstance(core.get("height"), int):
-            problems.append("宽高没写成整数（节点 %s）" % H3_NODE["core"])
+        # 新工作流的 width/height 是连线（ResolutionSelector 算出来的），老模板才是整数
+        for name in ("width", "height"):
+            v = core.get(name)
+            if isinstance(v, list):
+                if v[0] not in ids:
+                    problems.append("条件节点的 %s 指向不存在的节点 %s" % (name, v[0]))
+            elif not isinstance(v, int):
+                problems.append("条件节点的 %s 既不是整数也不是连线（%r）" % (name, v))
+        rn = H3_NODE.get("res")
+        if rn and rn in g:
+            ri = g[rn]["inputs"]
+            if ri.get("aspect_ratio") not in H3_RATIO_OPTS.values():
+                problems.append("宽高比 %r 不在 ResolutionSelector 的可选值里（节点 %s）"
+                                % (ri.get("aspect_ratio"), rn))
+            try:
+                if float(ri.get("megapixels")) <= 0:
+                    problems.append("分辨率像素必须大于 0（节点 %s，当前 %r）" % (rn, ri.get("megapixels")))
+            except (TypeError, ValueError):
+                problems.append("分辨率像素不是数字（节点 %s，当前 %r）" % (rn, ri.get("megapixels")))
+            if ratio and ri.get("aspect_ratio") != H3_RATIO_OPTS.get(ratio):
+                problems.append("宽高比没写进节点 %s（期望 %r，实际 %r）"
+                                % (rn, H3_RATIO_OPTS.get(ratio), ri.get("aspect_ratio")))
+            if megapixels not in (None, ""):
+                try:
+                    if abs(float(ri.get("megapixels")) - float(megapixels)) > 1e-6:
+                        problems.append("分辨率像素没写进节点 %s（期望 %r，实际 %r）"
+                                        % (rn, megapixels, ri.get("megapixels")))
+                except (TypeError, ValueError):
+                    pass
         if not isinstance(g[H3_NODE["steps"]]["inputs"].get("steps"), int):
             problems.append("步数没写进节点 %s" % H3_NODE["steps"])
         if not isinstance(g[H3_NODE["seed"]]["inputs"].get("noise_seed"), int):
@@ -1393,6 +1495,54 @@ def verify_graph(g, ref_files=None, audio_files=None, veda=False, attn=None):
             nid = H3_NODE.get(key)
             if nid in g and not str(g[nid]["inputs"].get(ik) or "").strip():
                 problems.append("%s 节点没填模型名（节点 %s）" % (key, nid))
+        # 注意力后端：必须是节点认的两档之一
+        an = H3_NODE.get("attn")
+        if an and an in g:
+            got_attn = g[an]["inputs"].get("attention")
+            if got_attn not in H3_ATTN_OPTS:
+                problems.append("注意力后端 %r 不在可选值里（节点 %s）" % (got_attn, an))
+            if attn and got_attn != attn:
+                problems.append("注意力后端没写进节点 %s（期望 %r，实际 %r）" % (an, attn, got_attn))
+        # 块稀疏注意力：勾了必须留在图上，没勾必须已经摘干净
+        sn = H3_NODE.get("sparse")
+        if sn and sparse is not None:
+            if sparse and sn not in g:
+                problems.append("勾了块稀疏注意力，但节点 %s 不在图上（模板与 H3_NODE 对不上）" % sn)
+            if not sparse and sn in g:
+                problems.append("没勾块稀疏注意力，节点 %s 却还在图上（摘除逻辑没生效）" % sn)
+        # 分块前馈 / 低显存注意力：节点要在，值要对
+        fn = H3_NODE.get("chunkff")
+        if fn and fn not in g:
+            problems.append("模板里缺少分块前馈节点（H3_NODE['chunkff'] = %r）" % fn)
+        elif fn:
+            for key, want in (("chunks", chunks), ("seq_threshold", seq_threshold)):
+                if want in (None, ""):
+                    continue
+                if g[fn]["inputs"].get(key) != int(want):
+                    problems.append("分块前馈的 %s 没写进节点 %s（期望 %r，实际 %r）"
+                                    % (key, fn, int(want), g[fn]["inputs"].get(key)))
+        vn4 = H3_NODE.get("lowvram")
+        if vn4 and vn4 not in g:
+            problems.append("模板里缺少低显存注意力节点（H3_NODE['lowvram'] = %r）" % vn4)
+        elif vn4 and head_chunks not in (None, ""):
+            if g[vn4]["inputs"].get("head_chunks") != int(head_chunks):
+                problems.append("低显存注意力的 head_chunks 没写进节点 %s（期望 %r，实际 %r）"
+                                % (vn4, int(head_chunks), g[vn4]["inputs"].get("head_chunks")))
+        # 三个 LoRA 位置：图上挂了几条、顺序对不对、名字是不是页面上选的那几个
+        if loras is not None:
+            want = []
+            for p in list(loras)[:H3_LORA_SLOTS]:
+                nm = ((p[0] if isinstance(p, (list, tuple)) else p) or "")
+                nm = str(nm).strip()
+                if nm:
+                    want.append(nm)
+            got = [g[nid]["inputs"]["lora_name"] for nid in H3_LORA_NODES
+                   if nid in g and "lora_name" in (g[nid].get("inputs") or {})]
+            if len(got) != len(want):
+                problems.append("LoRA 节点挂了 %d 条（%s），页面设了 %d 条"
+                                % (len(got), " → ".join(got) or "无", len(want)))
+            elif got != want:
+                problems.append("LoRA 链顺序对不上：图上 %s，页面 %s" % (got, want))
         files = json.loads(g[H3_NODE["refs"]]["inputs"].get("image_files") or "[]")
         if ref_files and files != list(ref_files):
             problems.append("参考图列表与预期不一致（节点 %s）" % H3_NODE["refs"])
@@ -1403,30 +1553,17 @@ def verify_graph(g, ref_files=None, audio_files=None, veda=False, attn=None):
         got_audio = [k for k in core if k.startswith("ref_audio_")]
         if len(got_audio) != len(want_audio):
             problems.append("参考音槽位 %d 个，参考音 %d 条，对不上" % (len(got_audio), len(want_audio)))
-        expect_mode = AUDIO_REF_ONLY if want_audio else AUDIO_NATIVE
-        if core.get("audio_mode") != expect_mode:
-            problems.append("audio_mode 是 %r，应为 %r" % (core.get("audio_mode"), expect_mode))
+        # 挂了参考音就必须有加载节点，且节点里真的是这些文件
+        if want_audio:
+            anode = H3_NODE.get("audios")
+            if not anode or anode not in g:
+                problems.append("挂了 %d 条参考音，但多音轨加载节点不在图上" % len(want_audio))
+            else:
+                saved = json.loads(g[anode]["inputs"].get("audio_files") or "[]")
+                if saved != list(want_audio):
+                    problems.append("参考音列表与预期不一致（节点 %s）" % anode)
     except (KeyError, TypeError, ValueError) as e:
         problems.append("关键值校验时出错：%s" % e)
-    # 4) 二采高清节点
-    nd = H3_NODE.get("hd")
-    if nd and nd not in g:
-        problems.append("模板里缺少二采高清节点（H3_NODE['hd'] = %r）" % nd)
-    # 5) VEDA：勾了必须留在图上，没勾必须已经摘干净（摘漏了会把没下载模型的人也拖进加载失败）
-    vn = H3_NODE.get("veda")
-    if vn:
-        if veda and vn not in g:
-            problems.append("勾了 VEDA 加速，但图上没有 %s 节点（模板 %s 与 H3_NODE 对不上）" % (vn, H3_WF))
-        if not veda and vn in g:
-            problems.append("没勾 VEDA 加速，节点 %s 却还在图上（摘除逻辑没生效）" % vn)
-    # 6) 显存分块加速的注意力后端：节点必须在，且写进去的值要与预期一致（空值会让节点回落到它自己的默认）
-    cn = H3_NODE.get("chunk")
-    if cn and cn not in g:
-        problems.append("模板里缺少显存分块加速节点（H3_NODE['chunk'] = %r）" % cn)
-    elif cn and attn:
-        got = g[cn]["inputs"].get("attention_backend")
-        if got != attn:
-            problems.append("加速后端没写进节点 %s（期望 %r，实际 %r）" % (cn, attn, got))
     return problems
 
 
@@ -1934,49 +2071,34 @@ def cmd_videos(args):
     ratio = args.ratio or s["ratio"]
     mp = args.megapixels if args.megapixels is not None else s["megapixels"]
     steps = args.steps if args.steps is not None else s["steps"]
-    hd = args.hd if getattr(args, "hd", None) is not None else bool(s.get("h3Hd"))
-    hd_mp = getattr(args, "hd_megapixels", None)
-    if hd_mp is None:
-        hd_mp = s.get("h3HdMegapixels")
-    hd_mp = DEFAULT_HD_MP if hd_mp in (None, "") else float(hd_mp)
-    _vflag = getattr(args, "veda", None)
-    veda = bool(s.get("h3Veda")) if _vflag is None else bool(_vflag)
-    attn = (getattr(args, "attn", "") or s.get("h3Attn") or DEFAULT_H3_ATTN).strip()
+    # 三个 LoRA 位置（页面上三行下拉 + 三行强度）：1 号位默认挂主 LoRA，2、3 号位默认不挂
+    lora_slots = []
+    for i, sfx in ((1, ""), (2, "2"), (3, "3")):
+        nm = (s.get("h3Lora" + sfx) or "").strip()
+        sv = s.get("h3LoraStrength" + sfx)
+        sv = (DEFAULT_H3_LORA_SLOT_STRENGTH if i > 1 else DEFAULT_H3_LORA_STRENGTH) \
+            if sv in (None, "") else float(sv)
+        lora_slots.append((nm, sv))
+    # 加速 / 显存相关的四个节点参数（页面上是中文四项 + 一个勾选）
+    sparse = bool(s.get("h3Sparse", DEFAULT_H3_SPARSE))
+    attn = (s.get("h3Attn") or DEFAULT_H3_ATTN).strip()
+    if attn not in H3_ATTN_OPTS:
+        attn = DEFAULT_H3_ATTN
+    chunks = int(s.get("h3Chunks") or DEFAULT_H3_CHUNKS)
+    seq_thr = int(s.get("h3SeqThreshold") or DEFAULT_H3_SEQ_THRESHOLD)
+    head_chunks = int(s.get("h3HeadChunks") or DEFAULT_H3_HEAD_CHUNKS)
     unet = (s.get("h3Model") or "").strip()
-    lora = (s.get("h3Lora") or "").strip()
-    lora_s = s.get("h3LoraStrength")
-    lora_s = 0.75 if lora_s in (None, "") else float(lora_s)
     clip_m = (s.get("h3Clip") or "").strip()
     vvae = (s.get("h3VideoVae") or "").strip()
     avae = (s.get("h3AudioVae") or "").strip()
     w, h = dims(ratio, mp)
     print("H3 参数：%s｜%s MP｜%d 步｜%dx%d｜待生成 %d 段" % (ratio, mp, steps, w, h, len(targets)), flush=True)
-    print("二采高清放大：%s" % (("开 · 放大到 %.2f MP（一采 %dx%d 之后再做一次精修）" % (hd_mp, w, h)) if hd
-                                else "关（只跑一采）"), flush=True)
-    print("VEDA 加速：%s" % ("开 · 稀疏注意力补丁生效（快，但需要 VEDA 预测模型在场）" if veda
-                             else "关（节点不进图，纯完整注意力）"), flush=True)
-    print("显存加速后端：%s%s" % (attn, ("（%s）" % H3_ATTN_NOTE[attn]) if attn in H3_ATTN_NOTE else ""), flush=True)
-    # 加速后端是枚举：选了个本机 ComfyUI 没有的，提交会直接被节点拒绝，开跑前先对一遍
-    if not args.dry:
-        usable = None
-        try:
-            usable = (comfy_models(addr).get("attn") or None)
-        except Exception:
-            usable = None
-        if usable and attn not in usable:
-            die("显存加速后端 %r 不在本机 ComfyUI 的可选值里。\n"
-                "  可用：%s\n"
-                "  ① 在「视频参数 → 显存加速后端」里选一个上面的值；② 或加 --attn <值> 临时指定。"
-                % (attn, "、".join(usable)), code=4)
-    if veda:
-        want = ((tpl.get(H3_NODE.get("veda") or "") or {}).get("inputs") or {}).get("predictor") or ""
-        have = None if args.dry else veda_predictors(addr)
-        if want and have is not None and want not in have:
-            die("勾了 VEDA 加速，但 ComfyUI 里没有这个预测模型：%s\n"
-                "  ① 把 VEDA 预测模型放到 ComfyUI 的对应模型目录，让它出现在 Star7VedaSparseAttention 的 predictor 列表里；\n"
-                "  ② 或者在「视频参数」里取消勾选 VEDA 加速，退回完整注意力。" % want, code=4)
+    print("注意力后端：%s｜块稀疏注意力：%s" % (attn, "开" if sparse else "关"), flush=True)
+    print("分块前馈：%d 块（序列阈值 %d）｜低显存注意力：%d 头/块" % (chunks, seq_thr, head_chunks), flush=True)
     print("主模型：%s" % (unet or "（按工作流默认）"), flush=True)
-    print("LoRA：%s（强度 %s）" % (lora or "不挂", lora_s if lora else "-"), flush=True)
+    print("LoRA：%s" % "｜".join(
+        "%d号位 %s" % (i, ("%s（强度 %s）" % (nm, sv)) if nm else "不挂")
+        for i, (nm, sv) in enumerate(lora_slots, 1)), flush=True)
     print("CLIP：%s" % (clip_m or "（按工作流默认）"), flush=True)
     # 维度不匹配是这个工作流最容易踩的坑：H3 的 20G 主模型要 32B（5120 维），8B（4096 维）只适合生图。
     if clip_m and re.search(r"(?i)qwen3vl?[_\-]?8b", clip_m) and "h3" in (unet or "").lower():
@@ -2026,11 +2148,14 @@ def cmd_videos(args):
                 probe, _ = video_graph(
                     tpl, prompt, w, h, gsec, steps, seeds[i - 1], "drama/" + safe_id(sid),
                     names, max(1, len(names)), anames,
-                    unet=unet, lora=lora, lora_strength=lora_s,
+                    unet=unet, loras=lora_slots,
                     clip=clip_m, video_vae=vvae, audio_vae=avae,
-                    hd=hd, hd_mp=hd_mp, veda=veda, attn=attn,
+                    ratio=ratio, megapixels=mp,
                 )
-                probs = verify_graph(probe, names, anames, veda=veda, attn=attn)
+                probs = verify_graph(probe, names, anames, ratio=ratio, megapixels=mp,
+                                     sparse=sparse, attn=attn, chunks=chunks,
+                                     seq_threshold=seq_thr, head_chunks=head_chunks,
+                                     loras=lora_slots)
                 for pr in probs:
                     rep.bad("%s 工作流自检：%s" % (sid, pr))
                 if not probs:
@@ -2045,14 +2170,14 @@ def cmd_videos(args):
             graph, used = video_graph(
                 tpl, prompt, w, h, gsec, steps, seeds[i - 1],
                 "drama/" + safe_id(sid), uploaded, outputs_avail, audio_names,
-                unet=unet, lora=lora, lora_strength=lora_s,
+                unet=unet, loras=lora_slots,
                 clip=clip_m, video_vae=vvae, audio_vae=avae,
-                hd=hd, hd_mp=hd_mp, veda=veda, attn=attn,
+                ratio=ratio, megapixels=mp,
+                sparse=sparse, attn=attn, chunks=chunks,
+                seq_threshold=seq_thr, head_chunks=head_chunks,
             )
             if used < len(uploaded):
                 print("      注意：本段上传 %d 张参考图，实际挂载 %d 张（Picture 编号需与实际挂载一致）" % (len(uploaded), used), flush=True)
-            if hd:
-                print("      二采高清：一采 %dx%d → 目标 %.2f MP" % (w, h, hd_mp), flush=True)
             jobs.append({"seg": seg, "sid": sid, "graph": graph, "pid": None, "t0": 0.0,
                          "_refs": uploaded, "_audios": audio_names})
         except Exception as e:
@@ -2064,7 +2189,10 @@ def cmd_videos(args):
 
     # ---- 工作流自检：拿第一条任务核对一遍，对不上就别往队列里塞 ----
     if jobs:
-        bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"), veda=veda, attn=attn)
+        bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"),
+                           ratio=ratio, megapixels=mp, sparse=sparse, attn=attn,
+                           chunks=chunks, seq_threshold=seq_thr, head_chunks=head_chunks,
+                           loras=lora_slots)
         if bad:
             for b in bad:
                 print("  [×] " + b, flush=True)
@@ -2466,7 +2594,6 @@ def make_handler(proj):
                 data = comfy_models(addr2, force=True)
                 return self._send(200, {"ok": True, "unet": data["unet"], "lora": data["lora"],
                                         "clip": data["clip"], "vae": data["vae"],
-                                        "attn": data.get("attn") or list(H3_ATTN_BACKENDS),
                                         "ts": data["ts"], "error": data["error"]})
             if path == "/api/runstatus":
                 running = bool(RUN["proc"] and RUN["proc"].poll() is None)
@@ -2502,7 +2629,7 @@ def make_handler(proj):
                     return self._send(400, {"ok": False, "error": "缺少 state"})
                 cur = load_state(p["proj"])
                 # 只补「页面没传」的字段：传了 false / 0 / 空串就照传。
-                # 原来用 falsy 判断，勾选类开关（h3Hd / h3Veda）一旦取消勾选就会被磁盘里的 true 顶回去。
+                # 原来用 falsy 判断，开关类参数一旦取消勾选就会被磁盘里的 true 顶回去。
                 merged = dict(cur.get("settings") or {})
                 merged.update({k: v for k, v in (st.get("settings") or {}).items() if v is not None})
                 st["settings"] = merged
@@ -3261,38 +3388,27 @@ def cmd_check(args):
     # 工作流模板与脚本映射是否对齐（换模板后最容易在这里翻车）
     try:
         tpl = load_wf(H3_WF)
-        miss = [k for k in ("prompt", "core", "duration", "steps", "seed", "save", "refs", "hd", "veda")
+        miss = [k for k in ("prompt", "core", "res", "duration", "steps", "seed", "save", "refs")
                 if H3_NODE.get(k) not in tpl]
         if miss:
             issues.append("H3 工作流模板缺少节点：%s（模板 %s 与 H3_NODE 映射对不上）" % (
                 ", ".join("%s=%s" % (k, H3_NODE.get(k)) for k in miss), H3_WF))
         else:
-            print("工作流：%s｜%d 个节点｜步数 %s｜二采高清 %s｜VEDA %s｜加速后端 %s%s" % (
-                H3_WF, len(tpl), st["settings"].get("steps"),
-                "开（目标 %s MP）" % st["settings"].get("h3HdMegapixels") if st["settings"].get("h3Hd") else "关",
-                "开" if st["settings"].get("h3Veda") else "关",
-                st["settings"].get("h3Attn") or DEFAULT_H3_ATTN,
-                "｜参考音 %d 路" % AUDIO_SLOTS), flush=True)
+            print("工作流：%s｜%d 个节点｜步数 %s｜参考音 %d 路" % (
+                H3_WF, len(tpl), st["settings"].get("steps"), AUDIO_SLOTS), flush=True)
     except Exception as e:
         issues.append("H3 工作流模板读取失败（%s）：%s" % (H3_WF, e))
 
-    # 帧数档对齐：干净档只有 5.2 / 10.1 / 14.4 秒三档，落在档间会明显变慢（帧数会被 134 补齐到 5 (mod 17)）
+    # 帧数：工作流里的 ComfyMathExpression 按 5 (mod 17) 补齐（见 h3_frames），这里只是让人看见实际帧数
     try:
-        off = []
         rows = []
         for sg in st["segments"]:
             sec = gen_sec(sg.get("sec"))
             fr = h3_frames(sec)
-            dur, plan, d = veda_plan(sec)
-            rows.append("%s %ds/%d帧→%.2fs(档%.1f)" % (sg["id"], sec, fr, dur, plan))
-            if d > 0.4:
-                off.append("%s 差 %.2fs" % (sg["id"], d))
-        print("时长与帧数档位：%s" % "｜".join(rows), flush=True)
-        if off:
-            warns.append("这些段没落在干净档（5.2 / 10.1 / 14.4 秒）上，采样会慢三到六成：%s。"
-                         "能精确对齐的帧数是 243 帧（10.125s）与 345 帧（14.375s）" % "、".join(off))
+            rows.append("%s %ds/%d帧(%.2fs)" % (sg["id"], sec, fr, fr / 24.0))
+        print("时长与帧数：%s" % "｜".join(rows), flush=True)
     except Exception as e:
-        warns.append("帧数档位检查失败：%s" % e)
+        warns.append("帧数检查失败：%s" % e)
 
     # H3 落地八条 + 构图连续性四铁律（画幅同框 / 关系镜头 / 逐段独立 / Shot 不写光影与位置）
     try:
@@ -3342,7 +3458,6 @@ def cmd_settings(args):
     for k, lab in (("h3Model", "H3 主模型"), ("h3Lora", "LoRA"), ("h3LoraStrength", "LoRA 强度"),
                    ("h3Clip", "CLIP"), ("h3VideoVae", "视频 VAE"), ("h3AudioVae", "音频 VAE"),
                    ("steps", "生成步数"), ("ratio", "宽高比"), ("megapixels", "分辨率 MP"),
-                   ("h3Hd", "二采高清"), ("h3HdMegapixels", "二采目标 MP"),
                    ("seed", "随机种"), ("afterGenerate", "生成后控制"), ("comfy", "ComfyUI 地址")):
         print("  %-14s %s" % (lab, mem.get(k)), flush=True)
     print("生图参数（Qwen-Image 2.1）：", flush=True)
@@ -3408,15 +3523,6 @@ def main(argv=None):
     a.add_argument("--ratio", default="")
     a.add_argument("--megapixels", type=float, default=None)
     a.add_argument("--steps", type=int, default=None)
-    a.add_argument("--hd", dest="hd", action="store_true", default=None, help="临时打开二采高清放大")
-    a.add_argument("--no-hd", dest="hd", action="store_false", help="临时关闭二采高清放大")
-    a.add_argument("--hd-megapixels", dest="hd_megapixels", type=float, default=None, help="二采目标像素，默认 1.5")
-    a.add_argument("--veda", dest="veda", action="store_true", default=None,
-                   help="临时打开 VEDA 稀疏注意力加速（需要 ComfyUI 里已有 VEDA 预测模型）")
-    a.add_argument("--no-veda", dest="veda", action="store_false", help="临时关闭 VEDA 加速")
-    a.add_argument("--attn", dest="attn", default="", metavar="后端",
-                   help="临时指定显存加速后端（363 节点的 attention_backend），"
-                        "如 comfy_kitchen_int8 / existing / vsa_sm75 / hybrid_sm80+_ck_vsa")
     a.add_argument("--timeout", type=int, default=14400)
     a.add_argument("--dry", action="store_true")
     a.add_argument("--serial", action="store_true", help="串行：提交一条等一条（默认整批入队）")

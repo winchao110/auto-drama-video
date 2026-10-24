@@ -1,6 +1,6 @@
 # 04 · ComfyUI 直连接口与工作流节点对照
 
-本技能不封装客户端，直接打 ComfyUI 的官方 HTTP 接口。三份工作流已内嵌在
+本技能不封装客户端，直接打 ComfyUI 的官方 HTTP 接口。两份工作流已内嵌在
 `references/workflows/`，不要再去原来的文件夹调用。
 
 | 用途 | 文件 | 说明 |
@@ -57,53 +57,60 @@ curl -s --noproxy '*' "http://127.0.0.1:8188/view?filename=xxx.mp4&subfolder=dra
 
 ## 三、MiniMax H3 工作流要改的节点
 
-模板：`references/workflows/minimax-h3.ref2va.api.json`，来源 `MiniMax-H3-Star7chunk-1006APii`（v2.8.0 起替换旧版）。
-节点 id 与用途集中在 `scripts/drama.py` 顶部的 `H3_NODE`，**换模板只改那一处**。
+模板：`references/workflows/minimax-h3.ref2va.api.json`，来源 `MiniMax_H3API专用api.json`（用户导出，2026-10-23 替换）。
+节点 id 与用途集中在 `scripts/drama.py` 顶部的 `H3_NODE`，宽高比枚举在 `H3_RATIO_OPTS`，**换模板只改这两处**。
 
 | 节点 | class_type | 改哪个 input | 说明 |
 |---|---|---|---|
-| `334` | MiniMaxH3PromptImportStar7 | `prompt` | H3 提示词全文（**纯文本，不是 `value`**） |
-| `275` | MiniMaxH3MaterialPromptStar7 | `width` / `height` | **直接写整数**，按宽高比 + 百万像素算 |
-| `135` | PrimitiveFloat | `value` | **时长（秒）= genSec**，`134` 换算成 24fps 帧数并对齐 17k+5 |
-| `126` | BasicScheduler | `steps` | **生成步数**，默认 5（`simple` 调度 + `euler` 采样） |
-| `131` | RandomNoise | `noise_seed` | 随机种子 |
-| `429` | TaiYangMultiImageLoader | `image_files` | JSON 数组字符串，例如 `["drama/a.png","drama/b.png"]` |
-| `275` | MiniMaxH3MaterialPromptStar7 | `ref_images.ref_image_0..N` | 每个都指向 `["429", i]`，i 从 0 开始 |
-| `430` | TaiYangMultiAudioLoader | `audio_files` | JSON 数组字符串，参考音文件名 |
-| `275` | MiniMaxH3MaterialPromptStar7 | `ref_audio_0` / `ref_audio_1` | 最多两路，接 `["430",0]` / `["430",1]` |
-| `275` | MiniMaxH3MaterialPromptStar7 | `task_type` | `自动判断 / Auto`（挂了参考素材就按 Ref2VA 走） |
-| `275` | MiniMaxH3MaterialPromptStar7 | `audio_mode` | 有参考音 → `仅作音频参考 / Reference Only`；无 → `模型原生生成 / Native` |
-| `150` | VHS_VideoCombine | `filename_prefix` | 用 `drama/<段号>`（`nvenc_h264-mp4`、5 Mbps） |
-| `391` | MiniMaxH3ChunkEnhancedLoaderStar7 | `unet_name` | H3 主模型 |
-| `311` | LoraLoaderModelOnly | `lora_name` / `strength_model` | 默认 `turbo_v4_step600`、强度 0.75；选「不挂」把整条摘掉并把下游接到 `391` |
-| `408` | Star7VedaSparseAttention | `enabled` / `predictor` / `generated_sparsity` / `reference_sparsity` | **VEDA 稀疏注意力（可选）** ← `settings.h3Veda`（默认 false）；关着提交前**整节点摘掉**、`363.model` 直连 `313`，上游 313 不能丢 |
-| `363` | MiniMaxH3ActivationChunkStar7 | `attention_backend` / `chunk_tokens` / `mlp_chunk_tokens` / `qkv_chunk_tokens` | **显存分块加速**；`attention_backend` ← `settings.h3Attn`（默认 `comfy_kitchen_int8`）。可选值以节点定义为准，`existing` 表示不动现有内核 |
-| `376` | MiniMaxH3OneClickHDStar7 | `enable_hd` / `target_megapixels` | **二采高清放大** ← `settings.h3Hd` / `h3HdMegapixels`（默认 false / 1.5） |
-| `395` | MiniMaxH3FaceRefineLatentStar7 | `enable_refine` | 一键人脸修复，技能里**默认关**（`false`，直通） |
-| `339` | Star7VideoWorkflowExport | — | 提交前**整节点摘掉**：只会多写一份带工作流的视频，还抢 `pick_video` |
+| `424` | PrimitiveStringMultiline | `value` | H3 提示词全文（纯文本） |
+| `252` | ResolutionSelector | `aspect_ratio` / `megapixels` / `multiple` | **宽高比枚举 + 百万像素**，宽度按 32 对齐；枚举必须与节点定义逐字一致 |
+| `413` | MiniMaxH3ReferenceToVideo | `ref_images.ref_image_0..N` | 每个指向 `["421", i]`，i 从 0 开始（节点上限 9 张） |
+| `413` | MiniMaxH3ReferenceToVideo | `ref_audio_0..N` | 每个指向 `["414", i]`，最多 3 路（`<Audio 1>` ↔ `ref_audio_0`） |
+| `413` | MiniMaxH3ReferenceToVideo | `width` / `height` / `length` | **连线**，不要写整数：`["252",0]` / `["252",1]` / `["250",1]` |
+| `259` | PrimitiveFloat | `value` | **时长（秒）= genSec**，`250` 换算成 24fps 帧数并对齐 5 (mod 17) |
+| `261` | BasicScheduler | `steps` | **生成步数**，默认 5（`simple` 调度 + `euler` 采样） |
+| `407` | RandomNoise | `noise_seed` | 随机种子 |
+| `421` | TaiYangMultiImageLoader | `image_files` | JSON 数组字符串，例如 `["drama/a.png","drama/b.png"]` |
+| `414` | TaiYangMultiAudioLoader | `audio_files` | JSON 数组字符串，参考音文件名；没参考音时整节点从图上摘掉 |
+| `417` | SaveVideo | `filename_prefix` | 用 `drama/<段号>`（`format` / `codec` = auto → mp4） |
+| `192` | UNETLoader | `unet_name` | H3 主模型 |
+| `53` / `400` / `490` | LoraLoaderModelOnly | `lora_name` / `strength_model` | **三个 LoRA 位置**（页面三行下拉 + 三个强度，按 1→2→3 串联）：`53` = 1 号位（默认 `dmad_full_dareties_v4_step600` @ 0.8）、`400` = 2 号位、`490` = 3 号位（**模板里没有**，3 号位真挂了东西时由 `video_graph()` 按 `400` 复制一颗）。哪一格为空就整颗摘掉、链条重接；三格全空时 `331.model` 直连 `192` |
+| `331` | ModelAttentionBackend | `attention` | **注意力后端**，只有两档：`comfy kitchen attention`（默认，量化 INT8）/ `pytorch attention`。← `settings.h3Attn` |
+| `332` | BlockSparseAttention | —（只决定在不在图上） | **块稀疏注意力**，`selection = sol-attn`、`tau = 1.3`、`start/end = 0.2/1`、`min_tokens = 12288`、`extra_tokens = 256`、`sink_conditioning = exact_kv_and_rows`、`verbose = true`。页面**只给一个开关**（`settings.h3Sparse`），这些内部参数不暴露；不勾时整颗节点摘掉，`333.model` 直连 `331` |
+| `401` | MiniMaxChunkFeedForward | `chunks` / `seq_threshold` | **分块前馈** ← `settings.h3Chunks`（默认 2）/ `settings.h3SeqThreshold`（默认 4096）。前馈层切 `chunks` 份算，序列长度超过 `seq_threshold` 才分块 |
+| `403` | MiniMaxLowVRAMAttention | `head_chunks` | **低显存注意力** ← `settings.h3HeadChunks`（默认 4）。注意力按头分 `head_chunks` 份算，压低显存峰值 |
+| `36` / `37` | VAELoader | `vae_name` | 视频 VAE / 音频 VAE |
+| `38` | CLIPLoader | `clip_name` | 32B（5120 维）H3 专用 CLIP，`type = minimax` |
 
-采样链：`391 → 311 → 313(SigmaShift 6/3) → [408(VEDA，可选) →] 363(分块加速, attention_backend←h3Attn) → 275 → 128(基本引导器) → 127(euler·simple·5 步) → 376(二采) → 395(人脸) → 377(分块解码) → 150`。
-2026-10-20 版工作流（用户导出）本身不带 `360` 实时预览；`408` 按用户要求以可选节点形式留在模板里，
-`settings.h3Veda = false` 时提交前被摘掉，图里就是「313 → 363」直连。
+采样链（`332` 可整颗摘掉）：
+`192 → 53 → 400 → 333(SigmaShift 12/3) → 332(sol-attn) → 331(注意力后端) → 401(分块FF) → 403(低显存注意力) → 329(预览覆盖) → {261(调度器) , 408(引导器)}`；
+`407(噪声) + 408 + 411(euler 采样器) → 253(视频解码) / 254(音频解码) → 418(CreateVideo 24fps) → 417(SaveVideo)`。
+
+**这一版没有的能力**（不要自己往图里加）：二采高清放大、VEDA 稀疏注意力、可选的显存加速内核、
+分块解码、人脸精修、工作流导出、`VHS_VideoCombine`。对应设置项 `h3Hd / h3HdMegapixels / h3Veda`
+已从页面和 `REMEMBER_KEYS` 移除，老项目残留由 `H3_RETIRED_KEYS` 在 `migrate()` 清掉。
+`h3Attn` 这一项**保留但换了含义**：现在只认 `ModelAttentionBackend` 的两档
+（`comfy kitchen attention` / `pytorch attention`），老项目里别的旧值会被判为不认识并回落到默认。
 
 ### 换模板时的自检：`verify_graph()`
 
-`video_graph()` 建好图后 `verify_graph()` 会核对六件事，任一条不过就退出并打印具体节点，
+`video_graph()` 建好图后 `verify_graph()` 会核对以下几件事，任一条不过就退出并打印具体节点，
 **不带病入队**（`videos --dry` 也跑这套自检）：
 
 1. 所有 `["节点id", 输出口]` 连线是否仍指向存在的节点（摘节点后最容易断在这里）；
-2. `H3_NODE` 里点名的节点是否都在模板里；
-3. 关键值是否真写进去：提示词非空、宽高是 `int`、步数/种子/保存前缀、参考图列表与槽位数一致、`audio_mode` 与是否挂参考音一致；
-4. 二采节点 `376` 是否存在（缺了说明模板不是新版）；
-5. VEDA 开关与图结构是否一致：`veda=true` 但图上没有 `408`、或 `veda=false` 却还留着 `408`，都算错；
-6. 显存分块加速节点 `363` 在不在，以及 `attention_backend` 是否等于本次要写的 `h3Attn`。
+2. `H3_NODE` 里点名的节点（`prompt/core/res/duration/steps/seed/save/refs/unet/clip/videoVae/audioVae`）是否都在模板里；
+3. 关键值是否真写进去：提示词非空、`413.width/height` 是合法整数或指向存在的节点、
+   `252.aspect_ratio` 在 `H3_RATIO_OPTS` 枚举里且 `megapixels > 0`、步数/种子/保存前缀、参考图列表与槽位数一致、
+   参考音槽位数与文件列表一致且 `414.audio_files` 内容对得上；
+4. 注意力/显存四件套：`331.attention` 必须在两档枚举里、`332` 的存在与否与 `h3Sparse` 一致、
+   `401.chunks` / `401.seq_threshold` / `403.head_chunks` 三个整数与设置值相等。
 
 ### 参考图槽位怎么确定
 
-`ref_image_0` 是模板里已经存在的；`ref_image_1..15` 是否可用，取决于
-`TaiYangMultiImageLoader` 有几个输出口（`GET /object_info/TaiYangMultiImageLoader` 的 `output` 数组长度，本机 16 个）。
+`TaiYangMultiImageLoader` 有 16 个输出口（`GET /object_info/TaiYangMultiImageLoader` 的 `output` 数组长度），
+`MiniMaxH3ReferenceToVideo` 的 `ref_images` 上限是 9 张（`COMFY_AUTOGROW_V3`，`prefix = ref_image_`）。
 
-- 输出口 ≥ 参考图张数：逐张挂 `ref_image_0..N` → 每个编号对应一张图，最准。
+- 输出口够：逐张挂 `ref_image_0..N` → 每个编号对应一张图，最准。
 - 输出口只有 1 个：多张图按 batch 送入，只挂 `ref_image_0`。若出现串脸/多出人，
   说明这条路走不通，需要把场景图从 refs 里去掉，只用人物图（提示词里场景改成文字描述）。
 
@@ -111,16 +118,12 @@ curl -s --noproxy '*' "http://127.0.0.1:8188/view?filename=xxx.mp4&subfolder=dra
 
 ### 参考音怎么挂
 
-`MiniMaxH3MaterialPromptStar7` 的 `optional` 里有 `ref_audio_0` / `ref_audio_1`，类型 `AUDIO`；
-新工作流统一走 `430`（`TaiYangMultiAudioLoader`，8 路输出）：把 `audio_files` 写成 JSON 数组，
-再让 `ref_audio_0/1` 指向 `["430",0]` / `["430",1]`。`audio_mode` 必须一起切：
+`MiniMaxH3ReferenceToVideo` 的 `optional.ref_audios` 是 `COMFY_AUTOGROW_V3`（`prefix = ref_audio_`，上限 3 路），
+统一走 `414`（`TaiYangMultiAudioLoader`，8 路输出）：把 `audio_files` 写成 JSON 数组，
+再让 `ref_audio_0/1/2` 指向 `["414",0]` / `["414",1]` / `["414",2]`。
 
-| 情况 | audio_mode | 结果 |
-|---|---|---|
-| 角色选了参考音且音频文件存在 | `仅作音频参考 / Reference Only` | 音色/语速参考上传音频，台词仍由模型生成 |
-| 角色没选，或选了但没绑音频 | `模型原生生成 / Native` | 完全由提示词里的声线描述决定 |
-
-`drama.py` 的 `video_graph()` 会自动清理模板里残留的 `ref_audio_*` 槽位，
+**新版没有 `audio_mode` 开关**：挂了 `ref_audio_*` 就是参考音，没挂就是模型原生生成。
+`drama.py` 的 `video_graph()` 会自动清理模板里残留的 `ref_audio_*` 槽位，并在没有参考音时把 `414` 整节点摘掉，
 所以不会出现"上一段挂了音、下一段被污染"的情况。
 
 ---
@@ -144,7 +147,7 @@ curl -s --noproxy '*' "http://127.0.0.1:8188/view?filename=xxx.mp4&subfolder=dra
 
 ### H3 时长：恒定少 1/6
 
-提示词里写 `sec` 秒，**真正传给 `132` 的是 `genSec = round(sec × 5/6)`**（下限 5、上限 15）：
+提示词里写 `sec` 秒，**真正传给 `259`（再经 `250` 换成帧数）的是 `genSec = round(sec × 5/6)`**（下限 5、上限 15）：
 
 | sec | 8 | 10 | 12 | 15 | 18 |
 |---|---|---|---|---|---|
@@ -198,7 +201,7 @@ ComfyUI 启动参数也会影响模型是否被频繁换出：
 
 1. **连不上**：ComfyUI 是否启动；端口是否 8188；是否有代理拦截（502）。
 2. **提交被拒 / node_errors**：通常是模型文件名不对（`unet_name`、`vae_name`、`clip_name` 里的
-   `MiniMaxH3\` `Qwen-Image\` 子目录），或用到的自定义节点没装（Star7 系列、VHS、rgthree、KJNodes）。
+   `MiniMaxH3\` `Qwen-Image\` 子目录），或用到的自定义节点没装（KJNodes / TaiYang 系列）。
    **子目录大小写也要对上**：`MiniMaxH3\` 与 `MinimaxH3\` 在 ComfyUI 里是两个不同选项，写错就是 `value_not_in_list`。
    参数区的下拉直接读 ComfyUI 返回的原文，别手抄。
 2b. **采样器报 `mat1 and mat2 shapes cannot be multiplied (…x4096 and 5120x…)`**：
@@ -206,7 +209,7 @@ ComfyUI 启动参数也会影响模型是否被频繁换出：
    `Qwen-Image\qwen3vl_8b_int8_convrot`（4096 维）是给 Qwen-Image 出图用的，接 H3 必报这个错。
    改回 `MinimaxH3\qwen3vl_32b_minimax_h3_int8_convrot` 或 `MiniMaxH3\qwen3vl_32b_h3_ultra_uncensored_heretic_int4_convrot`。
 3. **参考音不生效**：`LoadAudio` 的 `audio` 必须是 **input 根目录文件名**（不能带 `drama/` 子目录）；
-   再确认 `audio_mode` 真的是 `仅作音频参考 / Reference Only`，且 `ref_audio_0` 已连上。
+   再确认 `413` 的 `ref_audio_0` 已连到 `["414", 0]`，且 `414.audio_files` 里真的是那几个文件名。
 4. **跑一半报显存**：降低百万像素（0.9 → 0.7）、降低步数，或先只生成单段定位问题。
 5. **出图黑屏 / 花屏**：Qwen 工作流的 `attention` 若是 `kitchen_int8`，长边超 1536 时容易崩，
    把百万像素降到 1.5 以下重试，或换一个 UNet / VAE（生图参数里就是干这个的）。
