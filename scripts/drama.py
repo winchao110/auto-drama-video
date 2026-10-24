@@ -518,13 +518,43 @@ def h3_frames(sec):
     return n + (5 - (n % 17)) % 17
 
 
-def gen_sec(sec):
-    """H3 实传时长：提示词写 sec 秒，API 恒定少 1/6，四舍五入取整，下限 5 秒。"""
+# 每段时长的允许区间（实传口径，秒）。页面「视频参数」里两个下拉可改，默认 6–15。
+SEC_MIN_DEFAULT = 6
+SEC_MAX_DEFAULT = 15
+_SEC_BOUNDS = (SEC_MIN_DEFAULT, SEC_MAX_DEFAULT)
+
+
+def sec_bounds(st=None):
+    """从 settings 读每段时长区间 → (lo, hi)，非法值回落到 6–15。
+
+    lo/hi 都是**实传**秒数（H3 的 duration），允许范围 5–15；lo > hi 时按 hi 回夹。
+    """
+    sset = (st or {}).get("settings") or {}
+    def _int(v, d):
+        try:
+            return int(float(v))
+        except Exception:
+            return d
+    lo = _int(sset.get("segSecMin"), SEC_MIN_DEFAULT)
+    hi = _int(sset.get("segSecMax"), SEC_MAX_DEFAULT)
+    lo = max(5, min(15, lo))
+    hi = max(5, min(15, hi))
+    if lo > hi:
+        lo = hi
+    return lo, hi
+
+
+def gen_sec(sec, bounds=None):
+    """H3 实传时长：提示词写 sec 秒，API 恒定少 1/6，四舍五入取整，再夹进 [lo, hi]。
+
+    区间来自 settings.segSecMin / segSecMax（默认 6–15），传 bounds 可直接覆盖。
+    """
+    lo, hi = bounds or _SEC_BOUNDS
     try:
         v = float(sec or 8)
     except Exception:
         v = 8.0
-    return int(max(5, min(15, math.floor(v * 5.0 / 6.0 + 0.5))))
+    return int(max(lo, min(hi, math.floor(v * 5.0 / 6.0 + 0.5))))
 
 
 def pick_seeds(base, n, mode):
@@ -620,6 +650,7 @@ REMEMBER_KEYS = (
     "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength", "h3Lora3", "h3Lora3Strength",
     "h3Clip", "h3VideoVae", "h3AudioVae",
     "h3Sparse", "h3Attn", "h3Chunks", "h3SeqThreshold", "h3HeadChunks",
+    "segSecMin", "segSecMax",
     "seed", "afterGenerate", "charSheet",
 )
 
@@ -634,6 +665,8 @@ def builtin_settings():
         "ratio": "9:16",
         "megapixels": 0.9,
         "steps": DEFAULT_H3_STEPS,
+        "segSecMin": SEC_MIN_DEFAULT,
+        "segSecMax": SEC_MAX_DEFAULT,
         "comfy": "http://127.0.0.1:8188",
         "h3Model": DEFAULT_H3_MODEL,
         "h3Lora": DEFAULT_H3_LORA,
@@ -783,9 +816,14 @@ def _pairs_from_legacy(text):
 
 def migrate(st):
     """把 v1（episodes/shots/中文单语）迁到 v2（segments/双语）。就地修改并返回。"""
+    global _SEC_BOUNDS
     st.setdefault("meta", {})
     st.setdefault("settings", {})
     st.setdefault("assets", [])
+    _sset = st["settings"]
+    _sset.setdefault("segSecMin", SEC_MIN_DEFAULT)
+    _sset.setdefault("segSecMax", SEC_MAX_DEFAULT)
+    _SEC_BOUNDS = sec_bounds(st)
     st.setdefault("voices", [dict(v) for v in DEFAULT_VOICES])
     st["meta"].setdefault("globalBlock", {})
 
@@ -2361,7 +2399,7 @@ def cmd_videos(args):
             rep.bad("%s 参考图缺失：%s（先跑 images）" % (sid, ", ".join(str(x) for x in missing)))
             continue
         audios = seg_audio(st, seg)
-        gsec = gen_sec(seg.get("sec"))
+        gsec = gen_sec(seg.get("sec"), sec_bounds(st))
         print("\n[%d/%d] %s｜提示词 %gs → 实传 %gs｜参考图 %d｜参考音 %d" % (
             i, len(targets), sid, float(seg.get("sec") or 0), gsec, len(files), len(audios)), flush=True)
         if cam_line:
@@ -2466,7 +2504,7 @@ def cmd_videos(args):
             comfy_api.download(addr, item, dest)
             j["seg"]["video"] = "videos/" + os.path.basename(dest)
             j["seg"]["status"] = "done"
-            j["seg"]["genSecUsed"] = gen_sec(j["seg"].get("sec"))
+            j["seg"]["genSecUsed"] = gen_sec(j["seg"].get("sec"), sec_bounds(st))
             j["seg"].pop("error", None)
             save_state(proj, st)
             build_html(proj, st)
@@ -3066,7 +3104,7 @@ def cmd_build(args):
     st = load_state(proj)
     st["_proj"] = proj
     for seg in st["segments"]:
-        seg["genSec"] = gen_sec(seg.get("sec"))
+        seg["genSec"] = gen_sec(seg.get("sec"), sec_bounds(st))
     moved = extract_global_block(st)
     tags = [] if getattr(args, "no_audio_sync", False) else sync_audio_tags(st)
     save_state(proj, st)
@@ -3076,7 +3114,7 @@ def cmd_build(args):
     print("分段 %d（合计 %.0f 秒 / 实传 %.0f 秒）｜资产 %d（已出图 %d）｜视频 %d｜待同步中文改动 %d 处" % (
         len(st["segments"]),
         sum(float(s.get("sec") or 0) for s in st["segments"]),
-        sum(gen_sec(s.get("sec")) for s in st["segments"]),
+        sum(gen_sec(s.get("sec"), sec_bounds(st)) for s in st["segments"]),
         len(st["assets"]), len([a for a in st["assets"] if a.get("image")]),
         len([s for s in st["segments"] if s.get("video")]), pending_sync,
     ), flush=True)
@@ -3123,7 +3161,7 @@ def cmd_status(args):
         print("\n分段：", flush=True)
         for s in st["segments"]:
             print("  %-8s %4.0fs→%2ds 参考图%d 提示词%s 视频%s" % (
-                s.get("id"), float(s.get("sec") or 0), gen_sec(s.get("sec")),
+                s.get("id"), float(s.get("sec") or 0), gen_sec(s.get("sec"), sec_bounds(st)),
                 len(s.get("refs") or []),
                 "✓" if seg_prompt(s, st["meta"].get("globalBlock")) else "×",
                 ("✓ " + s["video"]) if s.get("video") else "待生成"), flush=True)
@@ -3737,10 +3775,19 @@ def cmd_check(args):
             warns.append("%s 提示词里出现了时间码/时长（%s），镜头长短交给模型" % (
                 sid, TIMECODE_RE.search(p).group(0)))
         sec = float(seg.get("sec") or 0)
+        lo, hi = sec_bounds(st)
         if sec < 5 or sec > 18:
             warns.append("%s 提示词时长 %.0fs 超出 5–18 秒窗口" % (sid, sec))
-        if gen_sec(sec) != seg.get("genSec"):
-            issues.append("%s genSec 与 sec 不匹配（应 %d）" % (sid, gen_sec(sec)))
+        if gen_sec(sec, (lo, hi)) != seg.get("genSec"):
+            issues.append("%s genSec 与 sec 不匹配（应 %d）" % (sid, gen_sec(sec, (lo, hi))))
+        try:
+            raw = int(math.floor(float(sec) * 5.0 / 6.0 + 0.5))
+        except Exception:
+            raw = lo
+        if raw != gen_sec(sec, (lo, hi)):
+            warns.append("%s 提示词只写了 %.0fs（自然折算 %ds），实传被拉到区间 %d–%ds 内的 %ds → "
+                         "台词与动作要按 %ds 写，否则模型会自己补动作"
+                         % (sid, sec, raw, lo, hi, gen_sec(sec, (lo, hi)), gen_sec(sec, (lo, hi))))
         pics = {int(x) for x in re.findall(r"<Picture\s*(\d+)>", p)}
         refs = seg.get("refs") or []
         if pics and pics != {i + 1 for i in range(len(refs))}:
@@ -3800,7 +3847,7 @@ def cmd_check(args):
     try:
         rows = []
         for sg in st["segments"]:
-            sec = gen_sec(sg.get("sec"))
+            sec = gen_sec(sg.get("sec"), sec_bounds(st))
             fr = h3_frames(sec)
             rows.append("%s %ds/%d帧(%.2fs)" % (sg["id"], sec, fr, fr / 24.0))
         print("时长与帧数：%s" % "｜".join(rows), flush=True)

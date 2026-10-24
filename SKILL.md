@@ -2,7 +2,7 @@
 name: auto-drama-video
 description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法），取词走内置资产词库 qwen-wordbank（42 槽 / 370 条英文词条，只做人物/场景/道具三类，每个资产只出一条 ≥500 词的提示词，默认不写丑）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。运镜按 44 条 H3 运镜目录（references/camera-moves.json）以导演思维选用：先戏眼后站位再能量走向，不硬用、一段一个运镜；运镜分四档：T0 由模型按剧情钦点、T1 近景、T2 中景（全景并入中景）、T3 本机缺文件降级，需要 LoRA 的自动挂到独立节点 491 并前置触发词；相邻两段的尾镜与首镜不许同景别同机位（防拼接闪烁与人物跳动）。H3 工作流为 MiniMax-H3 原生 Ref2VA（euler/simple 5 步 + comfy kitchen 注意力 + sol-attn 块稀疏注意力 + 三格 LoRA 串联，默认只挂第一格）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
 metadata:
-  version: "3.11.0"
+  version: "3.12.0"
   title: "全本地自动短剧视频生成"
   author: "太阳阶梯jqk8707"
   entry: "SKILL.md（本文件）"
@@ -421,6 +421,7 @@ libx264 重编码 + 统一分辨率/帧率/音轨），并把结果写进 `meta.
 | 生成后控制 | `afterGenerate` | `fixed` / `increment` / `decrement` / `randomize` |
 | 宽高比 / 百万像素 | `ratio` / `megapixels` | 写进 `ResolutionSelector(252)`：宽高比枚举 + 像素（宽度 32 对齐），宽高再连线进 413 |
 | 生成步数 | `steps` | 写进 `BasicScheduler(261).steps`，默认 5（dmad_v4 蒸馏 LoRA 按 4–5 步走） |
+| 每段时长 · 最短 / 最长 | `segSecMin` / `segSecMax` | 两个小下拉，**实传秒数**（5–15），默认 **6 / 15**。`gen_sec()` 先按 5/6 折算，再夹进这个区间；区间按项目存，也进参数记忆。**拉长时长后台词与动作要按新秒数重写**，`check` 会提示「实传被拉到 X 秒」 |
 
 | 模型稀疏注意力 | `h3Sparse` | **只给一个勾选**。勾 = `BlockSparseAttention(332)` 留在图上（`sol-attn`、τ=1.3 等内部参数保持模板原值，不暴露）；不勾 = 整颗摘掉，`333.model` 直连 `331` |
 | 模型注意力加速后端 | `h3Attn` | 下拉两档，写进 `ModelAttentionBackend(331).attention`：默认 `comfy kitchen attention`（量化 INT8，快）；`pytorch attention`（原生，稳）。值不在两档里会回落到默认 |

@@ -141,6 +141,7 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `settings.*` | HTML 里的全局生成参数 | 人在 HTML 改，生成时读取 |
 | `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频那 17 个参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
 | `settings.ratio` / `megapixels` | 画幅与分辨率，写进 `ResolutionSelector(252)`；实际宽高由节点按 32 对齐算出 | 人在「视频提示词」页选 / 改 |
+| `settings.segSecMin` / `segSecMax` | **每段时长的实传区间**（5–15 秒，默认 6 / 15）。`genSec()` 先按 5/6 折算，再夹进这个区间；区间非法（<5、>15、lo>hi）自动回落 | 人在「视频提示词」页两个下拉选 |
 | `settings.h3Lora` / `h3Lora2` / `h3Lora3` | 三个 LoRA 位置，依次写进节点 `53` / `400` / `490`，按 1→2→3 串联。**1 号位默认挂主 LoRA，2、3 号位默认空（不挂）**；哪一格空就那颗节点整颗摘掉、链条重接 | 人在页面选 |
 | `settings.h3LoraStrength` / `h3Lora2Strength` / `h3Lora3Strength` | 与三格一一对应的强度（1 号位默认 0.8，2、3 号位默认 0.75，-2～2） | 人在页面改 |
 | `settings.h3Wf` | 当前 H3 工作流标记（`native-ref2va-20261023`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 turbo LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |

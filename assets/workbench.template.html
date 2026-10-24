@@ -347,7 +347,24 @@
   function markDirty() { isDirty = true; document.getElementById("dirty").classList.add("on"); }  function clearDirty() { isDirty = false; document.getElementById("dirty").classList.remove("on"); }
   function autosize(ta) { ta.style.height = "auto"; ta.style.height = Math.max(ta.scrollHeight + 2, 54) + "px"; }
   function segs() { return STATE.segments || []; }
-  function genSec(sec) { return Math.max(5, Math.min(15, Math.floor((Number(sec) || 8) * 5 / 6 + 0.5))); }
+  function refreshAfterDuration() {
+    var y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
+  }
+  function secBounds() {
+    var st = (typeof STATE !== "undefined" && STATE && STATE.settings) || {};
+    function iv(v, d) { var n = Number(v); return isFinite(n) && v !== "" && v != null ? Math.round(n) : d; }
+    var lo = Math.max(5, Math.min(15, iv(st.segSecMin, 6)));
+    var hi = Math.max(5, Math.min(15, iv(st.segSecMax, 15)));
+    if (lo > hi) lo = hi;
+    return [lo, hi];
+  }
+  /* 提示词写的 sec → API 实传秒数：恒定少 1/6，再夹进「每段时长」区间 */
+  function genSec(sec) {
+    var b = secBounds();
+    return Math.max(b[0], Math.min(b[1], Math.floor((Number(sec) || 8) * 5 / 6 + 0.5)));
+  }
   function assetMap() { var m = {}; (STATE.assets || []).forEach(function (a) { m[a.id] = a; }); return m; }
   function voiceById(id) { return (STATE.voices || []).filter(function (v) { return v.id === id; })[0]; }
   function segPromptEn(s) {
@@ -1323,6 +1340,18 @@
       g.appendChild(field("宽高比", "settings.ratio", { type: "select", options: RATIOS, hint: "短剧建议 9:16；实际宽高由 ResolutionSelector 按宽高比 + 下面的像素算出来" }));
       g.appendChild(field("分辨率（百万像素）", "settings.megapixels", { type: "number", step: 0.1, min: 0.2, max: 4, hint: "9:16 · 0.9 ≈ 704×1280（宽度按 32 对齐）" }));
       g.appendChild(field("生成步数", "settings.steps", { type: "number", step: 1, min: 1, max: 60, hint: "默认 5（dmad_v4 step600 蒸馏 LoRA 按 4–5 步走）" }));
+      /* 每段时长区间：两个小下拉（实传秒数），默认 6–15 */
+      var SEC_OPTS = [];
+      for (var si = 5; si <= 15; si++) SEC_OPTS.push([String(si), si + " 秒"]);
+      g.appendChild(field("每段时长 · 最短", "settings.segSecMin", {
+        type: "select", options: SEC_OPTS, onchange: refreshAfterDuration,
+        hint: "每段实际生成的秒数下限（默认 6）。提示词自然折算出来的秒数低于它，就按这个值生成。"
+      }));
+      g.appendChild(field("每段时长 · 最长", "settings.segSecMax", {
+        type: "select", options: SEC_OPTS, onchange: refreshAfterDuration,
+        hint: "每段实际生成的秒数上限（默认 15，H3 本身最高 15）。想让每段变长就把两个值一起往上调；"
+            + "时长拉长后台词和动作也要按新秒数写，否则模型会自己补动作。"
+      }));
       /* --- 加速与显存：一个勾选 + 一个下拉 + 三个分块数字（节点内部其它参数不暴露） --- */
       g.appendChild(field("模型稀疏注意力", "settings.h3Sparse", {
         type: "check",
