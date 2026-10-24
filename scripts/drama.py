@@ -56,8 +56,9 @@ def load_camera_moves():
     """运镜目录（44 条）：id → {zh, en, cat, size, need, lora, when, sentence, fallback}。
 
     数据源是 references/camera-moves.json，脚本和文档共用一份，改运镜只改那个文件。
-    size = near / mid / wide，决定默认档位（near → T0，其余 → T1）；
+    size = near / mid（原来的 wide 已并入 mid，不再单列全景）；
     need = native 表示不用 LoRA，lora 表示有专用运镜 LoRA（lora 里按顺序找本机存在的那个）。
+    档位（四档，见 06-camera-moves.md）：T0 导演钦点 / T1 近景 / T2 中景 / T3 本机缺文件。
     """
     try:
         with open(CAMERA_PATH, "r", encoding="utf-8") as f:
@@ -81,9 +82,10 @@ def camera_lora_for(move_id, avail=None, catalog=None):
     """给一个运镜挑 LoRA：返回 (真实 lora_name, 强度, 触发词, 档位) 或 None。
 
     规则（用户钦定）：
-      · 运镜本身不需要 LoRA → None（走原生，档位 T1）
-      · 需要 LoRA：按候选顺序找本机**真实存在**的那个 → 用它（近景 T0 / 其余 T1）
-      · 一个都不存在 → None，档位降 T2（不挂 LoRA，用降级提示词写）
+      · 运镜本身不需要 LoRA → None（走原生；档位只看景别：近景 T1 / 中景 T2）
+      · 需要 LoRA：按候选顺序找本机**真实存在**的那个 → 用它（近景 T1 / 中景 T2）
+      · 一个都不存在 → None，档位 T3（不挂 LoRA，用降级提示词写）
+    这里返回的 tier 只是「按景别的基准档」，导演钦点（camera.lead）由 camera_tier 补成 T0。
 
     avail = 本机 LoRA 名字列表（可带子目录，来自 ComfyUI）；None = 不检查（干跑，默认当有）。
     主名按 basename 精确匹配；aliases 里的写的是**同功能替代品**（例如 orb360 顶替 flf2v_lora），
@@ -94,7 +96,7 @@ def camera_lora_for(move_id, avail=None, catalog=None):
     mv = cat.get(str(move_id or ""))
     if not mv or mv.get("need") != "lora":
         return None
-    tier = "T0" if mv.get("size") == "near" else "T1"
+    tier = "T1" if mv.get("size") == "near" else "T2"
     real = {_lora_base(x): x for x in (avail or [])}
     bases = sorted(real)
     for cand in mv.get("lora") or []:
@@ -120,17 +122,26 @@ def camera_lora_for(move_id, avail=None, catalog=None):
     return None
 
 
-def camera_tier(move_id, avail=None, catalog=None):
-    """运镜的最终档位：近景 T0 / 其余 T1 / 需要 LoRA 但本机没有 → T2。"""
+def camera_tier(move_id, avail=None, catalog=None, lead=False):
+    """运镜档位（2026-10-24 用户口径，四档，从高到低）：
+
+      T0 导演钦点   —— 模型按「戏眼→站位→能量走向」判定这场戏必须靠这个运镜，`camera.lead = true`；
+                       与景别无关，近景中景都可能是 T0；本机有 LoRA 必挂。
+      T1 近景       —— size == near；本机有 LoRA 必挂。
+      T2 中景       —— size == mid（原来的全景已并入）；不需要 LoRA 的不挂，需要且本机有的挂。
+      T3 本机缺文件 —— 需要 LoRA 但本机没有：不挂、不写触发词，改用目录里的 fallback 降级句。
+
+    T3 优先于 T0/T1/T2：钦点了但本机没文件，照样按 T3 处理（check 会提示换等价原生运镜）。
+    """
     cat = catalog if catalog is not None else CAMERA_MOVES
     mv = cat.get(str(move_id or ""))
     if not mv:
         return ""
-    if mv.get("need") != "lora":
-        return "T1"
-    if camera_lora_for(move_id, avail, cat):
-        return "T0" if mv.get("size") == "near" else "T1"
-    return "T2"
+    if mv.get("need") == "lora" and not camera_lora_for(move_id, avail, cat):
+        return "T3"
+    if lead:
+        return "T0"
+    return "T1" if mv.get("size") == "near" else "T2"
 
 
 def camera_of(seg):
@@ -141,6 +152,15 @@ def camera_of(seg):
     if isinstance(c, str):          # 手写成一个 id 也认
         return {"move": c}
     return {}
+
+
+def camera_lead(seg):
+    """这一段的运镜是不是「导演钦点」（T0）。人也能在页面上勾。"""
+    c = camera_of(seg)
+    v = c.get("lead")
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "y", "t0")
+    return bool(v)
 
 
 def motion_trigger_text(move_id, lora_name, catalog=None):
@@ -2280,8 +2300,9 @@ def cmd_videos(args):
         cmv = camera_of(seg)
         cmid = str(cmv.get("move") or "").strip()
         cmeta = CAMERA_MOVES.get(cmid) or {}
+        clead = camera_lead(seg)
         cpick = camera_lora_for(cmid, avail_lora) if cmid else None
-        ctier = camera_tier(cmid, avail_lora) if cmid else ""
+        ctier = camera_tier(cmid, avail_lora, lead=clead) if cmid else ""
         motion = (cpick[0], cpick[1]) if cpick else None
         mtrig = motion_trigger_text(cmid, cpick[0]) if cpick else ""
         if mtrig:
@@ -2299,7 +2320,8 @@ def cmd_videos(args):
                 _how = "本机没有这个 LoRA → 降 T2，纯提示词"
             else:
                 _how = "原生不挂 LoRA"
-            print("      运镜：%s %s（%s）｜%s" % (cmid, cmeta.get("zh") or "", ctier or "-", _how), flush=True)
+            print("      运镜：%s %s（%s%s）｜%s" % (cmid, cmeta.get("zh") or "", ctier or "-",
+                                                   "·导演钦点" if clead else "", _how), flush=True)
         files, missing = [], []
         for r in seg.get("refs") or []:
             aid = r.get("asset") if isinstance(r, dict) else r
@@ -3514,24 +3536,41 @@ def check_camera(st, issues, warns, avail=None):
     segs = [x for x in (st.get("segments") or []) if isinstance(x, dict)]
     if not segs:
         return
-    # 1) 运镜 id 合法性 + 档位提示
+    # 1) 运镜 id 合法性 + 档位（T0 导演钦点 / T1 近景 / T2 中景 / T3 本机缺文件）
+    leads = []
     for seg in segs:
         sid = seg.get("id") or "?"
         c = camera_of(seg)
         mid = str(c.get("move") or "").strip()
+        lead = camera_lead(seg)
         if not mid:
+            if lead:
+                warns.append("%s 标了「导演钦点（T0）」但没选运镜 → 勾了就要有具体运镜，"
+                             "或者把钦点取消" % sid)
             continue
         mv = CAMERA_MOVES.get(mid)
         if not mv:
             issues.append("%s 的运镜 id %r 不在运镜目录里（见 references/camera-moves.json）" % (sid, mid))
             continue
-        tier = camera_tier(mid, avail)
-        if mv.get("need") == "lora" and tier == "T2":
-            warns.append("%s 用「%s」，它要挂运镜 LoRA，本机没有对应文件 → 降 T2，"
-                         "只靠提示词写；可换等价的原生运镜（见 06-camera-moves 的降级列）" % (sid, mv.get("zh")))
+        tier = camera_tier(mid, avail, lead=lead)
+        if lead:
+            leads.append(sid)
+        if tier == "T3":
+            if lead:
+                warns.append("%s 钦点（T0）的「%s」要挂运镜 LoRA，本机没有对应文件 → 只能按 T3 处理："
+                             "不挂、不写触发词、用降级句。想让这个镜头成立，换一条同功能的原生运镜"
+                             "（见 06-camera-moves 的降级列）" % (sid, mv.get("zh")))
+            else:
+                warns.append("%s 用「%s」，它要挂运镜 LoRA，本机没有对应文件 → 降 T3，"
+                             "只靠提示词写；可换等价的原生运镜（见 06-camera-moves 的降级列）"
+                             % (sid, mv.get("zh")))
         if not (c.get("why") or "").strip():
             warns.append("%s 选了运镜「%s」但没写为什么用（camera.why）→ 运镜要有戏因，不是装饰"
                          % (sid, mv.get("zh")))
+    # 钦点太多 = 没有钦点：一段戏里最重的那个才配 T0
+    if len(leads) > max(2, len(segs) // 2):
+        warns.append("有 %d 段标了「导演钦点（T0）」（%s）→ 钦点太密就没有主次了，"
+                     "一部剧留 1–2 个最重的 T0 就够" % (len(leads), "、".join(leads)))
     # 2) 相邻两段用了同一个运镜 → 拼起来像一条，缺少段落感
     for a, b in zip(segs, segs[1:]):
         ma = str(camera_of(a).get("move") or "").strip()
@@ -3749,9 +3788,12 @@ def cmd_check(args):
             if not mid:
                 continue
             mv = CAMERA_MOVES.get(mid) or {}
-            t = camera_tier(mid, avail) or "-"
+            lead = camera_lead(sg)
+            t = camera_tier(mid, avail, lead=lead) or "-"
             if not avail and (mv.get("need") == "lora"):
-                t = "T?（离线不判）"
+                t = ("T0?" if lead else "T?") + "（离线不判 LoRA）"
+            elif lead and t == "T0":
+                t += "·钦点"
             rows.append("%s %s%s %s" % (sg.get("id"), mid, mv.get("zh") or "?", t))
         if rows:
             print("运镜：%s" % "｜".join(rows), flush=True)

@@ -138,6 +138,8 @@
   .camrow select{max-width:340px;flex:1;min-width:200px}
   .camrow input{flex:1;min-width:220px}
   .cambox .hint{margin:6px 0 0;line-height:1.6}
+  .camlead{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);cursor:pointer;user-select:none}
+  .camlead input{flex:none;width:auto;min-width:0;margin:0}
   .cambox .hint.warn{color:#b4791f}
   /* LoRA 三格：左边序号 + 下拉/数字，三行等高，和右边强度列逐行对齐 */
   .lorarow{display:flex;align-items:center;gap:6px}
@@ -956,31 +958,42 @@
   }
 
   /* ---------- 运镜（44 条，目录来自 references/camera-moves.json） ----------
-     档位：近景 T0 / 中景·全景 T1 / 需要 LoRA 但本机没有 → T2（不挂 LoRA，纯提示词）。
+     档位四档（从高到低）：
+       T0 导演钦点 —— 按剧情判定这段必须靠这个运镜（勾选框，与景别无关），本机有 LoRA 必挂
+       T1 近景     —— 有必挂
+       T2 中景     —— 不需要 LoRA 的不挂，需要且本机有的挂
+       T3 本机缺文件 —— 不挂、不写触发词，改用降级写法
      一段最多挂 1 个运镜 LoRA，由生成脚本按本机真实存在的文件决定挂不挂。 */
-  var CAM_SIZE_ZH = { near: "近景", mid: "中景", wide: "全景" };
+  var CAM_SIZE_ZH = { near: "近景", mid: "中景", wide: "中景" };
   function camMove(id) {
     for (var i = 0; i < CAMERA.length; i++) if (CAMERA[i].id === id) return CAMERA[i];
     return null;
   }
-  function camState(mv) {
+  function camState(mv, lead) {
     if (!mv || !mv.id) return { tier: "", text: "", cls: "", move: null };
-    if (mv.need !== "lora") return { tier: "T1", text: "原生不挂 LoRA", cls: "tag ok", move: mv };
+    var near = mv.size === "near";
+    var base = lead ? "T0" : (near ? "T1" : "T2");
+    if (mv.need !== "lora") {
+      return { tier: base, text: (lead ? "导演钦点 · " : "") + "原生不挂 LoRA", cls: "tag ok", move: mv };
+    }
     var list = getModelList("lora");
-    if (!list.length) return { tier: "", text: "待读本机 LoRA 列表", cls: "tag", move: mv };
+    if (!list.length) {
+      return { tier: base, text: "待读本机 LoRA 列表", cls: "tag", move: mv };
+    }
     var low = list.map(function (x) { return String(x).toLowerCase(); });
     for (var i = 0; i < (mv.lora || []).length; i++) {
       if (low.indexOf(String(mv.lora[i]).toLowerCase()) >= 0) {
-        return { tier: mv.size === "near" ? "T0" : "T1", text: "挂 LoRA " + mv.lora[i], cls: "tag ok", move: mv };
+        return { tier: base, text: (lead ? "导演钦点 · " : "") + "挂 LoRA " + mv.lora[i], cls: "tag ok", move: mv };
       }
     }
-    return { tier: "T2", text: "本机没有这个 LoRA → T2 纯提示词", cls: "tag warn", move: mv };
+    return { tier: "T3", text: (lead ? "钦点了但" : "") + "本机没有这个 LoRA → T3 纯提示词", cls: "tag warn", move: mv };
   }
   function cameraBlock(s, si) {
     var box = h("div", "cambox");
     var cur = (s.camera && s.camera.move) || "";
+    var lead = !!(s.camera && s.camera.lead);
     var mv = camMove(cur);
-    var st0 = camState(mv);
+    var st0 = camState(mv, lead);
 
     var row = h("div", "camrow");
     row.appendChild(h("span", "hint", "本段运镜"));
@@ -1011,6 +1024,23 @@
     if (st0.text) row.appendChild(h("span", st0.cls, st0.text));
     box.appendChild(row);
 
+    /* 导演钦点（T0）：由 AI 按剧情判定，人也能改；与景别无关 */
+    var lrow = h("div", "camrow");
+    var cb = h("input"); cb.type = "checkbox"; cb.checked = lead;
+    cb.addEventListener("change", function () {
+      set("segments." + si + ".camera.lead", cb.checked);
+      markDirty();
+      var y2 = window.scrollY;
+      render();
+      window.scrollTo(0, y2);
+    });
+    var lab = h("label", "camlead");
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" 导演钦点（T0）：这场戏的戏眼必须靠这个运镜成立"));
+    lrow.appendChild(lab);
+    lrow.appendChild(h("span", "hint", "钦点了但本机没有对应 LoRA 会自动按 T3 降级"));
+    box.appendChild(lrow);
+
     if (mv) {
       var meta = h("div", "hint");
       meta.textContent = "【" + mv.cat + " · " + (CAM_SIZE_ZH[mv.size] || mv.size) + "】" + (mv.when || "");
@@ -1023,8 +1053,8 @@
       wi.addEventListener("input", function () { set("segments." + si + ".camera.why", wi.value); markDirty(); });
       wr.appendChild(wi);
       box.appendChild(wr);
-      if (st0.tier === "T2") {
-        box.appendChild(h("div", "hint warn", "本机没有这个运镜的 LoRA：生成时会照常跑，但不挂 LoRA、不加触发词——纯靠提示词写。"
+      if (st0.tier === "T3") {
+        box.appendChild(h("div", "hint warn", "本机没有这个运镜的 LoRA → 按 T3 处理：生成时照常跑，但不挂 LoRA、不加触发词——纯靠提示词写。"
           + "想提效果可以换一条原生运镜，或把 LoRA 下到 models/loras。"));
       }
     }
@@ -1045,7 +1075,7 @@
     if (ed) hd.appendChild(h("span", "tag warn", "中文改动待同步 " + ed + " 处"));
     var c0 = camMove((s.camera && s.camera.move) || "");
     if (c0) {
-      var cs0 = camState(c0);
+      var cs0 = camState(c0, !!(s.camera && s.camera.lead));
       hd.appendChild(h("span", "tag", "运镜 " + c0.id + " " + c0.zh + (cs0.tier ? " · " + cs0.tier : "")));
     }
     var castNames = (s.cast || []).map(function (id) { return (am[id] && am[id].name) || id; });

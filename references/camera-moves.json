@@ -101,7 +101,7 @@
   "zh": "追逐跟拍",
   "en": "Chase / Running",
   "cat": "主角主导",
-  "size": "wide",
+  "size": "mid",
   "need": "native",
   "when": "逃跑、追赶、冲刺。始终背向镜头，观众被按在追的一方。别和人物表情特写混用。",
   "sentence": {
@@ -154,7 +154,7 @@
   "zh": "拉镜头",
   "en": "Dolly Out / Pull Back",
   "cat": "机器主导",
-  "size": "wide",
+  "size": "mid",
   "need": "native",
   "when": "收尾、抽离、孤立：他被留在原地，世界比刚才更大。适合一段的最后 2 秒。",
   "sentence": {
@@ -366,7 +366,7 @@
   "zh": "穿越镜头",
   "en": "Fly-through",
   "cat": "机器主导",
-  "size": "wide",
+  "size": "mid",
   "need": "native",
   "when": "从外面穿进门/洞/窗进入新空间。一段的开场最好用，天然带“进入”。",
   "sentence": {
@@ -418,7 +418,7 @@
   "zh": "变焦拉",
   "en": "Zoom Out",
   "cat": "光学变化",
-  "size": "wide",
+  "size": "mid",
   "need": "native",
   "when": "同上但拉开。收尾抽离用它比推轨更“冷”。",
   "sentence": {
@@ -471,7 +471,7 @@
   "zh": "顶拍",
   "en": "Top-down / Overhead",
   "cat": "视角设定",
-  "size": "wide",
+  "size": "mid",
   "need": "native",
   "when": "把人和空间的关系一次讲清（一个人站在空屋中央）；也用于“被俯视/被审视”。",
   "sentence": {
@@ -497,7 +497,7 @@
   "zh": "高角度俯视",
   "en": "High Angle",
   "cat": "视角设定",
-  "size": "wide",
+  "size": "mid",
   "need": "native",
   "when": "让他显得小、弱、被压着；或交代地面的布局。",
   "sentence": {
