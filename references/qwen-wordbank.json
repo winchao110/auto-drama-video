@@ -4,8 +4,9 @@
     "zh": "Qwen-Image 2.1 资产提示词取词库",
     "version": "1.0.0",
     "source": "抽自 ComfyUI-Luori-Sunset（data/lr/*.json，93 字段 / 数百选项，原为 Z-Image 中文词库），按本技能的三类资产重新裁剪、改写成英文",
-    "rule": "一个槽取一个词（或一个词族），不堆同义词；三类资产各有固定槽位顺序；每条资产只出一条提示词",
-    "scope": "只服务资产定设图（人物 / 场景 / 道具）。视频镜头的运镜与光影见 01 / 06，不在这里取。"
+    "rule": "一个槽取一个词（或一个词族），不堆同义词；三类资产各有固定槽位顺序；每条资产只出一条提示词；默认把人写好看、写体面，瑕疵只有剧情批准了才写（见 flaw / worn 两个 plot 槽）",
+    "scope": "只服务资产定设图（人物 / 场景 / 道具）。视频镜头的运镜与光影见 01 / 06，不在这里取。",
+    "words": "人物 / 场景 ≥ 500 词（500–700 最佳），道具 400–600 词；低于 500 说明细节不足"
   },
   "groups": {
     "global": {
@@ -48,25 +49,40 @@
         },
         {
           "id": "realism",
-          "zh": "真实感瑕疵",
-          "note": "每类资产挑 2–3 个，专治 AI 塑料感；不要一次列十个",
+          "zh": "真实质感（正面写法，默认必用）",
+          "note": "目的是“像真人”，不是“像没修过的照片”。每类资产挑 2–3 条：皮肤要给质感和健康光泽，不是给瑕疵。禁用 no retouching / unretouched / visible pores / 毛孔清晰可见 这类反美颜词。",
           "terms": [
-            "visible pores on the nose and cheeks",
-            "fine baby hairs along the hairline",
-            "a few faint freckles across the bridge of the nose",
-            "slight natural asymmetry between the left and right side",
-            "a small healed scar above one eyebrow",
-            "dry, slightly uneven lips",
-            "skin with a faint sheen, not airbrushed",
-            "thin creases at the outer corners of the eyes",
-            "a light uneven tan on the forearms",
-            "fabric with soft pilling and a faded edge",
-            "fingernails with natural wear at the tips",
-            "dust settled in the seams and corners",
-            "water stains and a chipped edge on the surface",
-            "a scuffed, unevenly polished area from use"
+            "skin with a natural, even texture and a soft healthy sheen",
+            "a clear complexion that keeps its fine natural grain",
+            "a light, dewy highlight along the cheekbone",
+            "fine vellus hair catching the light along the jaw",
+            "a light beauty-filter finish that leaves the skin texture intact",
+            "fabric with a crisp hand and a clean edge",
+            "a soft natural sheen where the fabric folds",
+            "surfaces with an honest material grain, clean and well kept",
+            "a gentle highlight rolling along the edge of the object",
+            "clean, well-maintained surfaces with believable wear at the touch points"
           ],
-          "example": "Visible pores on the nose and cheeks, fine baby hairs along the hairline, slight natural asymmetry between the two sides of the face."
+          "example": "Skin with a natural, even texture and a soft healthy sheen, a light beauty-filter finish that leaves the grain intact."
+        },
+        {
+          "id": "flaw",
+          "zh": "剧情专用瑕疵（默认不取）",
+          "note": "★ 只有剧本/人设明确写到，才取 1 条，并在 assets[].note 里记一句“哪个剧情需要”。没有剧情需要就一条都不取——痣、疤、伤口、痘印、干裂、凌乱、油光、污渍都会把人物写丑。",
+          "plot": true,
+          "terms": [
+            "a small mole below the outer corner of one eye",
+            "a thin scar across the back of one hand",
+            "a fading bruise at the temple",
+            "a split lower lip, recently healed",
+            "an ink stain on two fingers",
+            "hair coming loose from its tie, strands across the cheek",
+            "a shirt collar dark with sweat",
+            "a torn sleeve held by a safety pin",
+            "mud dried on the trouser hem",
+            "a bandaged forearm"
+          ],
+          "example": "只在剧情需要时写，例：a thin scar across the back of one hand（第 3 场交代过这道伤）。"
         },
         {
           "id": "background",
@@ -102,254 +118,647 @@
     },
     "character": {
       "zh": "人物资产（只写本体：骨相 / 五官 / 毛发 / 皮肤 / 身形 / 服装 / 配饰，无动作、无场景、无光位）",
-      "order": ["age", "look", "face", "eyes", "brows_nose", "lips", "skin", "hair_len", "hair_tex", "hair_color", "build", "top", "bottom", "fabric_detail", "worn", "accessory", "hands", "expression"],
+      "order": [
+        "age",
+        "look",
+        "face",
+        "eyes",
+        "brows_nose",
+        "lips",
+        "skin",
+        "hair_len",
+        "hair_tex",
+        "hair_color",
+        "build",
+        "top",
+        "bottom",
+        "fabric_detail",
+        "worn",
+        "accessory",
+        "hands",
+        "expression"
+      ],
       "slots": [
         {
           "id": "age",
           "zh": "年龄段",
-          "terms": ["a woman in her early twenties", "a woman around thirty", "a woman in her late thirties", "a woman in her mid forties", "a woman past fifty", "a man in his late twenties", "a man around forty", "a man in his fifties", "a teenage boy", "a teenage girl", "an elderly man in his seventies"],
+          "terms": [
+            "a woman in her early twenties",
+            "a woman around thirty",
+            "a woman in her late thirties",
+            "a woman in her mid forties",
+            "a woman past fifty",
+            "a man in his late twenties",
+            "a man around forty",
+            "a man in his fifties",
+            "a teenage boy",
+            "a teenage girl",
+            "an elderly man in his seventies"
+          ],
           "example": "A woman in her late thirties."
         },
         {
           "id": "look",
           "zh": "地域外观",
           "note": "只写「看得出来的地域外观」，不写国籍标签",
-          "terms": ["East Asian features", "northern Chinese features", "southern Chinese features", "Southeast Asian features", "Central Asian features", "mixed East Asian and European features", "South Asian features"],
+          "terms": [
+            "East Asian features",
+            "northern Chinese features",
+            "southern Chinese features",
+            "Southeast Asian features",
+            "Central Asian features",
+            "mixed East Asian and European features",
+            "South Asian features"
+          ],
           "example": "East Asian features."
         },
         {
           "id": "face",
           "zh": "骨相与脸型",
-          "terms": ["a balanced oval face", "a soft round face with full cheeks", "a long narrow face", "an angular square jaw", "a heart-shaped face with a tapered chin", "a diamond face with wide cheekbones", "high cheekbones and a defined jawline", "a low, broad forehead", "a short chin", "a straight, prominent nose bridge"],
+          "terms": [
+            "a balanced oval face",
+            "a soft round face with full cheeks",
+            "a long narrow face",
+            "an angular square jaw",
+            "a heart-shaped face with a tapered chin",
+            "a diamond face with wide cheekbones",
+            "high cheekbones and a defined jawline",
+            "a low, broad forehead",
+            "a short chin",
+            "a straight, prominent nose bridge"
+          ],
           "example": "A balanced oval face with high cheekbones and a defined jawline."
         },
         {
           "id": "eyes",
           "zh": "眼型与瞳色",
-          "terms": ["almond-shaped dark brown eyes", "round bright eyes", "narrow elongated eyes with a slight upturn", "soft downturned eyes", "deep-set eyes under a heavy brow", "single-lidded eyes", "double eyelids with a visible crease", "light hazel irises", "grey-blue irises", "a visible catchlight in both eyes"],
+          "terms": [
+            "almond-shaped dark brown eyes",
+            "round bright eyes",
+            "narrow elongated eyes with a slight upturn",
+            "soft downturned eyes",
+            "deep-set eyes under a heavy brow",
+            "single-lidded eyes",
+            "double eyelids with a visible crease",
+            "light hazel irises",
+            "grey-blue irises",
+            "a visible catchlight in both eyes"
+          ],
           "example": "Almond-shaped dark brown eyes with a visible catchlight."
         },
         {
           "id": "brows_nose",
           "zh": "眉与鼻",
-          "terms": ["straight natural brows, slightly sparse at the tails", "thick arched brows", "thin softly curved brows", "a straight nose with a rounded tip", "a slightly upturned nose", "a broad flat nose bridge", "a high narrow nasal bridge", "a small bump on the bridge of the nose"],
+          "terms": [
+            "straight natural brows, slightly sparse at the tails",
+            "thick arched brows",
+            "thin softly curved brows",
+            "a straight nose with a rounded tip",
+            "a slightly upturned nose",
+            "a broad flat nose bridge",
+            "a high narrow nasal bridge",
+            "a small bump on the bridge of the nose"
+          ],
           "example": "Straight natural brows, slightly sparse at the tails, and a straight nose with a rounded tip."
         },
         {
           "id": "lips",
           "zh": "唇形与唇色",
-          "terms": ["a full upper lip and a defined cupid's bow", "thin straight lips", "a slightly asymmetric lower lip", "a wide mouth with upturned corners", "dry lips with fine vertical lines", "bare lips in a muted rose tone", "a matte deep-brick lip colour", "a soft natural pink lip"],
+          "terms": [
+            "a full upper lip and a defined cupid's bow",
+            "thin straight lips",
+            "a slightly asymmetric lower lip",
+            "a wide mouth with upturned corners",
+            "dry lips with fine vertical lines",
+            "bare lips in a muted rose tone",
+            "a matte deep-brick lip colour",
+            "a soft natural pink lip"
+          ],
           "example": "A full upper lip with a defined cupid's bow, bare in a muted rose tone."
         },
         {
           "id": "skin",
           "zh": "肤色与肤质",
           "note": "肤色带修饰语；肤质必须带真实感（见 global.realism）",
-          "terms": ["a warm light-olive skin tone", "a fair cool-toned complexion", "a deep warm brown complexion", "a sun-tanned medium tone", "an uneven tone with redness across the cheeks", "a matte even complexion with a faint sheen on the T-zone", "faint shadow of stubble along the jaw", "skin with a light natural oil sheen"],
+          "terms": [
+            "a warm light-olive skin tone",
+            "a fair cool-toned complexion",
+            "a deep warm brown complexion",
+            "a sun-tanned medium tone",
+            "a matte even complexion with a faint sheen on the T-zone",
+            "faint shadow of stubble along the jaw",
+            "skin with a light natural oil sheen"
+          ],
           "example": "A warm light-olive skin tone, matte with a faint sheen on the T-zone."
         },
         {
           "id": "hair_len",
           "zh": "发长",
-          "terms": ["very short cropped hair", "a short bob ending at the jaw", "shoulder-length hair", "hair to the mid-back", "long hair past the waist", "hair pulled back tightly", "hair tied in a low bun"],
+          "terms": [
+            "very short cropped hair",
+            "a short bob ending at the jaw",
+            "shoulder-length hair",
+            "hair to the mid-back",
+            "long hair past the waist",
+            "hair pulled back tightly",
+            "hair tied in a low bun"
+          ],
           "example": "Shoulder-length hair."
         },
         {
           "id": "hair_tex",
           "zh": "发质与造型",
-          "terms": ["straight and fine", "straight and thick", "loose natural waves", "tight small curls", "coarse and slightly frizzy", "sleek and glossy", "tousled with a few strands out of place", "a blunt fringe", "a side-parted sweep", "wispy bangs", "a centre part with face-framing pieces"],
+          "terms": [
+            "straight and fine",
+            "straight and thick",
+            "loose natural waves",
+            "tight small curls",
+            "sleek and glossy",
+            "a blunt fringe",
+            "a side-parted sweep",
+            "wispy bangs",
+            "a centre part with face-framing pieces"
+          ],
           "example": "Straight and fine, a side-parted sweep, a few strands out of place."
         },
         {
           "id": "hair_color",
           "zh": "发色",
-          "terms": ["natural black with a cool sheen", "dark brown with warmer ends", "chestnut brown", "ash brown", "auburn", "bleached blonde with visible dark roots", "grey at the temples", "fully grey-white", "dyed a faded wine red"],
+          "terms": [
+            "natural black with a cool sheen",
+            "dark brown with warmer ends",
+            "chestnut brown",
+            "ash brown",
+            "auburn",
+            "bleached blonde with visible dark roots",
+            "grey at the temples",
+            "fully grey-white",
+            "dyed a faded wine red"
+          ],
           "example": "Natural black with a cool sheen."
         },
         {
           "id": "build",
           "zh": "身形",
           "note": "写结构（肩宽/骨架/曲线），不写「身材很好」",
-          "terms": ["slim with narrow shoulders", "a soft hourglass curve with a defined waist", "a straight, boyish frame", "broad shoulders and a solid chest", "a heavy-set build", "tall and lean", "petite with a short torso", "long limbs and a small head"],
+          "terms": [
+            "slim with narrow shoulders",
+            "a soft hourglass curve with a defined waist",
+            "a straight, boyish frame",
+            "broad shoulders and a solid chest",
+            "a heavy-set build",
+            "tall and lean",
+            "petite with a short torso",
+            "long limbs and a small head"
+          ],
           "example": "A soft hourglass curve with a defined waist, average height."
         },
         {
           "id": "top",
           "zh": "上装",
-          "terms": ["a plain crew-neck cotton T-shirt", "an oversized washed-out shirt", "a stiff-collared work shirt", "a fitted ribbed knit top", "a cropped denim jacket", "a heavy wool overcoat", "a padded down jacket", "a thin silk blouse", "a sleeveless tank top", "a hooded sweatshirt", "a uniform jacket with shoulder epaulettes", "a hospital gown"],
+          "terms": [
+            "a plain crew-neck cotton T-shirt",
+            "an oversized washed-out shirt",
+            "a stiff-collared work shirt",
+            "a fitted ribbed knit top",
+            "a cropped denim jacket",
+            "a heavy wool overcoat",
+            "a padded down jacket",
+            "a thin silk blouse",
+            "a sleeveless tank top",
+            "a hooded sweatshirt",
+            "a uniform jacket with shoulder epaulettes",
+            "a hospital gown"
+          ],
           "example": "A stiff-collared work shirt."
         },
         {
           "id": "bottom",
           "zh": "下装 / 连衣裙",
-          "terms": ["straight-leg dark denim jeans", "baggy cargo trousers", "pleated wool trousers", "a plain black pencil skirt", "a long floral cotton dress", "a knee-length A-line dress", "a loose linen shirt-dress", "sweatpants with a drawstring", "a wrap skirt", "tailored shorts"],
+          "terms": [
+            "straight-leg dark denim jeans",
+            "baggy cargo trousers",
+            "pleated wool trousers",
+            "a plain black pencil skirt",
+            "a long floral cotton dress",
+            "a knee-length A-line dress",
+            "a loose linen shirt-dress",
+            "sweatpants with a drawstring",
+            "a wrap skirt",
+            "tailored shorts"
+          ],
           "example": "Pleated wool trousers."
         },
         {
           "id": "fabric_detail",
           "zh": "服装版型与材质",
           "note": "材质必须具体；版型写「合身/宽松/垂坠」",
-          "terms": ["a coarse linen weave", "brushed cotton with a soft nap", "heavy twill with a dry hand", "fine-gauge merino knit", "crinkled raw silk", "washed denim with a faded lap", "matte synthetic shell with taped seams", "a slightly oversized, boxy cut", "a fitted cut that follows the body", "a loose drape that falls away from the body", "double-stitched seams and a worn collar edge", "wrinkled from wear, not pressed"],
+          "terms": [
+            "a coarse linen weave",
+            "brushed cotton with a soft nap",
+            "heavy twill with a dry hand",
+            "fine-gauge merino knit",
+            "crinkled raw silk",
+            "washed denim with a faded lap",
+            "matte synthetic shell with taped seams",
+            "a slightly oversized, boxy cut",
+            "a fitted cut that follows the body",
+            "a loose drape that falls away from the body",
+            "double-stitched seams and a worn collar edge",
+            "wrinkled from wear, not pressed"
+          ],
           "example": "A coarse linen weave, slightly oversized and boxy, wrinkled from wear."
         },
         {
           "id": "worn",
           "zh": "穿用痕迹",
           "note": "人物的「旧」靠衣服，不靠脸",
-          "terms": ["the collar softened and slightly greyed", "a frayed cuff", "a small mended tear at the elbow", "faded knees on the trousers", "a shadow of an old stain near the hem", "buttons worn smooth", "shoes scuffed at the toes", "the edge of the sleeve rolled and creased"],
+          "terms": [
+            "the collar softened and slightly greyed",
+            "a frayed cuff",
+            "a small mended tear at the elbow",
+            "faded knees on the trousers",
+            "a shadow of an old stain near the hem",
+            "buttons worn smooth",
+            "shoes scuffed at the toes",
+            "the edge of the sleeve rolled and creased"
+          ],
           "example": "The collar softened and slightly greyed, a frayed cuff on one sleeve."
         },
         {
           "id": "accessory",
           "zh": "配饰",
           "note": "只写这位人物设定里真有的，最多 3 件；没有就不写",
-          "terms": ["a thin silver chain at the throat", "small stud earrings", "a plain wedding band on the left hand", "wire-rimmed glasses with a faint scratch on one lens", "a worn leather-strap watch", "a cloth hair tie on the wrist", "a jade bangle", "a canvas shoulder bag with a frayed strap", "a beaded bracelet", "no jewellery"],
+          "terms": [
+            "a thin silver chain at the throat",
+            "small stud earrings",
+            "a plain wedding band on the left hand",
+            "wire-rimmed glasses with a faint scratch on one lens",
+            "a worn leather-strap watch",
+            "a cloth hair tie on the wrist",
+            "a jade bangle",
+            "a canvas shoulder bag with a frayed strap",
+            "a beaded bracelet",
+            "no jewellery"
+          ],
           "example": "A thin silver chain at the throat and a plain wedding band on the left hand."
         },
         {
           "id": "hands",
           "zh": "手部",
-          "terms": ["long fingers with clean nails", "short practical nails", "knuckles reddened by cold", "a callus across the palm", "a small ink stain on one fingertip", "chapped cuticles", "a thin scar across the back of the hand"],
+          "terms": [
+            "long fingers with clean nails",
+            "short practical nails",
+            "knuckles reddened by cold",
+            "a callus across the palm",
+            "a small ink stain on one fingertip",
+            "chapped cuticles",
+            "a thin scar across the back of the hand"
+          ],
           "example": "Long fingers, short practical nails, a callus across the palm."
         },
         {
           "id": "expression",
           "zh": "中性神态",
           "note": "资产图不演戏：只给「中性 / 平静 / 微表情」，不许大笑大哭",
-          "terms": ["a calm neutral expression", "the mouth closed and relaxed", "a level steady gaze into the lens", "the gaze slightly off camera", "a faint tension at the jaw", "an unreadable, guarded look", "a slight, tired downturn at the mouth corners"],
+          "terms": [
+            "a calm neutral expression",
+            "the mouth closed and relaxed",
+            "a level steady gaze into the lens",
+            "the gaze slightly off camera",
+            "a faint tension at the jaw",
+            "an unreadable, guarded look",
+            "a slight, tired downturn at the mouth corners"
+          ],
           "example": "A calm neutral expression, a level steady gaze into the lens."
         }
       ]
     },
     "scene": {
       "zh": "场景资产（空镜：无人物、无动作；空间 / 材质 / 陈设 / 痕迹 / 光 / 色彩）",
-      "order": ["location", "time", "weather", "structure", "surfaces", "furnishing", "worn", "light", "color", "air"],
+      "order": [
+        "location",
+        "time",
+        "weather",
+        "structure",
+        "surfaces",
+        "furnishing",
+        "worn",
+        "light",
+        "color",
+        "air"
+      ],
       "slots": [
         {
           "id": "location",
           "zh": "空间类型",
           "note": "越具体越好：不是「室内」，而是「老式派出所的讯问室」",
-          "terms": ["a narrow urban alley between brick buildings", "a cramped old-style interrogation room", "an unfinished concrete apartment", "a rented single room with a single bed", "a late-night convenience store interior", "a hospital corridor", "a village courtyard with a low brick wall", "a rooftop water-tank platform", "a disused factory floor", "a cheap hotel room", "a school classroom after hours", "a basement storage room", "a ferry terminal waiting hall", "a suburban kitchen"],
+          "terms": [
+            "a narrow urban alley between brick buildings",
+            "a cramped old-style interrogation room",
+            "an unfinished concrete apartment",
+            "a rented single room with a single bed",
+            "a late-night convenience store interior",
+            "a hospital corridor",
+            "a village courtyard with a low brick wall",
+            "a rooftop water-tank platform",
+            "a disused factory floor",
+            "a cheap hotel room",
+            "a school classroom after hours",
+            "a basement storage room",
+            "a ferry terminal waiting hall",
+            "a suburban kitchen"
+          ],
           "example": "A cramped old-style interrogation room."
         },
         {
           "id": "time",
           "zh": "时间",
           "note": "时间要能推出光的颜色，别只写「白天」",
-          "terms": ["shortly before dawn", "early morning, low sun", "flat midday light", "late afternoon", "the last twenty minutes of daylight", "dusk with the streetlights just on", "deep night", "midnight under sodium lights", "blue hour", "heavy overcast noon"],
+          "terms": [
+            "shortly before dawn",
+            "early morning, low sun",
+            "flat midday light",
+            "late afternoon",
+            "the last twenty minutes of daylight",
+            "dusk with the streetlights just on",
+            "deep night",
+            "midnight under sodium lights",
+            "blue hour",
+            "heavy overcast noon"
+          ],
           "example": "Deep night."
         },
         {
           "id": "weather",
           "zh": "天气与空气",
-          "terms": ["steady rain against the windows", "rain just stopped, everything wet", "dry cold air", "humid and still", "thin fog", "wind pushing dust across the floor", "snow falling outside", "heat haze"],
+          "terms": [
+            "steady rain against the windows",
+            "rain just stopped, everything wet",
+            "dry cold air",
+            "humid and still",
+            "thin fog",
+            "wind pushing dust across the floor",
+            "snow falling outside",
+            "heat haze"
+          ],
           "example": "Rain just stopped, everything wet."
         },
         {
           "id": "structure",
           "zh": "结构与开口",
           "note": "门窗梁柱楼梯，决定空间怎么被读出来",
-          "terms": ["a single high window with frosted glass", "a barred window at the far end", "steel-framed windows, one pane cracked", "a low doorway with a concrete lintel", "an exposed pipe running along the ceiling", "a metal staircase with open treads", "a folding partition half drawn", "a ceiling of bare joists", "a narrow service corridor with doors on one side", "an interior with no visible exit"],
+          "terms": [
+            "a single high window with frosted glass",
+            "a barred window at the far end",
+            "steel-framed windows, one pane cracked",
+            "a low doorway with a concrete lintel",
+            "an exposed pipe running along the ceiling",
+            "a metal staircase with open treads",
+            "a folding partition half drawn",
+            "a ceiling of bare joists",
+            "a narrow service corridor with doors on one side",
+            "an interior with no visible exit"
+          ],
           "example": "A single high window with frosted glass, an exposed pipe running along the ceiling."
         },
         {
           "id": "surfaces",
           "zh": "空间材质",
           "note": "墙 / 地 / 顶各写一个，材质是分辨度",
-          "terms": ["walls of painted brick, the paint blistering", "glazed ceramic tiles with dark grout", "raw poured concrete with formwork marks", "peeling wallpaper over plaster", "oiled hardwood floorboards", "worn vinyl flooring lifting at the seams", "polished terrazzo", "stained acoustic ceiling tiles", "brushed stainless steel panels", "muddy packed earth"],
+          "terms": [
+            "walls of painted brick, the paint blistering",
+            "glazed ceramic tiles with dark grout",
+            "raw poured concrete with formwork marks",
+            "peeling wallpaper over plaster",
+            "oiled hardwood floorboards",
+            "worn vinyl flooring lifting at the seams",
+            "polished terrazzo",
+            "stained acoustic ceiling tiles",
+            "brushed stainless steel panels",
+            "muddy packed earth"
+          ],
           "example": "Walls of painted brick with blistering paint, an oiled hardwood floor, a ceiling of bare joists."
         },
         {
           "id": "furnishing",
           "zh": "陈设",
           "note": "3–5 件，按方位摆（见 03 的方位清单），不要写满",
-          "terms": ["a metal table bolted to the floor", "a chair with one broken slat", "a steel locker with a padlock", "a stack of cardboard boxes", "a wall clock stopped at ten past two", "a folding cot with a grey blanket", "a kettle and two enamel cups", "a torn poster half peeled off", "a dead potted plant", "an upturned plastic crate", "a mirror with a taped corner", "a floor drain with a rusted grate", "a radiator with a towel over it"],
+          "terms": [
+            "a metal table bolted to the floor",
+            "a chair with one broken slat",
+            "a steel locker with a padlock",
+            "a stack of cardboard boxes",
+            "a wall clock stopped at ten past two",
+            "a folding cot with a grey blanket",
+            "a kettle and two enamel cups",
+            "a torn poster half peeled off",
+            "a dead potted plant",
+            "an upturned plastic crate",
+            "a mirror with a taped corner",
+            "a floor drain with a rusted grate",
+            "a radiator with a towel over it"
+          ],
           "example": "A metal table bolted to the floor, a chair with one broken slat, a wall clock stopped at ten past two."
         },
         {
           "id": "worn",
           "zh": "使用痕迹",
           "note": "场景的「有人住过」全靠这一槽",
-          "terms": ["water stains spreading from the ceiling corner", "a dark scuff line at the height of a shoulder", "dust in every seam and on the window ledge", "cigarette burns on the table edge", "a patch of floor worn pale by foot traffic", "grime built up along the skirting", "something spilled and dried under the table", "hairline cracks running up the wall", "a rust bloom around every screw"],
+          "terms": [
+            "water stains spreading from the ceiling corner",
+            "a dark scuff line at the height of a shoulder",
+            "dust in every seam and on the window ledge",
+            "cigarette burns on the table edge",
+            "a patch of floor worn pale by foot traffic",
+            "grime built up along the skirting",
+            "something spilled and dried under the table",
+            "hairline cracks running up the wall",
+            "a rust bloom around every screw"
+          ],
           "example": "Water stains spreading from the ceiling corner, dust in every seam, a patch of floor worn pale."
         },
         {
           "id": "light",
           "zh": "光（场景专用，单独一句）",
           "note": "来源 + 方向 + 质地 + 落点，一句写完",
-          "terms": ["a single bare bulb overhead, hard light, deep shadows under the table", "flat fluorescent tubes, greenish, even and shadowless", "cold daylight through frosted glass, soft and directionless", "late sun raking in from the left, long shadows across the floor", "a sodium street lamp outside, orange, pooling on the wet ground", "light through a half-open door, a bright wedge on the floor", "practical lamps only, warm pools with dark gaps between them", "a phone screen lighting the nearest surface from below"],
+          "terms": [
+            "a single bare bulb overhead, hard light, deep shadows under the table",
+            "flat fluorescent tubes, greenish, even and shadowless",
+            "cold daylight through frosted glass, soft and directionless",
+            "late sun raking in from the left, long shadows across the floor",
+            "a sodium street lamp outside, orange, pooling on the wet ground",
+            "light through a half-open door, a bright wedge on the floor",
+            "practical lamps only, warm pools with dark gaps between them",
+            "a phone screen lighting the nearest surface from below"
+          ],
           "example": "A single bare bulb overhead, hard light, deep shadows under the table."
         },
         {
           "id": "color",
           "zh": "色彩",
           "note": "主配色 2–3 个 + 色温；与剧的风格锁一致",
-          "terms": ["a muted palette of grey, dirty white and rust", "cold blue-green shadows against warm skin tones in the doorways", "desaturated browns and dull ochre", "high contrast, deep blacks and one warm accent", "washed-out pastels, low saturation", "sickly yellow-green fluorescent cast", "a warm amber interior against a cold blue exterior"],
+          "terms": [
+            "a muted palette of grey, dirty white and rust",
+            "cold blue-green shadows against warm skin tones in the doorways",
+            "desaturated browns and dull ochre",
+            "high contrast, deep blacks and one warm accent",
+            "washed-out pastels, low saturation",
+            "sickly yellow-green fluorescent cast",
+            "a warm amber interior against a cold blue exterior"
+          ],
           "example": "A muted palette of grey, dirty white and rust."
         },
         {
           "id": "air",
           "zh": "空气感",
           "note": "一条就够，能显著加真实度",
-          "terms": ["dust visible in the light beams", "a slight haze that softens the far wall", "condensation on the glass", "steam drifting from a cup", "smoke hanging near the ceiling", "clean dry air, high clarity"],
+          "terms": [
+            "dust visible in the light beams",
+            "a slight haze that softens the far wall",
+            "condensation on the glass",
+            "steam drifting from a cup",
+            "smoke hanging near the ceiling",
+            "clean dry air, high clarity"
+          ],
           "example": "Dust visible in the light beams, a slight haze that softens the far wall."
         }
       ]
     },
     "prop": {
       "zh": "道具资产（单体，1:1，干净背景，无手无人）",
-      "order": ["object", "material", "craft", "size", "finish", "worn", "marks", "light"],
+      "order": [
+        "object",
+        "material",
+        "craft",
+        "size",
+        "finish",
+        "worn",
+        "marks",
+        "light"
+      ],
       "slots": [
         {
           "id": "object",
           "zh": "物件与用途",
           "note": "先写它是什么、做什么用，再写长什么样",
-          "terms": ["a folding pocket knife with a worn wooden handle", "a chipped enamel mug", "a cheap plastic lighter", "a leather-bound notebook with a broken spine", "a hospital wristband", "a payphone handset, cord cut", "a paper evidence bag, sealed", "a pair of worn leather work gloves", "a brass house key on a red string", "a cassette recorder with a cracked case", "a glass vial of clear liquid", "a stack of banknotes held by a rubber band"],
+          "terms": [
+            "a folding pocket knife with a worn wooden handle",
+            "a chipped enamel mug",
+            "a cheap plastic lighter",
+            "a leather-bound notebook with a broken spine",
+            "a hospital wristband",
+            "a payphone handset, cord cut",
+            "a paper evidence bag, sealed",
+            "a pair of worn leather work gloves",
+            "a brass house key on a red string",
+            "a cassette recorder with a cracked case",
+            "a glass vial of clear liquid",
+            "a stack of banknotes held by a rubber band"
+          ],
           "example": "A folding pocket knife with a worn wooden handle."
         },
         {
           "id": "material",
           "zh": "材质",
-          "terms": ["brushed stainless steel", "cast iron with a pitted surface", "hand-blown glass with small bubbles", "glazed ceramic", "oiled walnut", "raw brass", "anodised aluminium", "thick cowhide", "woven nylon webbing", "aged paper with a soft deckle edge", "vulcanised rubber"],
+          "terms": [
+            "brushed stainless steel",
+            "cast iron with a pitted surface",
+            "hand-blown glass with small bubbles",
+            "glazed ceramic",
+            "oiled walnut",
+            "raw brass",
+            "anodised aluminium",
+            "thick cowhide",
+            "woven nylon webbing",
+            "aged paper with a soft deckle edge",
+            "vulcanised rubber"
+          ],
           "example": "Cast iron with a pitted surface."
         },
         {
           "id": "craft",
           "zh": "工艺",
-          "terms": ["hand-forged, hammer marks visible", "machined with fine concentric tool marks", "sand-cast, the parting line still there", "injection-moulded with a visible seam", "hand-stitched with uneven stitches", "die-cut and folded", "hand-thrown on a wheel", "stamped from a single sheet"],
+          "terms": [
+            "hand-forged, hammer marks visible",
+            "machined with fine concentric tool marks",
+            "sand-cast, the parting line still there",
+            "injection-moulded with a visible seam",
+            "hand-stitched with uneven stitches",
+            "die-cut and folded",
+            "hand-thrown on a wheel",
+            "stamped from a single sheet"
+          ],
           "example": "Hand-forged, hammer marks visible."
         },
         {
           "id": "size",
           "zh": "尺寸参照",
           "note": "给一个可比的对象，模型才知道多大",
-          "terms": ["no longer than a palm", "about the length of a forearm", "small enough to close a fist around", "roughly the size of a paperback book", "a hand-span wide", "tall enough to reach the knee"],
+          "terms": [
+            "no longer than a palm",
+            "about the length of a forearm",
+            "small enough to close a fist around",
+            "roughly the size of a paperback book",
+            "a hand-span wide",
+            "tall enough to reach the knee"
+          ],
           "example": "No longer than a palm."
         },
         {
           "id": "finish",
           "zh": "表面处理",
-          "terms": ["matte, light-absorbing", "satin with a soft sheen", "high polish with hard specular highlights", "a dull patina over the whole surface", "lacquered, the edges rubbed back to bare metal", "translucent, light passing through the body"],
+          "terms": [
+            "matte, light-absorbing",
+            "satin with a soft sheen",
+            "high polish with hard specular highlights",
+            "a dull patina over the whole surface",
+            "lacquered, the edges rubbed back to bare metal",
+            "translucent, light passing through the body"
+          ],
           "example": "A dull patina over the whole surface."
         },
         {
           "id": "worn",
-          "zh": "使用痕迹",
-          "note": "新道具也要有一点点，否则像 3D 渲染",
-          "terms": ["the edges rounded by handling", "a deep scratch across the face", "grease darkening the grip", "a hairline crack near the rim", "the plating worn through at the corners", "a ring-shaped stain from a wet glass", "faded printing, half illegible"],
-          "example": "The edges rounded by handling, a deep scratch across the face."
+          "zh": "穿用痕迹（默认不取，剧情需要才用）",
+          "note": "默认衣服是干净、整熨、合身的。只有剧情是逃难、干粗活、住店多日这类情况才取 1–2 条；别为了“真实”把主角写成邋遢。",
+          "terms": [
+            "the edges rounded by handling",
+            "a deep scratch across the face",
+            "grease darkening the grip",
+            "a hairline crack near the rim",
+            "the plating worn through at the corners",
+            "a ring-shaped stain from a wet glass",
+            "faded printing, half illegible"
+          ],
+          "example": "The edges rounded by handling, a deep scratch across the face.",
+          "plot": true
         },
         {
           "id": "marks",
           "zh": "特征细节",
           "note": "唯一标识：刻字/编号/缺口/线头。**不要可读的品牌名**（只写「磨花的刻字」）",
-          "terms": ["an engraved initial, worn almost smooth", "a stamped serial number, unreadable", "a chipped corner on one side", "a repaired split held by two staples", "thread unravelling at one corner", "a folded corner marking a place", "a single drop of dried red on the edge"],
+          "terms": [
+            "an engraved initial, worn almost smooth",
+            "a stamped serial number, unreadable",
+            "a chipped corner on one side",
+            "a repaired split held by two staples",
+            "thread unravelling at one corner",
+            "a folded corner marking a place",
+            "a single drop of dried red on the edge"
+          ],
           "example": "An engraved initial worn almost smooth, a chipped corner on one side."
         },
         {
           "id": "light",
           "zh": "与光的关系",
-          "terms": ["hard direct light from the upper left, a single sharp highlight along the top edge", "soft even studio light, gentle falloff on both sides", "backlit rim, the body mostly in shadow", "a small specular point where the surface catches the lamp", "light passing through, the colour deepening at the thick end"],
+          "terms": [
+            "hard direct light from the upper left, a single sharp highlight along the top edge",
+            "soft even studio light, gentle falloff on both sides",
+            "backlit rim, the body mostly in shadow",
+            "a small specular point where the surface catches the lamp",
+            "light passing through, the colour deepening at the thick end"
+          ],
           "example": "Hard direct light from the upper left, a single sharp highlight along the top edge."
         }
       ]
@@ -357,9 +766,9 @@
   },
   "quota": {
     "zh": "取词配额（超了就是堆砌，会互相打架）",
-    "character": "18 槽里挑 12–16 槽；每槽 1 个词（或 1 个词族 2–3 个词）。配饰最多 3 件，真实感瑕疵 2–3 个",
-    "scene": "10 槽里挑 8–10 槽；陈设 3–5 件，痕迹 2–3 条，光 1 句",
+    "character": "18 槽里挑 14–17 槽；每槽 1 个词（或 1 个词族 2–3 个词）。配饰最多 3 件；质感 2–3 条；剧情专用瑕疵（flaw）0–1 条且必有剧本依据",
+    "scene": "10 槽里挑 9–10 槽；陈设 3–5 件，使用痕迹 2–3 条，光 1 句",
     "prop": "8 槽全用，每槽 1 个词；痕迹 1–2 条，特征细节 1–2 条",
-    "words": "英文单段 350–500 词（人物 / 场景）/ 300–450 词（道具）；低于下限说明细节不足，高于上限是在堆砌"
+    "words": "英文单段 人物 / 场景 ≥500 词（500–700 最佳）/ 道具 400–600 词；低于下限说明槽没写满，高于上限是在堆砌形容词"
   }
 }

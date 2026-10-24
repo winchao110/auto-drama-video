@@ -22,7 +22,7 @@
 ### 一之二、取词：先查词库，每次只出一条
 
 写之前先打开 `references/07-qwen-wordbank.md`（词条在 `qwen-wordbank.json`）。它是从 Luori-Sunset 的
-93 字段中文词库里裁出来的 **41 个槽位 / 367 条英文词条**，只保留人物 / 场景 / 道具用得上的部分。
+93 字段中文词库里裁出来的 **42 个槽位 / 370 条英文词条**，只保留人物 / 场景 / 道具用得上的部分。
 
 三条不能破：
 
@@ -90,24 +90,31 @@
 「Build, posture, where they are looking, expression, hair, skin tone, and each garment with its colour and material」。
 美丑、胖瘦、干不干净全在**内容层**。默认按下面这套写。
 
-#### A. 皮肤：毛孔与绒毛保留，但必须带美颜滤镜
+#### A. 皮肤：质感要真，观感要好（不要"无修图"）
 
 | 项 | 口径 |
 |---|---|
-| 必须保留 | `visible fine pores`、`fine vellus hair` —— 这是"真人"的锚，去掉就变塑料 |
-| 必须加上 | `a light beauty-filter finish`、`an even luminous tone`、`a soft-focus highlight along the cheekbone` |
-| 禁止（病态） | `dry patch`、`tired shadow under the eyes`、`blemish`、`redness`、`acne`、`uneven patch of stubble` |
-| 禁止（旧损） | `pilled`、`scuffed`、`crush mark`、`frayed`、`worn`、`stained` |
+| 必须写上 | `skin with a natural, even texture`、`fine vellus hair`、`a soft healthy sheen` —— 这是"真人"的锚 |
+| 必须加上 | `a light beauty-filter finish`、`an even luminous tone`、`a light dewy highlight along the cheekbone` |
+| **禁止（反美颜词）** | `no retouching`、`unretouched`、`raw skin`、`visible pores`、`毛孔清晰可见`、`无修图` —— 写了就变糙、变丑 |
+| 禁止（病态） | `dry patch`、`chapped lips`、`tired shadow under the eyes`、`blemish`、`redness`、`acne`、`uneven stubble` |
+| 禁止（旧损） | `pilled`、`scuffed`、`crush mark`、`frayed`、`worn`、`stained`、`wrinkled` |
 
 标准句式（一句同时点到"真"与"美"，二者不互斥）：
 
-> Her skin keeps **visible fine pores and fine vellus hair**, yet reads **smooth and luminous under a light beauty filter**, with an even tone from the forehead to the jaw.
+> Her skin reads **a natural, even texture with fine vellus hair catching the light**, finished with **a light beauty filter and a soft healthy sheen**, the tone even from the forehead to the jaw.
+
+> **2026-10-24 用户修订**：`visible pores` / `no retouching` 这类词一律不许出现。
+> "真人感"靠**皮肤纹理 + 毛发细节 + 一处高光**，不靠把脸做旧。想加瑕疵只有一条路：剧本写了（见 4.1.1-F）。
 
 #### B. 无来由的特征一律不写
 
 痣、美人痣、纹身、疤痕、伤痕、胎记、歪牙、黑眼圈、油光、晒伤、红血丝、痘印 —— **默认不写**。
-只有剧本/人设明确要求时才写，且必须记进 `assets[].note` 存证。模型对"一颗痣"极其敏感，写了必出，
+只有剧本/人设明确要求时才写（且最多一条），并记进 `assets[].note` 存证。模型对"一颗痣"极其敏感，写了必出，
 还会破坏后续所有镜头的人物一致性。
+
+同理，**"凌乱""皱巴巴""干裂""污渍"也要剧本批准**：低马尾要扎得干净，T 恤要挺括，
+嘴唇要润——主角的体面是短剧的基本盘。
 
 #### C. 女性：柔和曲线，不是直板
 
@@ -139,13 +146,25 @@
 | 配色 | 主色 + 辅色 + 一个点缀色，三色以内且要有明暗对比。禁全黑 / 全灰 / 全白的单调 |
 | 面料 | 具体且细腻：`high-sheen satin`、`brushed cotton`、`fine-gauge knit`、`matte leather`、`crisp cotton twill` |
 
+#### F. 字数：人物与场景都 ≥500 词
+
+| 资产 | 词数 | 为什么 |
+|---|---|---|
+| 人物 | **≥500（500–700 最佳）** | 18 个槽（骨相/五官/皮肤/毛发/身形/服装/配饰/手/神态）各扩一句，自然就 500 词以上 |
+| 场景 | **≥500（500–700 最佳）** | 空间/结构/材质/陈设/痕迹/光/色彩各扩一句 |
+| 道具 | 400–600 | 8 槽全用，尺寸给参照物 |
+
+**不是把形容词堆到 500 词**，而是把槽写满：删掉一个词条这张图会不一样 → 留着；不会 → 删掉，换个槽补。
+写到 500 词还觉得空，是槽没写够。取词与配额见 `07-qwen-wordbank.md`。
+
 人物条目在第七节自检之外，再硬加三条：
 
-- [ ] 同时出现 `visible fine pores` + `fine vellus hair` 与 `beauty filter` / `luminous` / `even tone`。
+- [ ] 同时出现 `natural, even texture` + `fine vellus hair` 与 `beauty filter` / `luminous` / `even tone`；
+      **没有** `no retouching` / `visible pores` / `无修图`。
 - [ ] 女性写了 bust / waist / hip 三处曲线与优雅体态；男性写了宽肩窄腰，且没有油腻、晒伤、邋遢发型。
 - [ ] 没有无来由的痣 / 纹身 / 疤痕 / 伤痕；穿搭有层次、有配色对比、面料具体。
 
-信息清单（写全，缺一项脸就飘）：人种 / 年龄段 / 脸型与骨相 / 五官细节 / 发型发色 / 瞳色 / 皮肤质感（毛孔绒毛＋美颜滤镜）/ 体型与曲线 / 体态 / 服装（层次＋版型＋材质＋配色）/ 配饰（写清位置）。
+信息清单（写全，缺一项脸就飘）：人种 / 年龄段 / 脸型与骨相 / 五官细节 / 发型发色 / 瞳色 / 皮肤质感（纹理＋绒毛＋美颜）/ 体型与曲线 / 体态 / 服装（层次＋版型＋材质＋配色）/ 配饰（写清位置）。
 
 ### 4.2 场景（16:9 全景）
 
@@ -161,12 +180,12 @@
 
 `styleLock` 会拼在每条资产提示词末尾，所以它也要按同一套语言与口吻写：**一句英文描述式**，不要空词、不要命令句。
 
-> Photoreal domestic comedy shot on an ARRI Alexa 65 with a 50mm prime, soft late-afternoon window light at 5200K, skin that keeps fine pores and vellus hair under a light beauty-filter finish, polished hair and wardrobe, gentle film grain.
+> Photoreal domestic comedy shot on an ARRI Alexa 65 with a 50mm prime, soft late-afternoon window light at 5200K, skin with a natural, even texture and fine vellus hair under a light beauty-filter finish, polished hair and wardrobe, gentle film grain.
 
 `styleLock` 会拼在**每条**资产末尾（人物、场景、道具都吃一遍），所以它必须一句话同时点到位：
 
-- 要写 `visible fine pores / fine vellus hair`（真人锚）**和** `beauty-filter finish`（美颜）——两个一起写，缺一个就翻车：
-  只有毛孔 → 脏；只有滤镜 → 塑料。
+- 要写 `natural, even skin texture / fine vellus hair`（真人锚）**和** `beauty-filter finish`（美颜）——两个一起写，缺一个就翻车：
+  只有纹理 → 糙；只有滤镜 → 塑料。**别写 `visible pores` / `毛孔清晰可见`**，那不是真人锚，是做旧。
 - **不许**出现 `no retouching`、`no beautification`、`no filter`、`raw skin`、`tired`、`worn` —— 这几个词会把"去美化"复制到每一张图上，
   是全片发脏的最大放大器（上一版就是这么坏掉的）。
 
@@ -188,7 +207,7 @@
 
 ## 七、交付前自检（资产提示词）
 
-- [ ] 英文单段，350–500 词，没有中文（专有名词除外）。
+- [ ] 英文单段，**人物 / 场景 ≥500 词（500–700）**、道具 400–600；没有中文（专有名词除外）。
 - [ ] 开场句点了媒介（photograph / character sheet / still-life…）。
 - [ ] 正文里没有比例、像素、`8K`、`masterpiece`。
 - [ ] 方位短语 8–14 个，铺到四角与边缘。
@@ -196,6 +215,8 @@
 - [ ] 结尾有且只有一句 `The overall composition …`。
 - [ ] 人物没有写动作/背景/镜头/光位；场景没有写"复古/高级感"；道具没有可读文字。
 - [ ] 只出了**一条**；每个槽只出现一次（没有互斥词）；词条都扩成了句子。
+- [ ] **没有丑化词**：痣 / 疤 / 伤口 / 痘印 / 干裂 / 凌乱 / 皱巴巴 / 污渍 / 油光 / 无修图 / visible pores；
+      有的话剧本里写了吗？`assets[].note` 记了吗？
 - [ ] 按 07 的槽位顺序取词、槽数在配额内，真实感补丁 2–3 条（见 07 第五节）。
 - [ ] `ratio` 与 `megapixels` 在 `assets[]` 里给对（人物 **4:3**·2.0、场景 16:9·2.0、道具 1:1·2.0）。
       人物用 16:9 会把三段拼接压变形，`check` 会报（它按人物视图模板里写的比例核对）。

@@ -13,7 +13,7 @@
 
 写进 `meta.styleLock`，一句英文描述式，会拼在每条资产提示词末尾。示例：
 
-> Photoreal urban comedy shot on an ARRI Alexa 65 with a 35mm prime, warm late-afternoon daylight, natural skin texture with visible pores and fine lines, gentle film grain, no plastic retouching.
+> Photoreal urban comedy shot on an ARRI Alexa 65 with a 35mm prime, warm late-afternoon daylight, natural skin texture with fine vellus hair under a light beauty-filter finish, gentle film grain.
 
 要改风格就改这一条，**不要逐张去改**，否则必然跑偏。
 
@@ -33,7 +33,8 @@
 
 ## 三、人物资产必须交代的 10 项
 
-顺序固定，写成英文段落里的具体事实，**不写形容词堆砌**（取词槽位：`07-qwen-wordbank.md` 的 `character` 18 槽）：
+顺序固定，写成英文段落里的具体事实，**不写形容词堆砌**（取词槽位：`07-qwen-wordbank.md` 的 `character` 18 槽）。
+**人物提示词 ≥500 词**（500–700 最佳），场景同；写不到就是槽没写满。**默认把人写好看、写体面**，不写丑。
 
 1. **人种**
 2. **年龄段**（`a young adult` / `middle-aged` / `elderly`，别堆数字）
@@ -41,7 +42,7 @@
 4. **五官细节**：眉形、眼型（细长/圆/眼尾上挑）、双眼皮、鼻梁鼻尖、唇厚薄
 5. **发型发色**：长度、分缝、是否参差、乌黑/枯黄/花白、有无光泽
 6. **瞳孔颜色**
-7. **面部特征**：痣的位置、伤疤位置与新旧、痘印、胡茬
+7. **面部特征**：**默认不写**痣/伤疤/痘印（剧本写了才写，且最多一条，记进 `assets[].note`）；胡茬只在人设需要时写，要写"修剪整齐"不写"乱茬"
 8. **体型**：身高、胖瘦、肩宽、是否含胸
 9. **服装**：款式 + 材质 + 颜色 + 磨损细节（袖口磨白、右肘补丁、领口松垮）
 10. **配饰**：写清**位置**（右耳后铁夹、左手无名指素银戒、颈上红绳铜钱）
@@ -82,7 +83,7 @@
 - **光照 / 色温 / 大气**：光源类型与位置、色温、浮尘或水汽
 - **使用痕迹**：水渍、烟头烫痕、地面磨白、缝隙积灰（没有这一项，场景就像样板间）
 
-取词槽位：`07-qwen-wordbank.md` 的 `scene` 10 槽（10 槽全用，陈设 3–5 件）。
+取词槽位：`07-qwen-wordbank.md` 的 `scene` 10 槽（9–10 槽，陈设 3–5 件）。**场景提示词 ≥500 词**。
 
 ❌ 禁用词：`复古`、`有氛围`、`高级感`、`宽敞明亮`（写不出信息，只会让画面变糊）
 

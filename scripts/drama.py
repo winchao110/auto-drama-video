@@ -51,6 +51,32 @@ WF_DIR = os.path.join(SKILL_DIR, "references", "workflows")
 TPL_PATH = os.path.join(SKILL_DIR, "assets", "workbench.template.html")
 CAMERA_PATH = os.path.join(SKILL_DIR, "references", "camera-moves.json")
 
+# 人物丑化词（2026-10-24 用户口径：默认把人写好看、写体面；这些词只有剧本需要才准出现）
+UGLY_WORDS = [
+    (r"\bmole\b|\bmoles\b", "痣"),
+    (r"\bscar(s|red)?\b", "疤"),
+    (r"\bbruise(s|d)?\b|\bwound(s|ed)?\b", "伤"),
+    (r"\bchapped\b|\bcracked lips?\b|\bdry lips?\b", "干裂"),
+    (r"\btousled\b|\bmessy hair\b|\bdisheve?led\b|\bunkempt\b", "凌乱"),
+    (r"\bwrinkled?\b|\bcreas(ed|es)\b", "皱"),
+    (r"\bstained?\b|\bsmudged?\b|\bgrime\b|\bdirty\b", "污渍"),
+    (r"\boily\b|\bgreasy\b|\bshine-?free skin\b", "油光"),
+    (r"\bblemish(es)?\b|\bacne\b|\bpimple(s)?\b", "痘"),
+    (r"\bdark circles?\b|\bsunburn(ed)?\b", "黑眼圈/晒伤"),
+    (r"no retouch(ing)?|unretouched|\bvisible pores\b|\braw skin\b", "无修图"),
+    (r"\btorn\b|\bfrayed\b|\bpilled\b", "破旧"),
+    (r"痣", "痣"),
+    (r"疤痕|伤口|伤痕|抓伤", "疤/伤"),
+    (r"痘印|痘痘|青春痘", "痘"),
+    (r"干裂|起皮|脱皮", "干裂"),
+    (r"凌乱|散乱|乱糟糟", "凌乱"),
+    (r"皱巴巴|褶皱|皱褶", "皱"),
+    (r"污渍|脏污|油渍|汗渍", "污渍"),
+    (r"油光|冒油", "油光"),
+    (r"无修图|未修图|毛孔清晰可见|皮肤写实", "无修图"),
+    (r"黑眼圈|晒伤|红血丝", "黑眼圈/晒伤"),
+]
+
 
 def load_camera_moves():
     """运镜目录（44 条）：id → {zh, en, cat, size, need, lora, when, sentence, fallback}。
@@ -3643,12 +3669,28 @@ def cmd_check(args):
                          "一个资产只出一条，合成一段（铁律 21）" % aid)
         wc = len(re.findall(r"[A-Za-z][A-Za-z'\-]*", pr))
         typ = a.get("type") or ""
-        lo = 300 if typ == "prop" else 350
-        if wc < lo * 0.7:
-            warns.append("%s 的资产提示词只有约 %d 个英文词（%s 建议 %d+）→ 细节不足，"
-                         "按 07 词库往下补槽（材质 / 痕迹 / 尺寸 / 真实感瑕疵）" % (aid, wc, typ or "资产", lo))
+        lo = 400 if typ == "prop" else 500
+        if wc < lo:
+            tips = {"character": "骨相 / 五官 / 皮肤 / 毛发 / 身形 / 服装 / 配饰位置",
+                    "scene": "空间结构 / 材质 / 陈设 / 使用痕迹 / 光 / 色彩",
+                    "prop": "材质 / 工艺 / 尺寸参照 / 表面 / 痕迹"}.get(typ, "各槽逐个写满")
+            warns.append("%s 的资产提示词只有约 %d 个英文词（%s 要 ≥%d）→ 细节不足，"
+                         "按 07 词库把槽写满（%s），不是补形容词" % (aid, wc, typ or "资产", lo, tips))
         if re.search(r"\b(8K|masterpiece|award-winning|highly detailed|best quality)\b", pr, re.I):
             warns.append("%s 的资产提示词里有空词（8K / masterpiece 之类）→ 删掉，换成光学与材质事实" % aid)
+        if re.search(r"[\u4e00-\u9fff]", pr):
+            warns.append("%s 的资产提示词里有中文 → assets[].prompt 必须是英文 T2I 段落（中文放 note / promptZh）" % aid)
+        # 不写丑：痣/疤/干裂/凌乱/皱/污渍/油光/无修图 —— 只查人物；场景与道具的做旧是特性不是缺点
+        ugly = [w for w in UGLY_WORDS if re.search(w[0], pr, re.I)] if typ == "character" else []
+        if ugly:
+            note = (a.get("note") or "").strip()
+            names = "、".join(u[1] for u in ugly[:6])
+            if not note:
+                warns.append("%s 的资产提示词里有人物丑化词（%s）→ 剧本没需要就删掉；"
+                             "确实需要就把理由写进 assets[].note（最多留 1 条）" % (aid, names))
+            else:
+                warns.append("%s 的资产提示词里有丑化词（%s），已用 note 记账（%s…）→ 确认只留 1 条、"
+                             "确实是剧情需要" % (aid, names, note[:20]))
 
     vids = {v.get("id") for v in st["voices"]}
     vmap = {v.get("id"): v for v in st["voices"]}
