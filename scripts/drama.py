@@ -2323,6 +2323,7 @@ def cmd_videos(args):
             rep.bad("%s 没有 H3 提示词，跳过" % sid)
             continue
         # ---- 运镜：本段声明的运镜 → 决定挂不挂 LoRA、要不要在提示词最前面加触发词 ----
+        cam_line = ""
         cmv = camera_of(seg)
         cmid = str(cmv.get("move") or "").strip()
         cmeta = CAMERA_MOVES.get(cmid) or {}
@@ -2346,8 +2347,8 @@ def cmd_videos(args):
                 _how = "本机没有这个 LoRA → 降 T2，纯提示词"
             else:
                 _how = "原生不挂 LoRA"
-            print("      运镜：%s %s（%s%s）｜%s" % (cmid, cmeta.get("zh") or "", ctier or "-",
-                                                   "·导演钦点" if clead else "", _how), flush=True)
+            cam_line = "      运镜：%s %s（%s%s）｜%s" % (cmid, cmeta.get("zh") or "", ctier or "-",
+                                                   "·导演钦点" if clead else "", _how)
         files, missing = [], []
         for r in seg.get("refs") or []:
             aid = r.get("asset") if isinstance(r, dict) else r
@@ -2363,6 +2364,8 @@ def cmd_videos(args):
         gsec = gen_sec(seg.get("sec"))
         print("\n[%d/%d] %s｜提示词 %gs → 实传 %gs｜参考图 %d｜参考音 %d" % (
             i, len(targets), sid, float(seg.get("sec") or 0), gsec, len(files), len(audios)), flush=True)
+        if cam_line:
+            print(cam_line, flush=True)
         if args.dry:
             print("      参考音：" + (", ".join(os.path.basename(x) for x in audios) or "无（模型原生生成）"), flush=True)
             # dry-run 也把图建出来核对一遍，省得跑起来才发现模板对不上
