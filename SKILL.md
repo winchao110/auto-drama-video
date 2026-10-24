@@ -45,7 +45,13 @@ $PY = 当前环境的 python（Windows 例：python 或 py -3）
 3. **中文是人的入口，英文是机器的入口**。用户只改 `promptSegs[].zh`；AI 必须把中文改动**逐段、按原格式**重写进 `promptSegs[].en`，
    再把 `edited` 复位。**绝对不要把中文塞进 `en`**，也不要中英混排送生成。规则见 `references/01-h3-prompt-bilingual.md` 2.4。
 4. **生成前必须同步英文**：只要还有 `edited == true`，先同步、`build`、再生成视频，不许拿旧英文去跑。
-5. **H3 时长恒定少 1/6**：提示词写 `sec` 秒，API 实传 `genSec = round(sec×5/6)`（5–15s）。`genSec` 由脚本算，不要手填。
+5. **H3 时长恒定少 1/6，且必须服从「每段时长」区间**：提示词写 `sec` 秒，API 实传
+   `genSec = round(sec×5/6)`，再夹进项目设定的区间 `settings.segSecMin`–`segSecMax`（页面两个下拉，默认 6–15）。
+   `genSec` 由脚本算，不要手填。**区间是提示词的硬约束，不是生成时的补丁**：
+   - 反解出来的提示词范围 = `sec_prompt_range()`：区间 6–15 → 每段写 **7–18s**；10–15 → **12–18s**；8–12 → **9–14s**。
+   - **改了区间，所有段的 `sec` 和台词/动作必须按新区间重写**（该加镜头就加镜头、该扩台词就扩台词），
+     不许留着旧秒数靠参数硬拉。`check` 对超区间的段判**硬问题**，工作台卡片上也会打红标。
+   - 区间本身进了提示词指纹：改区间 = 内容变了 → 旧审核作废，`images` / `videos` 会要求重新 `build` + 呈现 + `present`。
 6. **景别不许乱写**：主角和重要配角正脸只能 特写 / 近景 / 中景（H3 中景以上人脸糊）。
 7. **不伪造产出**：没有真的生成出来的图/视频，不许在 json 里写 `image` / `video` 路径。
 8. **不调用技能外的模板**：H3 结构规范 = `references/01-h3-prompt-bilingual.md` + `references/h3-wenxi-v2-template.md`；

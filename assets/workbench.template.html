@@ -360,6 +360,13 @@
     if (lo > hi) lo = hi;
     return [lo, hi];
   }
+  /* 区间 → 提示词该写多少秒（反解）：sec 要落在 [ceil((lo-0.5)*6/5), floor((hi+0.5)*6/5)] */
+  function secPromptRange() {
+    var b = secBounds();
+    var pmin = Math.max(5, Math.ceil((b[0] - 0.5) * 6 / 5 - 1e-9));
+    var pmax = Math.max(pmin, Math.min(18, Math.floor((b[1] + 0.5) * 6 / 5 - 1e-9)));
+    return [pmin, pmax];
+  }
   /* 提示词写的 sec → API 实传秒数：恒定少 1/6，再夹进「每段时长」区间 */
   function genSec(sec) {
     var b = secBounds();
@@ -1085,6 +1092,11 @@
     hd.appendChild(h("span", "id", s.id || ("P" + (si + 1))));
     if (s.title) hd.appendChild(h("span", "meta", s.title));
     hd.appendChild(h("span", "tag", (s.sec || "?") + "s → 实传 " + genSec(s.sec) + "s"));
+    var _pr = secPromptRange();
+    if (Number(s.sec) < _pr[0] || Number(s.sec) > _pr[1]) {
+      hd.appendChild(h("span", "tag warn",
+        "超出时长区间：要写成 " + _pr[0] + "–" + _pr[1] + "s（改区间后必须重写这段提示词）"));
+    }
     if (s.video) hd.appendChild(h("span", "tag ok", "视频已生成"));
     else if (segPromptEn(s)) hd.appendChild(h("span", "tag", "待生成视频"));
     else hd.appendChild(h("span", "tag warn", "缺提示词"));
@@ -1349,8 +1361,9 @@
       }));
       g.appendChild(field("每段时长 · 最长", "settings.segSecMax", {
         type: "select", options: SEC_OPTS, onchange: refreshAfterDuration,
-        hint: "每段实际生成的秒数上限（默认 15，H3 本身最高 15）。想让每段变长就把两个值一起往上调；"
-            + "时长拉长后台词和动作也要按新秒数写，否则模型会自己补动作。"
+        hint: "每段实际生成的秒数上限（默认 15，H3 本身最高 15）。"
+            + "改这两个值 = 提示词必须按新区间重写：区间 6–15 对应每段写 7–18s，10–15 对应 12–18s；"
+            + "没重写的段会在卡片上打红标，自检也会判硬问题。"
       }));
       /* --- 加速与显存：一个勾选 + 一个下拉 + 三个分块数字（节点内部其它参数不暴露） --- */
       g.appendChild(field("模型稀疏注意力", "settings.h3Sparse", {

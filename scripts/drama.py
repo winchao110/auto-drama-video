@@ -544,6 +544,22 @@ def sec_bounds(st=None):
     return lo, hi
 
 
+def sec_prompt_range(st=None):
+    """每段时长区间 → **提示词 sec** 的合法范围 (pmin, pmax)。
+
+    genSec = round(sec * 5/6) 落进 [lo, hi]，反解出 sec 允许写多少：
+      sec 下限 = ceil((lo - 0.5) * 6/5)，上限 = floor((hi + 0.5) * 6/5 - 1e-9)
+    例：区间 6–15 → 提示词要写 7–18 秒；区间 10–15 → 12–18 秒。
+    提示词写在这个范围外，`check` 判硬问题（必须按区间重写），不是警告。
+    """
+    lo, hi = sec_bounds(st)
+    pmin = int(math.ceil((lo - 0.5) * 6.0 / 5.0 - 1e-9))
+    pmax = int(math.floor((hi + 0.5) * 6.0 / 5.0 - 1e-9))
+    pmin = max(5, pmin)
+    pmax = max(pmin, min(18, pmax))
+    return pmin, pmax
+
+
 def gen_sec(sec, bounds=None):
     """H3 实传时长：提示词写 sec 秒，API 恒定少 1/6，四舍五入取整，再夹进 [lo, hi]。
 
@@ -599,6 +615,8 @@ def state_hash(st, with_images=False):
                  for k in ("title", "hook", "synopsis", "styleLock")},
         # 人物视图模板改了也算"内容变了"：换模板等于换定设图，必须先呈现再出图
         "charSheet": _norm_text(char_block(st)),
+        # 每段时长区间也算"内容变了"：区间一改，提示词就得按新秒数重写，旧审核作废
+        "secRange": [int(sec_bounds(st)[0]), int(sec_bounds(st)[1])],
         "assets": [
             {"id": a.get("id"), "type": a.get("type"), "prompt": _norm_text(a.get("prompt")),
              "ratio": a.get("ratio"), "megapixels": a.get("megapixels"), "voice": a.get("voice"),
@@ -3776,18 +3794,16 @@ def cmd_check(args):
                 sid, TIMECODE_RE.search(p).group(0)))
         sec = float(seg.get("sec") or 0)
         lo, hi = sec_bounds(st)
-        if sec < 5 or sec > 18:
-            warns.append("%s 提示词时长 %.0fs 超出 5–18 秒窗口" % (sid, sec))
+        pmin, pmax = sec_prompt_range(st)
         if gen_sec(sec, (lo, hi)) != seg.get("genSec"):
             issues.append("%s genSec 与 sec 不匹配（应 %d）" % (sid, gen_sec(sec, (lo, hi))))
-        try:
-            raw = int(math.floor(float(sec) * 5.0 / 6.0 + 0.5))
-        except Exception:
-            raw = lo
-        if raw != gen_sec(sec, (lo, hi)):
-            warns.append("%s 提示词只写了 %.0fs（自然折算 %ds），实传被拉到区间 %d–%ds 内的 %ds → "
-                         "台词与动作要按 %ds 写，否则模型会自己补动作"
-                         % (sid, sec, raw, lo, hi, gen_sec(sec, (lo, hi)), gen_sec(sec, (lo, hi))))
+        if sec < pmin or sec > pmax:
+            issues.append("%s 提示词写的是 %.0fs，但「每段时长」区间 %d–%ds 对应的提示词长度是 %d–%ds → "
+                         "这段必须按 %d–%ds 重写（改了区间就得重写提示词，不是靠参数硬拉）"
+                         % (sid, sec, lo, hi, pmin, pmax, pmin, pmax))
+        elif gen_sec(sec, (lo, hi)) != int(math.floor(sec * 5.0 / 6.0 + 0.5)):
+            warns.append("%s 提示词 %.0fs 落在区间边缘，实传按 %ds 走 → 台词与动作按 %ds 写"
+                         % (sid, sec, gen_sec(sec, (lo, hi)), gen_sec(sec, (lo, hi))))
         pics = {int(x) for x in re.findall(r"<Picture\s*(\d+)>", p)}
         refs = seg.get("refs") or []
         if pics and pics != {i + 1 for i in range(len(refs))}:
