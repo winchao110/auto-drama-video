@@ -49,6 +49,106 @@ except Exception:
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WF_DIR = os.path.join(SKILL_DIR, "references", "workflows")
 TPL_PATH = os.path.join(SKILL_DIR, "assets", "workbench.template.html")
+CAMERA_PATH = os.path.join(SKILL_DIR, "references", "camera-moves.json")
+
+
+def load_camera_moves():
+    """运镜目录（44 条）：id → {zh, en, cat, size, need, lora, when, sentence, fallback}。
+
+    数据源是 references/camera-moves.json，脚本和文档共用一份，改运镜只改那个文件。
+    size = near / mid / wide，决定默认档位（near → T0，其余 → T1）；
+    need = native 表示不用 LoRA，lora 表示有专用运镜 LoRA（lora 里按顺序找本机存在的那个）。
+    """
+    try:
+        with open(CAMERA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        print("[!] 运镜目录读不出来（%s）：%s" % (CAMERA_PATH, e), flush=True)
+        return {}
+    return {str(m.get("id")): m for m in data if isinstance(m, dict) and m.get("id")}
+
+
+CAMERA_MOVES = load_camera_moves()
+
+
+def _lora_base(name):
+    """LoRA 比对只看文件名：ComfyUI 回的是 MiniMaxH3\\xxx.safetensors 这种带子目录的路径，
+    而运镜目录里只写文件名，子目录大小写在不同机器上也不一致——所以一律按 basename 小写比。"""
+    return str(name or "").replace("/", "\\").split("\\")[-1].strip().lower()
+
+
+def camera_lora_for(move_id, avail=None, catalog=None):
+    """给一个运镜挑 LoRA：返回 (真实 lora_name, 强度, 触发词, 档位) 或 None。
+
+    规则（用户钦定）：
+      · 运镜本身不需要 LoRA → None（走原生，档位 T1）
+      · 需要 LoRA：按候选顺序找本机**真实存在**的那个 → 用它（近景 T0 / 其余 T1）
+      · 一个都不存在 → None，档位降 T2（不挂 LoRA，用降级提示词写）
+
+    avail = 本机 LoRA 名字列表（可带子目录，来自 ComfyUI）；None = 不检查（干跑，默认当有）。
+    主名按 basename 精确匹配；aliases 里的写的是**同功能替代品**（例如 orb360 顶替 flf2v_lora），
+    按 basename 包含匹配，别名可以写成 "文件名.token|触发词"。
+    返回值用的是 avail 里的真实路径，否则 ComfyUI 会找不到文件。
+    """
+    cat = catalog if catalog is not None else CAMERA_MOVES
+    mv = cat.get(str(move_id or ""))
+    if not mv or mv.get("need") != "lora":
+        return None
+    tier = "T0" if mv.get("size") == "near" else "T1"
+    real = {_lora_base(x): x for x in (avail or [])}
+    bases = sorted(real)
+    for cand in mv.get("lora") or []:
+        strength = float(cand.get("strength") or 1.0)
+        prim = cand.get("name") or ""
+        if prim:
+            if avail is None:
+                return (prim, strength, (cand.get("trigger") or "").strip(), tier)
+            hit = real.get(_lora_base(prim))
+            if hit:
+                return (hit, strength, (cand.get("trigger") or "").strip(), tier)
+        for alias in cand.get("aliases") or []:
+            an, _, at = str(alias).partition("|")
+            tok = _lora_base(an)
+            if not tok:
+                continue
+            trig = at.strip() or (cand.get("trigger") or "").strip()
+            if avail is None:
+                return (an, strength, trig, tier)
+            for b in bases:
+                if tok in b:
+                    return (real[b], strength, trig, tier)
+    return None
+
+
+def camera_tier(move_id, avail=None, catalog=None):
+    """运镜的最终档位：近景 T0 / 其余 T1 / 需要 LoRA 但本机没有 → T2。"""
+    cat = catalog if catalog is not None else CAMERA_MOVES
+    mv = cat.get(str(move_id or ""))
+    if not mv:
+        return ""
+    if mv.get("need") != "lora":
+        return "T1"
+    if camera_lora_for(move_id, avail, cat):
+        return "T0" if mv.get("size") == "near" else "T1"
+    return "T2"
+
+
+def camera_of(seg):
+    """取本段的运镜设定。老项目没有这个字段 → 返回空 dict（= 不设计运镜，按原来的写法走）。"""
+    c = seg.get("camera")
+    if isinstance(c, dict):
+        return c
+    if isinstance(c, str):          # 手写成一个 id 也认
+        return {"move": c}
+    return {}
+
+
+def motion_trigger_text(move_id, lora_name, catalog=None):
+    """本段运镜 LoRA 要加在提示词最前面的触发词；没挂 LoRA 或这个 LoRA 没触发词 → 空串。"""
+    if not lora_name:
+        return ""
+    pick = camera_lora_for(move_id, [lora_name], catalog)
+    return pick[2] if pick else ""
 
 # ---- 工作流模板里需要改动的节点（改模板时同步这里）----
 # 生图只剩一条工作流：Qwen-Image 2.1（turbo 6 步版已删除）；采样步数由 settings.imgSteps 覆盖
@@ -64,7 +164,7 @@ H3_WF_TAG = "native-ref2va-20261023b"   # 换工作流时改这个，老项目�
 H3_NODE = {"prompt": "424", "promptKey": "value",
            "core": "413", "res": "252", "duration": "259", "steps": "261", "seed": "407", "save": "417",
            "refs": "421", "audios": "414",
-           "unet": "192", "lora": "53", "lora2": "400", "lora3": "490",
+           "unet": "192", "lora": "53", "lora2": "400", "lora3": "490", "motionLora": "491",
            "clip": "38", "videoVae": "36", "audioVae": "37",
            "sparse": "332", "attn": "331", "chunkff": "401", "lowvram": "403"}
 # 三个 LoRA 位置的节点 id，顺序即串联顺序。前两个在模板里（53 / 400），
@@ -869,9 +969,18 @@ def build_html(proj, st=None):
         "h3Lora2": "", "h3Lora3": "",
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE, "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
     }, ensure_ascii=False).replace("</", "<\\/")
+    # 运镜目录随页面下发：下拉选项 + 每条运镜的戏用说明 + 是否要 LoRA（前端算徽标用）
+    cam = json.dumps([
+        {"id": m.get("id"), "zh": m.get("zh"), "en": m.get("en"), "cat": m.get("cat"),
+         "size": m.get("size"), "need": m.get("need"), "when": m.get("when"),
+         "lora": [x for c in (m.get("lora") or [])
+                  for x in [c.get("name")] + [str(a).split("|")[0] for a in (c.get("aliases") or [])]
+                  if x]}
+        for m in CAMERA_MOVES.values()], ensure_ascii=False).replace("</", "<\\/")
     html = (tpl.replace("__TITLE__", title)
                .replace("__PROJECT_DIR__", proj_js)
                .replace("__MODEL_DEFAULTS__", model_defaults)
+               .replace("__CAMERA_MOVES__", cam)
                .replace("__DRAMA_STATE__", blob))
     tmp = p["html"] + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -1275,7 +1384,7 @@ def loader_outputs(addr):
 
 
 def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_avail=1,
-                audio_files=(), unet="", loras=None,
+                audio_files=(), unet="", loras=None, motion_lora=None,
                 clip="", video_vae="", audio_vae="",
                 ratio="9:16", megapixels=0.8,
                 sparse=True, attn="", chunks=None, seq_threshold=None, head_chunks=None):
@@ -1283,6 +1392,9 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
 
     loras：三个 LoRA 位置，形如 [("xxx.safetensors", 0.8), ("", None), ("", None)]，最多 3 条、
     顺序即串联顺序；名字为空表示这一格不挂，对应的节点会被整颗摘掉、链条自动接回去。
+
+    motion_lora：本段运镜 LoRA，形如 ("dolly_zoom_minimaxh3_v1.safetensors", 1.0)，最多 1 条，
+    串在三个位置之后（节点 491，按 400 复制）。None / 空串 = 本段不挂运镜 LoRA。
 
     宽高不再写死在条件节点上：新工作流由 ResolutionSelector(252) 按「宽高比 + 像素」算好，
     再连线进 MiniMaxH3ReferenceToVideo(413) 的 width/height。w/h 只用于日志与帧数换算。
@@ -1334,9 +1446,9 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
                 ins["model"] = upstream
         g.pop(nid, None)
 
-    # 三个 LoRA 位置串联：53（1 号位）→ 400（2 号位）→ 490（3 号位，按 400 复制）→ SigmaShift(333)。
+    # LoRA 串联：53（1 号位）→ 400（2 号位）→ 490（3 号位）→[491 运镜 LoRA]→ 注意力后端(331)。
     # 空的格子整颗摘掉；摘完重新从 unet 一路接回去，保证下游拿到的永远是链条最后一个。
-    def _norm_slot(p):
+    def _norm_slot(p, dflt=DEFAULT_H3_LORA_STRENGTH):
         """把 (名字, 强度) 规整成字符串 + 浮点；名字空 = 这一格不挂。"""
         if isinstance(p, (list, tuple)):
             name = (p[0] or "").strip() if len(p) > 0 else ""
@@ -1344,25 +1456,36 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
         else:
             name, raw = (p or "").strip(), None
         try:
-            strength = float(raw) if raw not in (None, "") else DEFAULT_H3_LORA_STRENGTH
+            strength = float(raw) if raw not in (None, "") else dflt
         except (TypeError, ValueError):
-            strength = DEFAULT_H3_LORA_STRENGTH
+            strength = dflt
         return name, strength
 
     slots = [_norm_slot(p) for p in (loras or [])][:H3_LORA_SLOTS]
     while len(slots) < H3_LORA_SLOTS:
         slots.append(("", DEFAULT_H3_LORA_SLOT_STRENGTH))
 
-    third = H3_LORA_NODES[2]
-    # 第 3 格模板里没有：真要挂第 3 条时，才按第 2 格的样子复制一颗（连线下面统一重排）
-    if slots[2][0] and H3_LORA_NODES[1] in g and third not in g:
-        g[third] = copy.deepcopy(g[H3_LORA_NODES[1]])
+    # 运镜 LoRA 单独一格（491），每段最多一条：它跟人选的三个位置互不抢占
+    chain = list(H3_LORA_NODES)
+    motion = _norm_slot(motion_lora) if motion_lora else ("", 0.0)
+    mn = H3_NODE.get("motionLora")
+    if mn and motion[0]:
+        chain.append(mn)
+
+    # 490 / 491 模板里都没有：真要用时，按第 2 格（400）的样子复制一颗，连线下面统一重排
+    if slots[2][0] and H3_LORA_NODES[1] in g and H3_LORA_NODES[2] not in g:
+        g[H3_LORA_NODES[2]] = copy.deepcopy(g[H3_LORA_NODES[1]])
+    if mn and motion[0] and H3_LORA_NODES[1] in g and mn not in g:
+        g[mn] = copy.deepcopy(g[H3_LORA_NODES[1]])
+
+    plan = [(nid, slots[i]) for i, nid in enumerate(H3_LORA_NODES)]
+    if mn in chain:
+        plan.append((mn, motion))
 
     active = []
-    for i, nid in enumerate(H3_LORA_NODES):
+    for nid, (name, strength) in plan:
         if nid not in g:
             continue
-        name, strength = slots[i]
         if not name:
             g.pop(nid, None)
             continue
@@ -1374,13 +1497,13 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
     for nid in active:
         g[nid]["inputs"]["model"] = prev
         prev = [nid, 0]
-    # 原来指向 LoRA 链的节点（333 SigmaShift）改指链条末端；一条都没挂就直连 unet
+    # 原来指向 LoRA 链的节点（331 注意力后端）改指链条末端；一条都没挂就直连 unet
     for _nid, node in g.items():
-        if _nid in H3_LORA_NODES:
+        if _nid in chain:
             continue
         ins = node.get("inputs") or {}
         m = ins.get("model")
-        if isinstance(m, list) and len(m) == 2 and m[0] in H3_LORA_NODES:
+        if isinstance(m, list) and len(m) == 2 and m[0] in chain:
             ins["model"] = prev
 
     # 块稀疏注意力(332)：页面只有一个开关。关掉就把整颗节点从图上摘掉，333 直接接回 331；
@@ -1433,7 +1556,7 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
 
 def verify_graph(g, ref_files=None, audio_files=None, ratio=None, megapixels=None,
                  sparse=None, attn=None, chunks=None, seq_threshold=None, head_chunks=None,
-                 loras=None):
+                 loras=None, motion_lora=None):
     """提交前自检：节点映射对不对、引用的节点还在不在、关键值写没写进去。
     返回问题列表（空 = 可以入队）。模板一换就靠这个第一时间发现对不上。"""
     problems = []
@@ -1528,6 +1651,22 @@ def verify_graph(g, ref_files=None, audio_files=None, ratio=None, megapixels=Non
             if g[vn4]["inputs"].get("head_chunks") != int(head_chunks):
                 problems.append("低显存注意力的 head_chunks 没写进节点 %s（期望 %r，实际 %r）"
                                 % (vn4, int(head_chunks), g[vn4]["inputs"].get("head_chunks")))
+        # 运镜 LoRA：本段该挂就必须挂在 491 上，不该挂就不能留在图上（一段最多一条）
+        mn = H3_NODE.get("motionLora")
+        want_m = ""
+        if isinstance(motion_lora, (list, tuple)) and motion_lora:
+            want_m = (motion_lora[0] or "").strip()
+        elif isinstance(motion_lora, str):
+            want_m = motion_lora.strip()
+        if mn:
+            if want_m:
+                if mn not in g:
+                    problems.append("本段该挂运镜 LoRA（%s），但节点 %s 不在图上" % (want_m, mn))
+                elif str(g[mn]["inputs"].get("lora_name") or "") != want_m:
+                    problems.append("运镜 LoRA 没写进节点 %s（期望 %r，实际 %r）"
+                                    % (mn, want_m, g[mn]["inputs"].get("lora_name")))
+            elif mn in g:
+                problems.append("本段没设计需要 LoRA 的运镜，节点 %s 却还在图上" % mn)
         # 三个 LoRA 位置：图上挂了几条、顺序对不对、名字是不是页面上选的那几个
         if loras is not None:
             want = []
@@ -2106,6 +2245,19 @@ def cmd_videos(args):
               "mat1 and mat2 shapes cannot be multiplied。视频请选 MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot 或 32B heretic。",
               flush=True)
     print("视频 VAE：%s｜音频 VAE：%s" % (vvae or "（默认）", avae or "（默认）"), flush=True)
+    # 运镜 LoRA 只在「本机真有这个文件」时才挂：干跑不查，真跑现读 ComfyUI 的 loras 目录
+    avail_lora = None
+    if not args.dry:
+        try:
+            md = comfy_models(addr, force=True)
+            avail_lora = md["lora"] if (md.get("lora") and not md.get("error")) else []
+            if not avail_lora:
+                print("[!] 读不到本机 LoRA 列表（%s）：运镜 LoRA 一律不挂，按原提示词生成"
+                      % (md.get("error") or "空列表"), flush=True)
+        except Exception as e:
+            print("[!] 读不到本机 LoRA 列表（%s）：运镜 LoRA 一律不挂，按原提示词生成"
+                  % str(e)[:120], flush=True)
+            avail_lora = []
     if not targets:
         print("没有需要生成的视频段（加 --force 可全部重跑）。", flush=True)
         rep0 = Reporter()
@@ -2124,6 +2276,30 @@ def cmd_videos(args):
         if not prompt:
             rep.bad("%s 没有 H3 提示词，跳过" % sid)
             continue
+        # ---- 运镜：本段声明的运镜 → 决定挂不挂 LoRA、要不要在提示词最前面加触发词 ----
+        cmv = camera_of(seg)
+        cmid = str(cmv.get("move") or "").strip()
+        cmeta = CAMERA_MOVES.get(cmid) or {}
+        cpick = camera_lora_for(cmid, avail_lora) if cmid else None
+        ctier = camera_tier(cmid, avail_lora) if cmid else ""
+        motion = (cpick[0], cpick[1]) if cpick else None
+        mtrig = motion_trigger_text(cmid, cpick[0]) if cpick else ""
+        if mtrig:
+            prompt = mtrig + "\n\n" + prompt
+        if cmid and not cmeta:
+            rep.bad("%s 的运镜 id %r 不在运镜目录里，按普通镜头生成" % (sid, cmid))
+        if cmid:
+            if cpick:
+                _how = "LoRA %s @ %s" % (cpick[0], cpick[1])
+                if mtrig:
+                    _how += "｜触发词 " + mtrig[:32] + ("…" if len(mtrig) > 32 else "")
+                if avail_lora is None:
+                    _how += "（干跑：没核对本机是否有这个文件）"
+            elif cmeta.get("need") == "lora":
+                _how = "本机没有这个 LoRA → 降 T2，纯提示词"
+            else:
+                _how = "原生不挂 LoRA"
+            print("      运镜：%s %s（%s）｜%s" % (cmid, cmeta.get("zh") or "", ctier or "-", _how), flush=True)
         files, missing = [], []
         for r in seg.get("refs") or []:
             aid = r.get("asset") if isinstance(r, dict) else r
@@ -2148,14 +2324,14 @@ def cmd_videos(args):
                 probe, _ = video_graph(
                     tpl, prompt, w, h, gsec, steps, seeds[i - 1], "drama/" + safe_id(sid),
                     names, max(1, len(names)), anames,
-                    unet=unet, loras=lora_slots,
+                    unet=unet, loras=lora_slots, motion_lora=motion,
                     clip=clip_m, video_vae=vvae, audio_vae=avae,
                     ratio=ratio, megapixels=mp,
                 )
                 probs = verify_graph(probe, names, anames, ratio=ratio, megapixels=mp,
                                      sparse=sparse, attn=attn, chunks=chunks,
                                      seq_threshold=seq_thr, head_chunks=head_chunks,
-                                     loras=lora_slots)
+                                     loras=lora_slots, motion_lora=motion)
                 for pr in probs:
                     rep.bad("%s 工作流自检：%s" % (sid, pr))
                 if not probs:
@@ -2170,7 +2346,7 @@ def cmd_videos(args):
             graph, used = video_graph(
                 tpl, prompt, w, h, gsec, steps, seeds[i - 1],
                 "drama/" + safe_id(sid), uploaded, outputs_avail, audio_names,
-                unet=unet, loras=lora_slots,
+                unet=unet, loras=lora_slots, motion_lora=motion,
                 clip=clip_m, video_vae=vvae, audio_vae=avae,
                 ratio=ratio, megapixels=mp,
                 sparse=sparse, attn=attn, chunks=chunks,
@@ -2179,7 +2355,7 @@ def cmd_videos(args):
             if used < len(uploaded):
                 print("      注意：本段上传 %d 张参考图，实际挂载 %d 张（Picture 编号需与实际挂载一致）" % (len(uploaded), used), flush=True)
             jobs.append({"seg": seg, "sid": sid, "graph": graph, "pid": None, "t0": 0.0,
-                         "_refs": uploaded, "_audios": audio_names})
+                         "_refs": uploaded, "_audios": audio_names, "_motion": motion})
         except Exception as e:
             seg["error"] = str(e)[:800]
             save_state(proj, st)
@@ -2192,7 +2368,7 @@ def cmd_videos(args):
         bad = verify_graph(jobs[0]["graph"], jobs[0].get("_refs"), jobs[0].get("_audios"),
                            ratio=ratio, megapixels=mp, sparse=sparse, attn=attn,
                            chunks=chunks, seq_threshold=seq_thr, head_chunks=head_chunks,
-                           loras=lora_slots)
+                           loras=lora_slots, motion_lora=(jobs[0].get("_motion") if jobs else None))
         if bad:
             for b in bad:
                 print("  [×] " + b, flush=True)
@@ -3264,6 +3440,125 @@ def check_h3_rules(st, issues, warns):
             len(st.get("segments") or []), total), flush=True)
 
 
+# ---------------------------------------------------------------- 运镜与跨段衔接
+SHOT_MARK = re.compile(r"\[\s*(?:Shot|镜头)\s*(\d+)\s*\]", re.I)
+
+SIZE_HINTS = (
+    ("extreme close", "near"), ("extreme-close", "near"), ("medium close", "near"),
+    ("close-up", "near"), ("close up", "near"), ("head and shoulders", "near"),
+    ("head-and-shoulders", "near"), ("chest-up", "near"), ("big close", "near"),
+    ("medium-wide", "mid"), ("medium wide", "mid"), ("waist up", "mid"),
+    ("waist-up", "mid"), ("medium shot", "mid"), ("two-shot", "mid"), ("medium", "mid"),
+    ("full-body", "wide"), ("full body", "wide"), ("wide shot", "wide"),
+    ("establishing", "wide"), ("overhead", "wide"), ("top-down", "wide"),
+    ("aerial", "wide"), ("wide", "wide"),
+    ("大特写", "near"), ("特写", "near"), ("中近景", "near"), ("近景", "near"),
+    ("中景", "mid"), ("双人", "mid"),
+    ("大全", "wide"), ("全景", "wide"), ("远景", "wide"), ("俯拍", "wide"),
+)
+
+DIR_HINTS = (
+    ("over-the-shoulder", "ots"), ("over the shoulder", "ots"), ("过肩", "ots"),
+    ("top-down", "top"), ("overhead", "top"), ("顶拍", "top"), ("俯拍", "top"),
+    ("from behind", "back"), ("behind him", "back"), ("behind her", "back"),
+    ("背向", "back"), ("身后", "back"),
+    ("from the side", "side"), ("side view", "side"), ("侧面", "side"),
+    ("front", "front"), ("正面", "front"), ("面向镜头", "front"),
+)
+
+
+def split_shots(seg, key="en"):
+    """把一个段拆成 [{n, t}]：按 [Shot N] / [镜头 N] 切；没有标记就整段算一个镜头。"""
+    text = "\n".join((p.get(key) or "") for p in (seg.get("promptSegs") or []))
+    if not text.strip():
+        text = seg.get("prompt") or ""
+    parts = SHOT_MARK.split(text)
+    shots = []
+    for i in range(1, len(parts), 2):
+        try:
+            n = int(parts[i])
+        except (TypeError, ValueError):
+            continue
+        body = parts[i + 1] if i + 1 < len(parts) else ""
+        shots.append({"n": n, "t": body})
+    if not shots and text.strip():
+        shots = [{"n": 1, "t": text}]
+    return shots
+
+
+def _hint(text, table):
+    low = (text or "").lower()
+    for key, val in table:
+        if key in low:
+            return val
+    return ""
+
+
+def shot_signature(seg, key="en"):
+    """本段首/尾两个镜头的「机位指纹」：(景别, 机位方向)。用来判断跨段拼接会不会闪。"""
+    shots = split_shots(seg, key)
+    if not shots:
+        return None, None
+    def sig(sh):
+        t = sh["t"]
+        return {"n": sh["n"], "size": _hint(t, SIZE_HINTS), "dir": _hint(t, DIR_HINTS), "t": t}
+    return sig(shots[0]), sig(shots[-1])
+
+
+def check_camera(st, issues, warns, avail=None):
+    """运镜目录 + 运镜 LoRA + 跨段首尾镜头重复。
+
+    跨段规则（用户钦定）：上一段最后一个 Shot 是 A 在说话/行动、剧情没完，
+    下一段第一个 Shot 还是 A 时，**机位必须换**——同景别 + 同方向拼起来会闪或人物跳动。
+    """
+    segs = [x for x in (st.get("segments") or []) if isinstance(x, dict)]
+    if not segs:
+        return
+    # 1) 运镜 id 合法性 + 档位提示
+    for seg in segs:
+        sid = seg.get("id") or "?"
+        c = camera_of(seg)
+        mid = str(c.get("move") or "").strip()
+        if not mid:
+            continue
+        mv = CAMERA_MOVES.get(mid)
+        if not mv:
+            issues.append("%s 的运镜 id %r 不在运镜目录里（见 references/camera-moves.json）" % (sid, mid))
+            continue
+        tier = camera_tier(mid, avail)
+        if mv.get("need") == "lora" and tier == "T2":
+            warns.append("%s 用「%s」，它要挂运镜 LoRA，本机没有对应文件 → 降 T2，"
+                         "只靠提示词写；可换等价的原生运镜（见 06-camera-moves 的降级列）" % (sid, mv.get("zh")))
+        if not (c.get("why") or "").strip():
+            warns.append("%s 选了运镜「%s」但没写为什么用（camera.why）→ 运镜要有戏因，不是装饰"
+                         % (sid, mv.get("zh")))
+    # 2) 相邻两段用了同一个运镜 → 拼起来像一条，缺少段落感
+    for a, b in zip(segs, segs[1:]):
+        ma = str(camera_of(a).get("move") or "").strip()
+        mb = str(camera_of(b).get("move") or "").strip()
+        if ma and ma == mb:
+            warns.append("%s 与 %s 用了同一个运镜（%s）→ 连着看会像一镜，建议换一个"
+                         % (a.get("id"), b.get("id"), (CAMERA_MOVES.get(ma) or {}).get("zh") or ma))
+    # 3) 跨段首尾镜头：同景别 + 同方向 = 拼接会闪/人物跳动
+    for a, b in zip(segs, segs[1:]):
+        cast_a = set(a.get("cast") or [])
+        cast_b = set(b.get("cast") or [])
+        if cast_a and cast_b and not (cast_a & cast_b):
+            continue                      # 两段没有同一个人，接不上就是另一回事
+        _, tail = shot_signature(a)
+        head, _ = shot_signature(b)
+        if not tail or not head:
+            continue
+        if tail["size"] and tail["size"] == head["size"] and tail["dir"] and tail["dir"] == head["dir"]:
+            same_move = (str(camera_of(a).get("move") or "") == str(camera_of(b).get("move") or ""))
+            msg = ("%s 最后 1 个镜头（Shot %d）和 %s 第 1 个镜头（Shot %d）是同一机位"
+                   "（同为%s、同为%s）→ 拼接会闪屏或人物跳一下。换景别或换机位方向，两段之间至少差一项"
+                   % (a.get("id"), tail["n"], b.get("id"), head["n"],
+                      {"near": "近景", "mid": "中景", "wide": "全景"}.get(tail["size"], tail["size"]),
+                      {"ots": "过肩", "top": "俯视", "back": "背向", "side": "侧向", "front": "正面"}.get(tail["dir"], tail["dir"])))
+            (issues if same_move else warns).append(msg)
+
+
 def cmd_check(args):
     proj = os.path.abspath(args.project)
     st = load_state(proj)
@@ -3415,6 +3710,35 @@ def cmd_check(args):
         check_h3_rules(st, issues, warns)
     except Exception as e:
         warns.append("H3 落地八条校验失败：%s" % e)
+
+    # 运镜目录 / 运镜 LoRA / 跨段首尾镜头是否重复（拼起来会闪）
+    try:
+        # 本机 LoRA 列表：ComfyUI 在线就现读（判断运镜 LoRA 是 T1 还是降 T2），离线就不判这段
+        avail = None
+        try:
+            md = comfy_models((st["settings"].get("comfy") or "http://127.0.0.1:8188").strip(), force=True)
+            avail = md["lora"] if (md.get("lora") and not md.get("error")) else None
+        except Exception:
+            avail = None
+        if avail is None:
+            warns.append("ComfyUI 不在线，读不到本机 LoRA 列表 → 这次不判「运镜 LoRA 是否存在」"
+                         "（离线时按 T2 处理会误报）")
+        check_camera(st, issues, warns, avail)
+        rows = []
+        for sg in st["segments"]:
+            c = camera_of(sg)
+            mid = str(c.get("move") or "").strip()
+            if not mid:
+                continue
+            mv = CAMERA_MOVES.get(mid) or {}
+            t = camera_tier(mid, avail) or "-"
+            if not avail and (mv.get("need") == "lora"):
+                t = "T?（离线不判）"
+            rows.append("%s %s%s %s" % (sg.get("id"), mid, mv.get("zh") or "?", t))
+        if rows:
+            print("运镜：%s" % "｜".join(rows), flush=True)
+    except Exception as e:
+        warns.append("运镜与跨段衔接校验失败：%s" % e)
 
     print("自检：%d 个硬问题，%d 条建议" % (len(issues), len(warns)), flush=True)
     for x in issues:

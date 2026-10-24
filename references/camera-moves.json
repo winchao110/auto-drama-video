@@ -1,0 +1,692 @@
+[
+ {
+  "id": "E1",
+  "zh": "第一人称",
+  "en": "POV",
+  "cat": "主角主导",
+  "size": "near",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "fpv_headbob_h3_50.safetensors",
+    "strength": 1.0,
+    "trigger": "",
+    "aliases": [
+     "MMH3-MPOV.safetensors|mpov, first-person perspective pov video"
+    ]
+   }
+  ],
+  "when": "观众必须和他看到同一双眼睛：惊恐、躲藏、被逼近、第一次看清某个东西。用多了会失去客观视角，一段里最多一次。",
+  "sentence": {
+   "zh": "第一人称：镜头即 <Subject 1> 的眼睛，画面沿他的视线向前展开；机位轻微手持晃动。",
+   "en": "First person: the camera IS <Subject 1>'s eyes, the frame unfolds along his sightline; subtle handheld sway."
+  },
+  "fallback": {
+   "zh": "主观视角：机位贴在他的眼睛高度、随他的视线向前推进，画面轻微手持晃动，画面下缘露出他的手臂与袖口。",
+   "en": "Subjective eye-level camera bound to his gaze, drifting forward with his sightline, gentle handheld sway, the edge of his forearm and cuff visible at the bottom of frame."
+  }
+ },
+ {
+  "id": "E7",
+  "zh": "SnorriCam 贴身机位",
+  "en": "Body-mounted",
+  "cat": "主角主导",
+  "size": "mid",
+  "need": "native",
+  "when": "人物被情绪钉在原地（崩溃、狂喜、麻木）时，让世界在身后狂奔而脸不动——精神状态的镜头。",
+  "sentence": {
+   "zh": "机位固定在主体身上、随他一同步伐移动：主体在画面中的位置与大小基本不变，背景持续向后流动。",
+   "en": "The camera is strapped to the subject and moves with every step: his position and scale in frame stay constant while the background streams past behind him."
+  },
+  "fallback": null
+ },
+ {
+  "id": "F3",
+  "zh": "斯坦尼康",
+  "en": "Steadicam",
+  "cat": "主角主导",
+  "size": "mid",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "MMH3-LOCKSTAB-MORE.safetensors",
+    "strength": 1.0,
+    "trigger": "lockstab",
+    "aliases": [
+     "MMH3-LOCKSTAB",
+     "LOCKSTAB"
+    ]
+   }
+  ],
+  "when": "要跟随但不要摇晃：走进一间屋、穿过人群、情绪稳定的一镜到底。和手持是两极，别在同一场里混用。",
+  "sentence": {
+   "zh": "稳定器跟随：机位平滑漂浮、几乎无抖动，随主体一同前进。",
+   "en": "Steadicam follow: the camera floats smoothly with almost no shake, gliding forward with the subject."
+  },
+  "fallback": {
+   "zh": "机位平滑漂浮跟随、几乎无抖动，随主体一同前进，画面全程平稳顺滑。",
+   "en": "The camera glides on a stabilizer with no perceptible shake, moving forward in step with the subject, the frame rock steady throughout."
+  }
+ },
+ {
+  "id": "F4",
+  "zh": "跟拍",
+  "en": "Follow / Tracking",
+  "cat": "主角主导",
+  "size": "mid",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "MMH3-LOCKSTAB-MORE.safetensors",
+    "strength": 1.0,
+    "trigger": "lockstab",
+    "aliases": [
+     "MMH3-LOCKSTAB",
+     "LOCKSTAB"
+    ]
+   }
+  ],
+  "when": "要同时看清人和他经过的环境（走廊、街、站台）；侧向并行，背景自然滑过。",
+  "sentence": {
+   "zh": "侧向跟拍：机位在主体身侧、以同一步伐并行移动，背景自身后滑过。",
+   "en": "Lateral tracking: the camera runs alongside the subject at his own walking pace, the background sliding past behind him."
+  },
+  "fallback": {
+   "zh": "机位在主体身侧以同一步伐并行移动，主体上半身全程留在画面内、大小恒定，背景自身后滑过。",
+   "en": "The camera travels parallel to the subject at his own pace, his upper body held in frame at a constant size while the background slides past behind him."
+  }
+ },
+ {
+  "id": "F5",
+  "zh": "追逐跟拍",
+  "en": "Chase / Running",
+  "cat": "主角主导",
+  "size": "wide",
+  "need": "native",
+  "when": "逃跑、追赶、冲刺。始终背向镜头，观众被按在追的一方。别和人物表情特写混用。",
+  "sentence": {
+   "zh": "高速背随：机位在主体身后快速跟随，主体始终背向镜头。",
+   "en": "High-speed back-follow: the camera races behind the subject, his back to us the whole way."
+  },
+  "fallback": null
+ },
+ {
+  "id": "A1",
+  "zh": "水平摇镜",
+  "en": "Pan",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "一个机位交代两个信息（人 → 他看的东西）；机位不动、只转头，最省也最像“人在看”。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速向右摇约 45°；机位原地不动。",
+   "en": "Medium shot (waist up); the camera pans slowly about 45 degrees to the right; the camera body does not move."
+  }
+ },
+ {
+  "id": "A2",
+  "zh": "垂直摇镜",
+  "en": "Tilt",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "从脚到头、从桌到脸——用视线竖直移动来打量或揭示。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速向上仰摇约 35°；机位原地不动。",
+   "en": "Medium shot (waist up); the camera tilts slowly upward about 35 degrees; the camera body does not move."
+  }
+ },
+ {
+  "id": "B1",
+  "zh": "推镜头",
+  "en": "Dolly In / Push In",
+  "cat": "机器主导",
+  "size": "near",
+  "need": "native",
+  "when": "台词压下来的那一刻、他意识到什么的瞬间。推近 = 把观众按到他脸上。全段最多一次，推完就要有戏。",
+  "sentence": {
+   "zh": "起手中景（腰部以上）；机位以慢速前移推近至头部与肩部特写；焦距不变。",
+   "en": "Open on a medium shot (waist up); the camera dollies slowly in to a head-and-shoulders close-up; focal length unchanged."
+  }
+ },
+ {
+  "id": "B2",
+  "zh": "拉镜头",
+  "en": "Dolly Out / Pull Back",
+  "cat": "机器主导",
+  "size": "wide",
+  "need": "native",
+  "when": "收尾、抽离、孤立：他被留在原地，世界比刚才更大。适合一段的最后 2 秒。",
+  "sentence": {
+   "zh": "起手中景（腰部以上）；机位以慢速后移拉远至全身景；焦距不变。",
+   "en": "Open on a medium shot (waist up); the camera dollies slowly back to a full-body shot; focal length unchanged."
+  }
+ },
+ {
+  "id": "B3",
+  "zh": "左横移",
+  "en": "Truck Left",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "平视着平移，让一列东西依次入画（货架、窗、人等）。想制造“一趟看过去”的感觉。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速向左横移、不摆转；末帧主体在画面右侧。",
+   "en": "Medium shot (waist up); the camera trucks slowly left without panning; by the last frame the subject sits on the right of frame."
+  }
+ },
+ {
+  "id": "B4",
+  "zh": "右横移",
+  "en": "Truck Right",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "同左横移，方向相反。要配合主体在画面里的留白方向，别把人挤出画。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速向右横移、不摆转。",
+   "en": "Medium shot (waist up); the camera trucks slowly right without panning."
+  }
+ },
+ {
+  "id": "B5",
+  "zh": "升镜",
+  "en": "Pedestal / Boom Up",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "把人从环境里“提”出来，或让画面上方空出来给他要走的方向。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速垂直升高、保持水平。",
+   "en": "Medium shot (waist up); the camera booms slowly straight up, staying level."
+  }
+ },
+ {
+  "id": "B6",
+  "zh": "降镜",
+  "en": "Pedestal / Boom Down",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "压下来、把重量感加上去；也常用于从空镜降到人物。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速垂直下降、保持水平。",
+   "en": "Medium shot (waist up); the camera booms slowly straight down, staying level."
+  }
+ },
+ {
+  "id": "B7",
+  "zh": "弧形横移",
+  "en": "Arc",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "想在不动主体的前提下换一个角度（从侧面到侧后），比硬切自然。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速沿弧线绕主体向镜头右侧移动约 90°；主体原地不转身。",
+   "en": "Medium shot (waist up); the camera arcs slowly about 90 degrees around the subject to camera-right; the subject stays put and does not turn."
+  }
+ },
+ {
+  "id": "B8",
+  "zh": "摇臂",
+  "en": "Crane / Jib",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "需要一个“开场”或“收场”的大动作：从人到整个空间。贵，一段最多一次。",
+  "sentence": {
+   "zh": "起手中景（腰部以上）；机位以慢速长距离升高并向下俯摇、保持主体留在画面内。",
+   "en": "Open on a medium shot (waist up); the crane rises slowly over a long travel while tilting down, keeping the subject in frame."
+  }
+ },
+ {
+  "id": "C1",
+  "zh": "半环绕",
+  "en": "180° Arc Orbit",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "对话里“关系起了变化”的一刻；绕半圈把两人的相对位置翻过来。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速沿弧线绕主体向镜头右侧移动约 180°，保持主体在画面中央。",
+   "en": "Medium shot (waist up); the camera arcs slowly 180 degrees around the subject to camera-right, holding him centred."
+  }
+ },
+ {
+  "id": "C2",
+  "zh": "全环绕",
+  "en": "360° Orbit",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "minimax_h3_flf2v_lora_v1.safetensors",
+    "strength": 1.0,
+    "trigger": "One frozen instant. Only the camera moves. In a continuous 360 orbit. Preserve every person and object in exactly the same world position, orientation, shape and pose throughout the shot. Airborne objects remain suspended at the captured height and angle: no wobbling, shaking, spinning, drifting, falling or continued action. Keep faces, hands, clothing, liquids and the background motionless while retaining their natural appearance. Camera parallax is the only source of apparent movement. No cuts, zoom, morphing or added objects.",
+    "aliases": [
+     "minimax_h3_orb360",
+     "orb360"
+    ]
+   }
+  ],
+  "when": "要炫、要停住时间、要秀人物造型；剧情上是“凝固的一刻”。剧情片里少用，一段最多一次。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以快速绕主体转满一整圈、末帧回到正面。",
+   "en": "Medium shot (waist up); the camera whips a full 360 degrees around the subject, returning to the front on the last frame."
+  },
+  "fallback": {
+   "zh": "机位绕主体匀速转满一整圈、末帧回到正面，主体在画面中位置与大小保持恒定。",
+   "en": "The camera orbits the subject one full turn at constant speed, ending on the front, the subject's position and scale in frame unchanged."
+  }
+ },
+ {
+  "id": "C3",
+  "zh": "子弹时间",
+  "en": "Bullet Time",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "minimax_h3_flf2v_lora_v1.safetensors",
+    "strength": 1.0,
+    "trigger": "One frozen instant. Only the camera moves. In a continuous 360 orbit. Preserve every person and object in exactly the same world position, orientation, shape and pose throughout the shot. Airborne objects remain suspended at the captured height and angle: no wobbling, shaking, spinning, drifting, falling or continued action. Keep faces, hands, clothing, liquids and the background motionless while retaining their natural appearance. Camera parallax is the only source of apparent movement. No cuts, zoom, morphing or added objects.",
+    "aliases": [
+     "minimax_h3_orb360",
+     "orb360"
+    ]
+   }
+  ],
+  "when": "生死一瞬、爆发前一刹。必须“先动后凝”，否则观众看不出时间停了。",
+  "sentence": {
+   "zh": "约 3 秒；起手瞬间微风吹起发丝与尘埃后立即凝滞；机位以高速绕主体转满一整圈。",
+   "en": "About 3 seconds: at the opening instant a breeze lifts his hair and dust, then everything freezes; the camera sweeps a full 360 around him."
+  },
+  "fallback": {
+   "zh": "起手瞬间发丝与尘埃被吹起后立即凝滞定格，随后机位高速绕主体转过一整圈，除机位视差外画面内一切保持静止。",
+   "en": "Hair and dust lift at the opening instant and then freeze in place; the camera whips a full 360 around the subject while everything inside frame stays motionless apart from camera parallax."
+  }
+ },
+ {
+  "id": "C5",
+  "zh": "翻滚",
+  "en": "Barrel Roll",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "失衡、坠落、昏厥、世界观被掀翻。非常规，用一次就够狠。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以慢速顺时针绕自身光轴翻滚约 360°。",
+   "en": "Medium shot (waist up); the camera rolls slowly 360 degrees clockwise around its own lens axis."
+  }
+ },
+ {
+  "id": "D3",
+  "zh": "甩镜",
+  "en": "Whip Pan",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "交代“他猛地看向某处”，或直接作为段间硬切的过渡。快、糙、有劲。",
+  "sentence": {
+   "zh": "甩镜：起手落在廊边一丛花上，随后极快地向右甩过、落到正在思考的主体身上。",
+   "en": "Whip pan: open on a cluster of flowers by the corridor, then whip hard to the right and land on the thinking subject."
+  }
+ },
+ {
+  "id": "F1",
+  "zh": "手持",
+  "en": "Handheld",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "写实、纪录片感、紧张。默认的“在场”质感，和斯坦尼康二选一。",
+  "sentence": {
+   "zh": "机位手持：画面持续小幅晃动与漂移。",
+   "en": "Handheld camera: the frame carries a constant small sway and drift."
+  }
+ },
+ {
+  "id": "F2",
+  "zh": "手持晃动",
+  "en": "Shaky Cam",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "打斗、奔跑、恐慌。幅度明显加大，只给最激烈的那几秒。",
+  "sentence": {
+   "zh": "机位手持强烈晃动：幅度明显大于轻微手持，画面失衡、临场感强。",
+   "en": "Aggressive handheld: shake well beyond a light handheld, the frame unsteady and immediate."
+  }
+ },
+ {
+  "id": "F8",
+  "zh": "穿越镜头",
+  "en": "Fly-through",
+  "cat": "机器主导",
+  "size": "wide",
+  "need": "native",
+  "when": "从外面穿进门/洞/窗进入新空间。一段的开场最好用，天然带“进入”。",
+  "sentence": {
+   "zh": "穿越：起手是廊道尽头的月洞门（门洞框住画面），机位向前推进、穿过门洞进入门后的空间。",
+   "en": "Fly-through: open on the moon gate at the end of the corridor framing the shot, the camera pushes forward through the opening into the space beyond."
+  }
+ },
+ {
+  "id": "F9",
+  "zh": "遮挡穿越",
+  "en": "Through-object / Peek",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "偷看、被发现前的一刻；先挡住再揭开，比直接给脸上信息量大。",
+  "sentence": {
+   "zh": "穿物而过：起手被贴着镜头的前景枝叶挡住，机位以慢速向前穿过枝叶、进入廊道看到主体。",
+   "en": "Through-object: open blocked by foliage pressed against the lens, the camera pushes slowly through the leaves into the corridor to reveal the subject."
+  }
+ },
+ {
+  "id": "F10",
+  "zh": "视差运镜",
+  "en": "Parallax",
+  "cat": "机器主导",
+  "size": "mid",
+  "need": "native",
+  "when": "想把空间的“厚度”演出来（柱列、人群、林道）。平移加前景遮挡即可，不用特效。",
+  "sentence": {
+   "zh": "视差：近景柱身固定在镜头与主体之间，机位向左横移时近景柱身与远景柱列产生明显的相对位移。",
+   "en": "Parallax: a nearby column stays between lens and subject, so a lateral truck left makes the near column and the far colonnade slide against each other."
+  }
+ },
+ {
+  "id": "A3",
+  "zh": "变焦推",
+  "en": "Zoom In",
+  "cat": "光学变化",
+  "size": "near",
+  "need": "native",
+  "when": "机位进不去的地方（窄、危险、隔着玻璃）还想压近，用变焦代替推轨。质感比推轨“生”一点。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；镜头以慢速变焦推近至特写；机位本身不移动。",
+   "en": "Medium shot (waist up); the lens zooms slowly in to a close-up; the camera body itself does not move."
+  }
+ },
+ {
+  "id": "A4",
+  "zh": "变焦拉",
+  "en": "Zoom Out",
+  "cat": "光学变化",
+  "size": "wide",
+  "need": "native",
+  "when": "同上但拉开。收尾抽离用它比推轨更“冷”。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；镜头以慢速变焦拉远至全身景；机位本身不移动。",
+   "en": "Medium shot (waist up); the lens zooms slowly out to a full-body shot; the camera body itself does not move."
+  }
+ },
+ {
+  "id": "D5",
+  "zh": "移焦",
+  "en": "Rack Focus",
+  "cat": "光学变化",
+  "size": "near",
+  "need": "native",
+  "when": "一句话不说就完成“注意力转移”：从他说到她、从前景道具说到人。信息量大、成本极低。",
+  "sentence": {
+   "zh": "焦点由前景移至背景，前景变虚、背景变实；取景不变。",
+   "en": "Focus racks from the foreground to the background, the near element going soft as the far one comes sharp; framing unchanged."
+  }
+ },
+ {
+  "id": "D4",
+  "zh": "荷兰角",
+  "en": "Dutch Angle",
+  "cat": "视角设定",
+  "size": "mid",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "H3_Dutch_Angle_Slider_v1.safetensors",
+    "strength": 2.0,
+    "trigger": "",
+    "aliases": [
+     "Dutch_Angle"
+    ]
+   }
+  ],
+  "when": "世界不对劲、人物心理失衡。全片最多给一场，用多了就变成耍花样。",
+  "sentence": {
+   "zh": "地平线向右倾斜的荷兰角，贯穿全片。",
+   "en": "Dutch angle with the horizon tilted to the right, held through the shot."
+  },
+  "fallback": {
+   "zh": "地平线明显向右倾斜，整段镜头保持这个倾斜角不变。",
+   "en": "The horizon sits visibly tilted to the right and the tilt is held unchanged for the whole shot."
+  }
+ },
+ {
+  "id": "E2",
+  "zh": "顶拍",
+  "en": "Top-down / Overhead",
+  "cat": "视角设定",
+  "size": "wide",
+  "need": "native",
+  "when": "把人和空间的关系一次讲清（一个人站在空屋中央）；也用于“被俯视/被审视”。",
+  "sentence": {
+   "zh": "镜头自主体正上方垂直向下俯拍，机位以慢速垂直上升：主体的俯视轮廓随高度连续变小。",
+   "en": "Straight overhead looking down on the subject, the camera rises slowly so his top-down silhouette shrinks continuously with height."
+  }
+ },
+ {
+  "id": "E4",
+  "zh": "上摇（平视起手）",
+  "en": "Tilt Up from Eye Level",
+  "cat": "视角设定",
+  "size": "mid",
+  "need": "native",
+  "when": "从人的眼睛开始，把天花板/穹顶/高楼交出来——制造压迫或敬畏。",
+  "sentence": {
+   "zh": "机位与主体视线等高、镜头水平起手（平视），随后以慢速向上仰摇约 35°：主体在画面中下移，上方让出梁枋、飞檐与天空。",
+   "en": "Start at the subject's eye level with the lens horizontal, then tilt slowly up about 35 degrees: he settles to the lower frame while beams, eaves and sky open above."
+  }
+ },
+ {
+  "id": "E6",
+  "zh": "高角度俯视",
+  "en": "High Angle",
+  "cat": "视角设定",
+  "size": "wide",
+  "need": "native",
+  "when": "让他显得小、弱、被压着；或交代地面的布局。",
+  "sentence": {
+   "zh": "机位高于主体、镜头以斜角向下俯视，再以慢速向下俯摇约 20°。",
+   "en": "The camera sits above the subject looking down at a diagonal, tilting slowly down another 20 degrees."
+  }
+ },
+ {
+  "id": "C4",
+  "zh": "螺旋环绕",
+  "en": "Spiral / Corkscrew",
+  "cat": "复合",
+  "size": "mid",
+  "need": "native",
+  "when": "要一个“升起来”的英雄感/失控感。比纯环绕多一层高度变化，也更难稳。",
+  "sentence": {
+   "zh": "景别中景（腰部以上）；机位以快速绕主体转满一整圈，同时以慢速垂直升高。",
+   "en": "Medium shot (waist up); the camera orbits the subject one full turn at speed while rising slowly."
+  }
+ },
+ {
+  "id": "C6",
+  "zh": "子弹时间·中段",
+  "en": "Bullet Time (mid 3-6s)",
+  "cat": "复合",
+  "size": "mid",
+  "need": "native",
+  "when": "段落里要有一处“时间停顿”的呼吸口，前后都还在动——比整段凝固更自然。",
+  "sentence": {
+   "zh": "前 3 秒镜头静止 → 3–6 秒进入子弹时间（时间凝滞中高速环绕一整圈）→ 6 秒后时间恢复、镜头再次静止。",
+   "en": "First 3 seconds the camera holds still, then from 3 to 6 seconds time freezes while the camera whips one full orbit, and after 6 seconds time resumes and the camera settles again."
+  }
+ },
+ {
+  "id": "D1",
+  "zh": "希区柯克变焦",
+  "en": "Dolly Zoom / Vertigo",
+  "cat": "复合",
+  "size": "near",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "dolly_zoom_minimaxh3_v1.safetensors",
+    "strength": 1.0,
+    "trigger": "dolly_zm",
+    "aliases": [
+     "dolly_zoom"
+    ]
+   }
+  ],
+  "when": "世界观崩塌那一秒（他听到真相）。主体大小不变、背景透视炸开——一个镜头讲完心理地震。",
+  "sentence": {
+   "zh": "dolly zoom：他抬头看向镜头的同时，机位推进 + 镜头变焦反向补偿——主体大小不变、背景透视剧烈变化。",
+   "en": "Dolly zoom: as he lifts his eyes to the lens the camera pushes in while the zoom pulls the opposite way, so his scale holds and the background perspective lurches."
+  },
+  "fallback": {
+   "zh": "机位向前推进的同时镜头反向变焦补偿：主体在画面中的大小保持不变，背景纵深被剧烈拉伸。",
+   "en": "The camera pushes in while the zoom compensates in the opposite direction: the subject's scale in frame stays constant while the background depth is violently stretched."
+  }
+ },
+ {
+  "id": "D2",
+  "zh": "急推变焦",
+  "en": "Crash Zoom",
+  "cat": "复合",
+  "size": "near",
+  "need": "lora",
+  "lora": [
+   {
+    "name": "Crash_Zoom_MinimaxH3_v1.safetensors",
+    "strength": 1.0,
+    "trigger": "",
+    "aliases": [
+     "Crash_Zoom"
+    ]
+   }
+  ],
+  "when": "惊吓、发现、有人突然出现。粗暴、有效，喜剧和恐怖都用它。一段一次。",
+  "sentence": {
+   "zh": "瞬间大幅快速猛推（急推变焦）；机位本身不移动。",
+   "en": "A hard, instant crash zoom; the camera body itself does not move."
+  },
+  "fallback": {
+   "zh": "镜头在一瞬间大幅、极快地猛推上去，机位本身不移动，画面因变焦速度产生冲击感。",
+   "en": "The lens slams in hard and instantly, the camera body itself not moving, the sheer speed of the zoom giving the frame its punch."
+  }
+ },
+ {
+  "id": "D6",
+  "zh": "揭示运镜",
+  "en": "Reveal",
+  "cat": "复合",
+  "size": "mid",
+  "need": "native",
+  "when": "先藏后露：先把主角挡住，再用移动+移焦交给观众。适合“原来他一直在那儿”。",
+  "sentence": {
+   "zh": "揭示运镜：起手被前景朱红柱挡住，机位左移让遮挡滑出画面 + 焦点由柱子移到主体（先虚后实）。",
+   "en": "Reveal: open behind a red lacquered column blocking the view, then truck left so the occluder slides out of frame while focus racks off the column onto the subject."
+  }
+ },
+ {
+  "id": "D7",
+  "zh": "推+仰复合",
+  "en": "Push In + Tilt Up",
+  "cat": "复合",
+  "size": "mid",
+  "need": "native",
+  "when": "既要逼近又要抬高：从人的脸升到他面前的高物（楼、像、天）。",
+  "sentence": {
+   "zh": "机位前移推近 + 同时向上仰摇。",
+   "en": "The camera pushes in while tilting up at the same time."
+  }
+ },
+ {
+  "id": "G1",
+  "zh": "过肩镜头",
+  "en": "Over-the-Shoulder",
+  "cat": "双人机位",
+  "size": "mid",
+  "need": "native",
+  "when": "对话的默认机位。观众站在听的人身后，天然代入“被说”的一方。",
+  "sentence": {
+   "zh": "静态过肩：近景是其中一人的肩头，越过肩头看向对面的人。",
+   "en": "Static over-the-shoulder: the near shoulder anchors frame-left while we look past it at the person opposite."
+  }
+ },
+ {
+  "id": "G2",
+  "zh": "正反打",
+  "en": "Shot / Reverse Shot",
+  "cat": "双人机位",
+  "size": "mid",
+  "need": "native",
+  "when": "一来一回的对话。**注意：段与段之间不要重复用同一个方向的正反打**，否则拼接会闪。",
+  "sentence": {
+   "zh": "正反打：前段越过一人的肩看另一人，中段硬切到反方向再过肩回看。",
+   "en": "Shot / reverse shot: open over one person's shoulder onto the other, then hard cut to the opposite shoulder for the return."
+  }
+ },
+ {
+  "id": "G3",
+  "zh": "双人同框",
+  "en": "Two-Shot",
+  "cat": "双人机位",
+  "size": "mid",
+  "need": "native",
+  "when": "交代关系、谁也不占上风的时刻。宽屏可用，窄屏竖屏慎用（会挤）。",
+  "sentence": {
+   "zh": "静态双人同框：两人同入画、交代关系。",
+   "en": "Static two-shot: both people share the frame, establishing the relationship."
+  }
+ },
+ {
+  "id": "G4",
+  "zh": "双人半环绕",
+  "en": "Two-shot Half Orbit",
+  "cat": "双人机位",
+  "size": "mid",
+  "need": "native",
+  "when": "两人的立场在这一刻调转（谁占上方变了）。竖屏慎用。",
+  "sentence": {
+   "zh": "机位以慢速沿弧线绕两人向镜头右侧转过约 180°，从两人的正面落到正背面。",
+   "en": "The camera arcs slowly 180 degrees around the pair to camera-right, moving from their front around to their backs."
+  }
+ },
+ {
+  "id": "G5",
+  "zh": "双人横移",
+  "en": "Lateral Truck Two-Shot",
+  "cat": "双人机位",
+  "size": "mid",
+  "need": "native",
+  "when": "两人并排同行/并坐时保持同框又可动。比静止双人镜有呼吸。",
+  "sentence": {
+   "zh": "双人横移：机位横向平移、两人同框，镜头朝向不变（不摆转）。",
+   "en": "Lateral truck two-shot: the camera tracks sideways holding both in frame, never panning."
+  }
+ },
+ {
+  "id": "G6",
+  "zh": "过肩推近",
+  "en": "OTS Push-In",
+  "cat": "双人机位",
+  "size": "near",
+  "need": "native",
+  "when": "对话里被说的一方被逼到墙角：压力从过肩慢慢收到中近景。",
+  "sentence": {
+   "zh": "过肩推近：越过一人的肩头向另一人推近，末帧收成胸以上的中近景，强化情绪。",
+   "en": "Over-the-shoulder push-in: the camera eases past the near shoulder toward the person opposite, ending on a chest-up medium close-up to tighten the emotion."
+  }
+ }
+]

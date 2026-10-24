@@ -102,6 +102,7 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
       "sec": 18,
       "genSec": 15,
       "logline": "老何啐了他一口，他下令就地处理。",
+      "camera": { "move": "B1", "why": "他签下名字的那一秒，推近把观众按到他脸上" },
       "cast": ["c1", "c2", "s1"],
       "refs": [{ "asset": "c1" }, { "asset": "c2" }, { "asset": "s1" }],
       "promptSegs": [
@@ -126,6 +127,7 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `meta.finalVideoSec` / `finalVideoAt` / `finalVideoParts` | 整片时长、合并时间、参与合并的段 id | 脚本 |
 | `segments[].sec` | 5–18（提示词声明的时长） | AI |
 | `segments[].genSec` | `round(sec×5/6)`，脚本自动算，**不要手填** | 脚本 |
+| `segments[].camera` | `{"move": "<运镜 id>", "why": "<一句戏因>"}`，也可直接写字符串 id。`move` 取 `references/camera-moves.json` 里的 id，**空字符串 = 这段不用运镜（最常见）**；`why` 空着 `check` 报问题。一段只能一个 —— 一段最多挂一个运镜 LoRA（铁律 20） | AI 写，人在页面下拉选 |
 | `segments[].cast` | 本段出场资产 id，顺序 = Subject 顺序 | AI |
 | `segments[].refs` | 顺序即 `<Picture N>` 编号 | AI |
 | `segments[].promptSegs` | 中英段落对数组；`edited` 由 HTML 置位 | AI 写 en/zh，人改 zh |

@@ -131,6 +131,14 @@
   .pair textarea{min-height:96px;font-size:13px}
   .pair .edited{background:var(--accent);color:#fff;border-radius:20px;padding:0 7px;font-size:10px;letter-spacing:.06em}
   .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  /* 分段卡里的运镜区 */
+  .cambox{background:rgba(127,127,127,.06);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 14px}
+  .camrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .camrow+.camrow{margin-top:8px}
+  .camrow select{max-width:340px;flex:1;min-width:200px}
+  .camrow input{flex:1;min-width:220px}
+  .cambox .hint{margin:6px 0 0;line-height:1.6}
+  .cambox .hint.warn{color:#b4791f}
   /* LoRA 三格：左边序号 + 下拉/数字，三行等高，和右边强度列逐行对齐 */
   .lorarow{display:flex;align-items:center;gap:6px}
   .lorano{flex:none;width:13px;font-size:11px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
@@ -216,6 +224,7 @@
      规矩：下拉里只放 ComfyUI 此刻真实存在的文件；页面每次打开 / 切到这两页都重新读，绝不复用上次的列表。 */
   var MODELS = { unet: [], lora: [], clip: [], vae: [], error: "", loaded: false, ts: "" };
   var MODEL_DEFAULTS = __MODEL_DEFAULTS__;
+  var CAMERA = __CAMERA_MOVES__;
   var MODEL_SLOT = { imgUnet: "unet", imgClip: "clip", imgVae: "vae",
                      h3Model: "unet", h3Lora: "lora", h3Clip: "clip",
                      h3VideoVae: "vae", h3AudioVae: "vae" };
@@ -946,6 +955,82 @@
     player.onended = function () { playingId = ""; };
   }
 
+  /* ---------- 运镜（44 条，目录来自 references/camera-moves.json） ----------
+     档位：近景 T0 / 中景·全景 T1 / 需要 LoRA 但本机没有 → T2（不挂 LoRA，纯提示词）。
+     一段最多挂 1 个运镜 LoRA，由生成脚本按本机真实存在的文件决定挂不挂。 */
+  var CAM_SIZE_ZH = { near: "近景", mid: "中景", wide: "全景" };
+  function camMove(id) {
+    for (var i = 0; i < CAMERA.length; i++) if (CAMERA[i].id === id) return CAMERA[i];
+    return null;
+  }
+  function camState(mv) {
+    if (!mv || !mv.id) return { tier: "", text: "", cls: "", move: null };
+    if (mv.need !== "lora") return { tier: "T1", text: "原生不挂 LoRA", cls: "tag ok", move: mv };
+    var list = getModelList("lora");
+    if (!list.length) return { tier: "", text: "待读本机 LoRA 列表", cls: "tag", move: mv };
+    var low = list.map(function (x) { return String(x).toLowerCase(); });
+    for (var i = 0; i < (mv.lora || []).length; i++) {
+      if (low.indexOf(String(mv.lora[i]).toLowerCase()) >= 0) {
+        return { tier: mv.size === "near" ? "T0" : "T1", text: "挂 LoRA " + mv.lora[i], cls: "tag ok", move: mv };
+      }
+    }
+    return { tier: "T2", text: "本机没有这个 LoRA → T2 纯提示词", cls: "tag warn", move: mv };
+  }
+  function cameraBlock(s, si) {
+    var box = h("div", "cambox");
+    var cur = (s.camera && s.camera.move) || "";
+    var mv = camMove(cur);
+    var st0 = camState(mv);
+
+    var row = h("div", "camrow");
+    row.appendChild(h("span", "hint", "本段运镜"));
+    var sel = h("select");
+    var opt0 = h("option", null, "（不设计运镜 · 按提示词里写的拍）"); opt0.value = ""; sel.appendChild(opt0);
+    var cats = [];
+    CAMERA.forEach(function (c) { if (cats.indexOf(c.cat) < 0) cats.push(c.cat); });
+    cats.forEach(function (cat) {
+      var g2 = h("optgroup"); g2.label = cat;
+      CAMERA.forEach(function (c) {
+        if (c.cat !== cat) return;
+        var op = h("option", null, c.id + " · " + c.zh + (c.en ? " / " + c.en : ""));
+        op.value = c.id; g2.appendChild(op);
+      });
+      sel.appendChild(g2);
+    });
+    sel.value = cur;
+    sel.addEventListener("change", function () {
+      set("segments." + si + ".camera.move", sel.value);
+      markDirty();
+      /* 重画整页只为刷新下面的戏用说明和徽标；把滚动位置带回来，不然选择框会“跳走” */
+      var y = window.scrollY;
+      render();
+      window.scrollTo(0, y);
+    });
+    row.appendChild(sel);
+    if (st0.tier) row.appendChild(h("span", "tag", st0.tier));
+    if (st0.text) row.appendChild(h("span", st0.cls, st0.text));
+    box.appendChild(row);
+
+    if (mv) {
+      var meta = h("div", "hint");
+      meta.textContent = "【" + mv.cat + " · " + (CAM_SIZE_ZH[mv.size] || mv.size) + "】" + (mv.when || "");
+      box.appendChild(meta);
+      var wr = h("div", "camrow");
+      wr.appendChild(h("span", "hint", "为什么用"));
+      var wi = h("input"); wi.type = "text";
+      wi.placeholder = "写戏因：这一刻为什么要动／为什么不动（不写 check 会给建议）";
+      wi.value = (s.camera && s.camera.why) || "";
+      wi.addEventListener("input", function () { set("segments." + si + ".camera.why", wi.value); markDirty(); });
+      wr.appendChild(wi);
+      box.appendChild(wr);
+      if (st0.tier === "T2") {
+        box.appendChild(h("div", "hint warn", "本机没有这个运镜的 LoRA：生成时会照常跑，但不挂 LoRA、不加触发词——纯靠提示词写。"
+          + "想提效果可以换一条原生运镜，或把 LoRA 下到 models/loras。"));
+      }
+    }
+    return box;
+  }
+
   function promptCard(s, si) {
     var am = assetMap();
     var card = h("div", "pcard");
@@ -958,6 +1043,11 @@
     else hd.appendChild(h("span", "tag warn", "缺提示词"));
     var ed = editedCount(s);
     if (ed) hd.appendChild(h("span", "tag warn", "中文改动待同步 " + ed + " 处"));
+    var c0 = camMove((s.camera && s.camera.move) || "");
+    if (c0) {
+      var cs0 = camState(c0);
+      hd.appendChild(h("span", "tag", "运镜 " + c0.id + " " + c0.zh + (cs0.tier ? " · " + cs0.tier : "")));
+    }
     var castNames = (s.cast || []).map(function (id) { return (am[id] && am[id].name) || id; });
     if (castNames.length) hd.appendChild(h("span", "meta", "出场：" + castNames.join("、")));
     card.appendChild(hd);
@@ -980,6 +1070,8 @@
     } else {
       bd.appendChild(h("div", "hint", "⚠ 这一段没有挂参考图，全参考模式会退化成纯文生视频。"));
     }
+
+    bd.appendChild(cameraBlock(s, si));
 
     var pairs = s.promptSegs || [];
     if (s.legacy || (!pairs.length && s.prompt)) {
