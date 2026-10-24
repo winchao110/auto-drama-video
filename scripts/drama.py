@@ -284,8 +284,7 @@ DEFAULT_IMG_VERBOSE = False
 # 2026-10-24 用户口径：拆成两个开关 —— 人物定设图默认抹（一张图里三视图 + 参考图小脸最容易糊），
 # 场景 / 道具默认不抹（那里没有「多出来一张脸」的问题，抹了只会误伤）。
 DEFAULT_IMG_FACE_ERASE_CHAR = True
-DEFAULT_IMG_FACE_ERASE_OTHER = False
-# 兼容旧代码里的名字（老项目 / 老记忆里的 imgFaceErase 会被 align_face_scope 拆成上面两项）
+# 兼容旧代码里的名字（老项目 / 老记忆里的 imgFaceErase 会被 align_face_scope 拆过来）
 DEFAULT_IMG_FACE_ERASE = DEFAULT_IMG_FACE_ERASE_CHAR
 DEFAULT_IMG_FACE_MODEL = "face_yolov8m.pt"
 DEFAULT_IMG_FACE_THRESHOLD = 0.12
@@ -304,32 +303,34 @@ LEGACY_IMG_MODELS = {
 def align_face_scope(sset):
     """把老的单个 imgFaceErase 拆成「人物」与「场景/道具」两个开关（只拆一次）。
 
-    老语义是「全局抹」，所以拆分时人物沿用老值（默认开），场景/道具一律置为关——
-    这正是 2026-10-24 用户要的：小脸抹除只该发生在人物参考图上。
+    老语义是「全局抹」，拆分时人物沿用老值（默认开）；场景 / 道具从此完全不抹，
+    所以不再有第二个开关（2026-10-24 用户钦定：只保留「人物参考图小脸自动抹除」）。
     返回 True 表示这次真的改过。
     """
     if not isinstance(sset, dict):
         return False
-    if "imgFaceEraseChar" in sset and "imgFaceEraseOther" in sset:
+    if "imgFaceEraseChar" in sset:
         sset.pop("imgFaceErase", None)
+        sset.pop("imgFaceEraseOther", None)
         return False
     old = sset.get("imgFaceErase", DEFAULT_IMG_FACE_ERASE_CHAR)
     sset["imgFaceEraseChar"] = bool(old)
-    sset.setdefault("imgFaceEraseOther", DEFAULT_IMG_FACE_ERASE_OTHER)
     sset.pop("imgFaceErase", None)
+    sset.pop("imgFaceEraseOther", None)
     return True
 
 
 def face_erase_for(sset, asset_type):
     """某类资产这次要不要挂小脸涂抹节点。
 
-    人物看 imgFaceEraseChar（默认开），场景 / 道具看 imgFaceEraseOther（默认关）。
+    人物看 imgFaceEraseChar（默认开）；**场景 / 道具一律不抹**（2026-10-24 用户钦定：
+    小脸抹除只在人物参考图生成时有效，场景里的小脸是画面内容，抹掉只会留补丁）。
     这是唯一判定入口：`images` 阶段逐资产调它，别在别处自己判断。
     """
     sset = sset or {}
-    if str(asset_type or "") == "character":
-        return bool(sset.get("imgFaceEraseChar", DEFAULT_IMG_FACE_ERASE_CHAR))
-    return bool(sset.get("imgFaceEraseOther", DEFAULT_IMG_FACE_ERASE_OTHER))
+    if str(asset_type or "") != "character":
+        return False
+    return bool(sset.get("imgFaceEraseChar", DEFAULT_IMG_FACE_ERASE_CHAR))
 
 
 def align_moss_defaults(sset):
@@ -750,13 +751,12 @@ def review_gate(st, skip, what, with_images=False):
 # 工作台里「生图参数 / 视频参数」那些项，一保存就写进技能目录的 settings.user.json，
 # 下一个项目 init 时直接沿用，不用每次重设。只记参数，剧情 / 资产 / 台词 / 提示词一律不记。
 USER_SETTINGS_PATH = os.path.join(SKILL_DIR, "settings.user.json")
+# 2026-10-24 用户钦定：生图参数**只保留这 5 项**（三件套 / 步数 / 人物小脸抹除），
+# CFG、采样器、TE-Speed 加速六项、涂抹节点那五个参数都不再暴露，固定用内置默认值，
+# 所以也不再进参数记忆（否则记忆里会躺着人改不到的值）。
 REMEMBER_KEYS = (
     "imgUnet", "imgClip", "imgVae", "imgSteps",
-    "imgCfg", "imgSampler", "imgScheduler", "imgSpeedAttn", "imgStepCache",
-    "imgReuseThreshold", "imgStartPercent", "imgEndPercent", "imgPredictorError",
-    "imgUncondCache", "imgVerbose",
-    "imgFaceEraseChar", "imgFaceEraseOther",
-    "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
+    "imgFaceEraseChar",
     "ratio", "megapixels",
     "steps", "comfy", "h3Model",
     "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength", "h3Lora3", "h3Lora3Strength",
@@ -786,7 +786,6 @@ def builtin_settings():
         "imgUncondCache": DEFAULT_IMG_UNCOND_CACHE,
         "imgVerbose": DEFAULT_IMG_VERBOSE,
         "imgFaceEraseChar": DEFAULT_IMG_FACE_ERASE_CHAR,
-        "imgFaceEraseOther": DEFAULT_IMG_FACE_ERASE_OTHER,
         "imgFaceModel": DEFAULT_IMG_FACE_MODEL,
         "imgFaceThreshold": DEFAULT_IMG_FACE_THRESHOLD,
         "imgFaceKeep": DEFAULT_IMG_FACE_KEEP,
@@ -922,7 +921,6 @@ def new_state(title="未命名短剧", source=""):
             "imgUncondCache": mem.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE),
             "imgVerbose": mem.get("imgVerbose", DEFAULT_IMG_VERBOSE),
             "imgFaceEraseChar": mem.get("imgFaceEraseChar", DEFAULT_IMG_FACE_ERASE_CHAR),
-            "imgFaceEraseOther": mem.get("imgFaceEraseOther", DEFAULT_IMG_FACE_ERASE_OTHER),
             "imgFaceModel": mem.get("imgFaceModel", DEFAULT_IMG_FACE_MODEL),
             "imgFaceThreshold": mem.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
             "imgFaceKeep": mem.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
@@ -987,7 +985,7 @@ def migrate(st):
               "imgCfg", "imgSampler", "imgScheduler", "imgSpeedAttn", "imgStepCache",
               "imgReuseThreshold", "imgStartPercent", "imgEndPercent", "imgPredictorError",
               "imgUncondCache", "imgVerbose",
-              "imgFaceEraseChar", "imgFaceEraseOther",
+              "imgFaceEraseChar",
               "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
               "ratio", "megapixels", "steps", "comfy",
               "h3Model", "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength",
@@ -1054,7 +1052,7 @@ def migrate(st):
         fv = min(hi, max(lo, fv))
         s[k] = int(fv) if as_int else fv
     align_face_scope(s)
-    for k in ("imgUncondCache", "imgVerbose", "imgFaceEraseChar", "imgFaceEraseOther"):
+    for k in ("imgUncondCache", "imgVerbose", "imgFaceEraseChar"):
         s[k] = bool(s.get(k))
     # 生图模型选择（turbo6 / quality25）已取消：turbo 工作流整个删掉，统一走 Moss Image
     s.pop("imageModel", None)
@@ -2275,8 +2273,7 @@ def cmd_images(args):
              "开" if s.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE) else "关"), flush=True)
     # 小脸抹除：人物与场景/道具分开判定（人物默认抹，场景道具默认不抹）
     _char_on = face_erase_for(s, "character")
-    _other_on = face_erase_for(s, "scene")
-    if _char_on or _other_on:
+    if _char_on:
         _kv = "保留 %s 张脸｜阈值 %s｜涂抹 ×%s｜填充 %s" % (
             s.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
             s.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
@@ -2284,8 +2281,8 @@ def cmd_images(args):
             s.get("imgFaceFill", DEFAULT_IMG_FACE_FILL))
     else:
         _kv = "两颗节点都不会挂"
-    print("小脸抹除：人物 %s｜场景 / 道具 %s（%s）"
-          % ("开" if _char_on else "关", "开" if _other_on else "关", _kv), flush=True)
+    print("小脸抹除：人物 %s｜场景 / 道具 不抹（%s）"
+          % ("开" if _char_on else "关", _kv), flush=True)
     if not targets:
         print("没有需要生成的资产（加 --force 可全部重跑）。", flush=True)
         return 0
@@ -4405,9 +4402,10 @@ def cmd_settings(args):
                    ("steps", "生成步数"), ("ratio", "宽高比"), ("megapixels", "分辨率 MP"),
                    ("seed", "随机种"), ("afterGenerate", "生成后控制"), ("comfy", "ComfyUI 地址")):
         print("  %-14s %s" % (lab, mem.get(k)), flush=True)
-    print("生图参数（Qwen-Image 2.1）：", flush=True)
+    print("生图参数（Moss Image · TE-Speed，只有这 5 项）：", flush=True)
     for k, lab in (("imgUnet", "UNet"), ("imgClip", "CLIP"), ("imgVae", "VAE"), ("imgSteps", "步数")):
         print("  %-14s %s" % (lab, mem.get(k)), flush=True)
+    print("  %-14s %s" % ("人物小脸抹除", "开" if mem.get("imgFaceEraseChar", DEFAULT_IMG_FACE_ERASE_CHAR) else "关"), flush=True)
     csz = (mem.get("charSheet") or {}).get("zh") or ""
     print("  %-14s %s" % ("人物视图模板", ("自定义 %d 字" % len(csz)) if (mem.get("charSheet") or {}).get("edited") else ("内置默认 %d 字" % len(csz))), flush=True)
     print("", flush=True)

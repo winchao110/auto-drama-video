@@ -62,9 +62,13 @@ UNET(51) → TESpeedMoss(57) → KSampler(60) ← 正向 CLIP(54) / 负向 CLIP(
 | `79` | TaiYangSmallFaceErase | `人脸模型` / `检测阈值` / `保留脸数` / `涂抹倍数` / `填充色` | 去掉参考图带进来的小脸。默认 `face_yolov8m.pt` / 0.12 / 1 / 1.8 / 自动背景 |
 | `62` | SaveImage | `filename_prefix` | 用 `drama/<资产id>` |
 
-**小脸涂抹按资产类型决定挂不挂**（2026-10-24 用户口径）：人物资产看 `settings.imgFaceEraseChar`（默认开），
-场景 / 道具看 `settings.imgFaceEraseOther`（默认关）。判定入口是 `face_erase_for(settings, type)`，
-`images` 逐资产把结果传给 `image_graph(face_erase=...)`。
+**小脸涂抹只挂在人物资产上**（2026-10-24 用户口径）：`settings.imgFaceEraseChar`（默认开）决定挂不挂，
+场景 / 道具**永远不挂**。判定入口是 `face_erase_for(settings, type)`，`images` 逐资产把结果传给
+`image_graph(face_erase=...)`。
+
+**页面只暴露五项生图参数**（UNet / CLIP / VAE / 步数 / 人物小脸抹除）：`60.steps` 之外的 `60.cfg`（3.5）、
+`60.sampler_name`（euler）、`60.scheduler`（simple）、`57` 的六项加速参数、`79` 的五个参数都吃
+`DEFAULT_IMG_*` 里的固定默认值，所以本节表格里的「默认」就是运行时真实值，不会被页面改掉。
 
 **不挂的时候**：`79` 整颗摘掉，`62.images` 改连 `61`（VAE 解码）—— 这个重连由 `image_graph()` 处理，别手改模板。
 
