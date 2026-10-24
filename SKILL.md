@@ -1,8 +1,8 @@
 ---
 name: auto-drama-video
-description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法），取词走内置资产词库 qwen-wordbank（42 槽 / 370 条英文词条，只做人物/场景/道具三类，每个资产只出一条 ≥500 词的提示词，默认不写丑）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。运镜按 44 条 H3 运镜目录（references/camera-moves.json）以导演思维选用：先戏眼后站位再能量走向，不硬用、一段一个运镜；运镜分四档：T0 由模型按剧情钦点、T1 近景、T2 中景（全景并入中景）、T3 本机缺文件降级，需要 LoRA 的自动挂到独立节点 491 并前置触发词；相邻两段的尾镜与首镜不许同景别同机位（防拼接闪烁与人物跳动）。H3 工作流为 MiniMax-H3 原生 Ref2VA（euler/simple 5 步 + comfy kitchen 注意力 + sol-attn 块稀疏注意力 + 三格 LoRA 串联，默认只挂第一格）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
+description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen 系生图规范（融合 qwen-image-2.1-skill，英文单段八步法；现役生图模型为 Moss Image，CLIP 为 qwen3.5 9B），取词走内置资产词库 qwen-wordbank（42 槽 / 370 条英文词条，只做人物/场景/道具三类，每个资产只出一条 ≥500 词的提示词，默认不写丑）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。运镜按 44 条 H3 运镜目录（references/camera-moves.json）以导演思维选用：先戏眼后站位再能量走向，不硬用、一段一个运镜；运镜分四档：T0 由模型按剧情钦点、T1 近景、T2 中景（全景并入中景）、T3 本机缺文件降级，需要 LoRA 的自动挂到独立节点 491 并前置触发词；相邻两段的尾镜与首镜不许同景别同机位（防拼接闪烁与人物跳动）。H3 工作流为 MiniMax-H3 原生 Ref2VA（euler/simple 5 步 + comfy kitchen 注意力 + sol-attn 块稀疏注意力 + 三格 LoRA 串联，默认只挂第一格）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
 metadata:
-  version: "3.12.0"
+  version: "3.14.0"
   title: "全本地自动短剧视频生成"
   author: "太阳阶梯jqk8707"
   entry: "SKILL.md（本文件）"
@@ -259,13 +259,13 @@ $PY scripts/drama.py status --project "$P"
 | ComfyUI 本体（≥ 0.42） | 这条链路的主体节点：`MiniMaxH3ReferenceToVideo` / `MiniMaxH3SigmaShift` / `MiniMaxChunkFeedForward` / `ModelAttentionBackend`（comfy kitchen 注意力）/ `BlockSparseAttention` / `ResolutionSelector` / `SaveVideo` / `CreateVideo` |
 | <https://github.com/kijai/ComfyUI-KJNodes> | `ModelPreviewOverrideKJ`（采样过程中的低分辨率预览） |
 | <https://github.com/winchao110/TaiYang_MultiImage> | 多图 / 多音轨输入（`TaiYangMultiImageLoader` / `TaiYangMultiAudioLoader`），参考图与参考音都靠它 |
-| <https://github.com/tl2012tl/TE-Speed-QwenImage21> | Qwen-Image 2.1 生图加速 |
+| TE-Speed（MOSS 版） | 生图加速：生图工作流里的 `TESpeedMoss` 节点 |
 
 ```bash
 cd <ComfyUI>/custom_nodes
 git clone https://github.com/kijai/ComfyUI-KJNodes.git
 git clone https://github.com/winchao110/TaiYang_MultiImage.git
-git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
+# TE-Speed（MOSS 版）：装 TESpeedMoss 节点（本机已装；换机器时按作者的 MOSS 版仓库装，别装 Qwen 版）
 ```
 
 装完用 `images --dry` / `videos --dry` 验证 `verify_graph()` 能过，再入队。
@@ -278,7 +278,7 @@ git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
 - `references/01-h3-prompt-bilingual.md`（双语段落对、断段规则、时长口径、配音规则、JSON 落地）
 - `references/h3-wenxi-v2-template.md`（**权威结构模板**：Subject/S 编号、运镜公式、光影套件、台词预算、固定尾部、交付检查）
 - `references/02-asset-prompt-spec.md`（该建哪些资产、人物 10 项信息、场景/道具信息项、分辨率）
-- `references/03-qwen-image-prompt.md`（**资产提示词怎么写**：Qwen-Image 2.1 八步框架、五条硬禁令、三类资产落地）
+- `references/03-qwen-image-prompt.md`（**资产提示词怎么写**：八步框架、五条硬禁令、三类资产落地；模型换成 Moss Image 后写法不变）
 - `references/06-camera-moves.md`（**运镜怎么选、怎么落地**：44 条目录、导演思维选用原则、T0/T1/T2/T3、跨段防闪）
 - `references/07-qwen-wordbank.md`（**资产提示词取词库**：人物 18 槽 / 场景 10 槽 / 道具 8 槽 + 配额 + 正反例）
 
@@ -378,7 +378,7 @@ $PY scripts/drama.py build --project "$P" && $PY scripts/drama.py check --projec
 
 ```bash
 $PY scripts/drama.py images --project "$P"                  # 用 HTML 里选的 UNet / CLIP / VAE
-$PY scripts/drama.py images --project "$P" --clip "Qwen-Image\qwen3vl_8b_int8_convrot.safetensors" --only c1   # 临时换 CLIP
+$PY scripts/drama.py images --project "$P" --clip "Moss_image\qwen3.5_9b_int8_convrot.safetensors" --only c1   # 临时换 CLIP
 ```
 
 - **整批入队**：全部图一次性 `POST /prompt`，Qwen 只加载一次就连出全部图（铁律 10）；每出一张就写回 `drama.json` 并重建 HTML。
@@ -589,7 +589,7 @@ for id in P01 P02 P03; do echo "file 'videos/$id.mp4'" >> list.txt; done
 | `references/01-h3-prompt-bilingual.md` | 第 1 阶段，写 H3 提示词前（**本技能的落地规范**） |
 | `references/h3-wenxi-v2-template.md` | 第 1 阶段，查结构/运镜/光影/台词预算（**权威模板**，原 minimax-h3-wenxi-prompt-v2） |
 | `references/02-asset-prompt-spec.md` | 第 1 阶段，写资产前（该建什么、信息项、比例） |
-| `references/03-qwen-image-prompt.md` | 第 1 阶段，写资产提示词（**Qwen-Image 2.1 规范**，融合 qwen-image-2.1-skill） |
+| `references/03-qwen-image-prompt.md` | 第 1 阶段，写资产提示词（**Qwen 系生图规范**，融合 qwen-image-2.1-skill；现役模型 Moss Image） |
 | `references/qwen-t2i-rules.md` | 资产提示词权威细则（八步框架原文） |
 | `references/qwen-cheat-sheet.md` | 查材质 / 方位 / 光照 / 比例词汇 |
 | `references/qwen-edit-rules.md` | 人要改图、换背景、多图合成时 |
@@ -599,4 +599,4 @@ for id in P01 P02 P03; do echo "file 'videos/$id.mp4'" >> list.txt; done
 | `references/camera-moves.json` | 运镜数据源（44 条，脚本与工作台页面共用），**不要在别处另抄一份改** |
 | `references/07-qwen-wordbank.md` | 第 1 阶段写资产提示词前（**取词库用法 + 槽位顺序 + 配额 + 正反例**） |
 | `references/qwen-wordbank.json` | 资产词库数据源（42 槽 / 370 条英文词条），与 07 配套 |
-| `references/workflows/*.api.json` | 两份内嵌工作流（H3 视频 + Qwen-Image 生图），脚本自动读取，不手动改 |
+| `references/workflows/*.api.json` | 两份内嵌工作流（H3 视频 + Moss Image 生图），脚本自动读取，不手动改 |

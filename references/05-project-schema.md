@@ -51,9 +51,9 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
     "updatedAt": "2026-10-17 16:02:11"
   },
   "settings": {
-    "imgUnet": "Qwen-Image\\qwen_image_2.1_int8_convrot.safetensors",
-    "imgClip": "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors",
-    "imgVae": "Qwen-Image\\qwen_image_2.1_vae_bf16.safetensors",
+    "imgUnet": "Moss_image\\moss_image_sft_int8_convrot.safetensors",
+    "imgClip": "Moss_image\\qwen3.5_9b_int8_convrot.safetensors",
+    "imgVae": "Moss_image\\flux2-vae.safetensors",
     "imgSteps": 25,
     "ratio": "9:16",
     "megapixels": 0.7,
@@ -140,7 +140,7 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `assets[].voicePromptZh` | 上面的中文对照 | AI 写，人可改 |
 | `voices[].file` | 项目内相对路径；空 = 该音色还没绑音频 | 人上传 |
 | `settings.*` | HTML 里的全局生成参数 | 人在 HTML 改，生成时读取 |
-| `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频那 17 个参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
+| `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频的参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
 | `settings.ratio` / `megapixels` | 画幅与分辨率，写进 `ResolutionSelector(252)`；实际宽高由节点按 32 对齐算出 | 人在「视频提示词」页选 / 改 |
 | `settings.segSecMin` / `segSecMax` | **每段时长的实传区间**（5–15 秒，默认 6 / 15）。`genSec()` 先按 5/6 折算，再夹进这个区间；区间非法（<5、>15、lo>hi）自动回落 | 人在「视频提示词」页两个下拉选 |
 | `settings.h3Lora` / `h3Lora2` / `h3Lora3` | 三个 LoRA 位置，依次写进节点 `53` / `400` / `490`，按 1→2→3 串联。**1 号位默认挂主 LoRA，2、3 号位默认空（不挂）**；哪一格空就那颗节点整颗摘掉、链条重接 | 人在页面选 |

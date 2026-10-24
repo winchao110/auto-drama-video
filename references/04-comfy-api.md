@@ -5,7 +5,7 @@
 
 | 用途 | 文件 | 说明 |
 |---|---|---|
-| 资产图 | `qwen-image21.quality25.api.json` | Qwen-Image 2.1 int8，25 步（turbo 6 步版已删） |
+| 资产图 | `moss-image.te-speed.api.json` | Moss Image（int8）+ TE-Speed 加速，50 步；Qwen-Image 2.1 已删 |
 | 视频 | `minimax-h3.ref2va.api.json` | MiniMax H3，Ref2VA 全参考模式 |
 
 ---
@@ -39,19 +39,37 @@ curl -s --noproxy '*' "http://127.0.0.1:8188/view?filename=xxx.mp4&subfolder=dra
 
 ---
 
-## 二、Qwen-Image 2.1 工作流要改的节点
+## 二、Moss Image（TE-Speed）工作流要改的节点
+
+模板：`references/workflows/moss-image.te-speed.api.json`，来源 `TE-Speed-Mossimageapi.json`（用户导出，2026-10-24 替换掉 Qwen-Image 2.1）。
+
+```
+UNET(51) → TESpeedMoss(57) → KSampler(60) ← 正向 CLIP(54) / 负向 CLIP(55) / 空 latent(58) ← ResolutionSelector(56)
+   → VAE 解码(61) → 小脸涂抹(79) → 保存(62)
+提示词 → PrimitiveStringMultiline(77) → CLIPTextEncode(54)
+```
 
 | 节点 | class_type | 改哪个 input | 说明 |
 |---|---|---|---|
-| `517` | PrimitiveStringMultiline | `value` | 提示词正文（风格锁 + 资产本体 + 类型拼接块） |
-| `514` | EmptyLatentImage | `width` / `height` | **直接写整数**，按比例+百万像素算，32 的倍数 |
-| `524` | Seed (rgthree) | `seed` | 随机整数；固定它可复现同一张图 |
-| `508` | SaveImage | `filename_prefix` | 用 `drama/<资产id>`，方便在 ComfyUI 里找 |
-| `515` | KSampler | `steps` | 6（turbo）或 25（quality），一般不用动 |
-| `523` | UNETLoader | `unet_name` | turbo 版 / 质量版模型，切换模型就换这个 |
+| `77` | PrimitiveStringMultiline | `value` | 提示词正文（风格锁 + 资产本体 + 类型拼接块） |
+| `56` | ResolutionSelector | `aspect_ratio` / `megapixels` | 宽高比枚举必须与节点定义逐字一致（`4:3 (Standard)` / `16:9 (Widescreen)` / `1:1 (Square)`…），像素由它算，`multiple` 16 |
+| `58` | EmptyFlux2LatentImage | 连线取自 `56` | 宽高不再写死，改成连 `56` 的输出 |
+| `60` | KSampler | `seed` / `steps` / `cfg` / `sampler_name` / `scheduler` | 默认 50 步、cfg 3.5、euler + simple |
+| `57` | TESpeedMoss | `attention` / `step_cache` / `reuse_threshold` / `start_percent` / `end_percent` / `predictor_error_limit` / `uncond_cache` / `verbose` | 加速节点，默认 `default` / `te_predictor 2` / 0.12 / 0.2 / 0.8 / 0.06 / 关 / 关 |
+| `51` | UNETLoader | `unet_name` | `Moss_image\moss_image_sft_int8_convrot.safetensors` |
+| `52` | CLIPLoader | `clip_name`（`type` 固定 `moss_image`） | `Moss_image\qwen3.5_9b_int8_convrot.safetensors` |
+| `53` | VAELoader | `vae_name` | `Moss_image\flux2-vae.safetensors`（Flux2 VAE） |
+| `79` | TaiYangSmallFaceErase | `人脸模型` / `检测阈值` / `保留脸数` / `涂抹倍数` / `填充色` | 去掉参考图带进来的小脸。默认 `face_yolov8m.pt` / 0.12 / 1 / 1.8 / 自动背景 |
+| `62` | SaveImage | `filename_prefix` | 用 `drama/<资产id>` |
 
-**为什么不改 `512` ResolutionSelector**：它的 `aspect_ratio` 是枚举字符串（`16:9 (Widescreen)` 等），
-不同版本枚举值可能变。直接把 `514` 的 `width`/`height` 写成数字最稳，`512` 变成孤儿节点不参与执行。
+**关掉小脸涂抹**：`79` 整颗摘掉，`62.images` 改连 `61`（VAE 解码）——`image_graph(face_erase=False)` 已处理。
+
+**为什么 `56` 可以直接改**：Moss 模板本来就用 `ResolutionSelector` 出宽高，本技能的 `H3_RATIO_OPTS`
+（`1:1 (Square)` / `4:3 (Standard)` / `16:9 (Widescreen)` …）与它逐字一致，改枚举值即可。
+
+**依赖的自定义节点**：`TESpeedMoss`（TE-Speed 的 MOSS 版）、`TaiYangSmallFaceErase`（TaiYang 系列）、
+`ResolutionSelector` / `EmptyFlux2LatentImage`（ComfyUI 本体或 flux2 插件）。缺节点会在这个工作流入队时报
+`node type not found`——先装节点，别改工作流绕开。
 
 ---
 

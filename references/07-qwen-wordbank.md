@@ -1,4 +1,4 @@
-# 07 · Qwen-Image 2.1 取词库（人物 / 场景 / 道具）
+# 07 · 生图取词库（人物 / 场景 / 道具）· Qwen 系 CLIP 通用
 
 **数据源**：`references/qwen-wordbank.json`（42 个槽位、370 条英文词条）。
 **来源**：从 `ComfyUI-Luori-Sunset` 的 `data/lr/*.json`（93 字段、数百条中文选项，原为 Z-Image 设计）抽出，

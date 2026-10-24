@@ -197,10 +197,16 @@ def motion_trigger_text(move_id, lora_name, catalog=None):
     return pick[2] if pick else ""
 
 # ---- 工作流模板里需要改动的节点（改模板时同步这里）----
-# 生图只剩一条工作流：Qwen-Image 2.1（turbo 6 步版已删除）；采样步数由 settings.imgSteps 覆盖
-Q_WF = {"quality25": "qwen-image21.quality25.api.json"}
-Q_NODE = {"prompt": "517", "latent": "514", "seed": "524", "save": "508",
-          "unet": "523", "clip": "518", "vae": "519", "steps": "515"}
+# 生图只剩一条工作流：Moss Image（TE-Speed 加速版，2026-10-24 换掉 Qwen-Image 2.1）
+# 链：UNET(51) → TESpeedMoss(57) → KSampler(60) ← CLIP 正/负(54/55) + 空 latent(58) ← 分辨率(56)
+#     → VAE 解码(61) → 小脸涂抹(79) → 保存(62)；提示词走 PrimitiveStringMultiline(77)
+IMG_WF = "moss-image.te-speed.api.json"
+IMG_NODE = {"prompt": "77", "promptKey": "value",
+            "res": "56", "latent": "58",
+            "positive": "54", "negative": "55",
+            "speed": "57", "sampler": "60", "seed": "60", "steps": "60",
+            "unet": "51", "clip": "52", "vae": "53",
+            "decode": "61", "face": "79", "save": "62"}
 # H3 工作流：MiniMax-H3 原生 Ref2VA（2026-10-23 换用户导出的「API 专用」版，19:23 那一版含 LowVRAMAttention）。
 # 全部是 ComfyUI 本体自带的 H3 节点：没有二采高清、没有 VEDA、没有分块解码 / 人脸精修。
 # 采样链 192 → 53 → 400 →[490 可选]→ 333 →[332 可选]→ 331 → 401 → 403 → 329 →{261,408}；宽高由 252 ResolutionSelector 算。
@@ -257,11 +263,57 @@ DEFAULT_H3_CLIP = "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
 DEFAULT_H3_VIDEO_VAE = "minimax_h3_video_vae_int8_convrot.safetensors"
 DEFAULT_H3_AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
 
-# 生图（Qwen-Image 2.1）默认三件套 + 默认采样步数
-DEFAULT_IMG_UNET = "Qwen-Image\\qwen_image_2.1_int8_convrot.safetensors"
-DEFAULT_IMG_CLIP = "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors"
-DEFAULT_IMG_VAE = "Qwen-Image\\qwen_image_2.1_vae_bf16.safetensors"
-DEFAULT_IMG_STEPS = 25          # 生图采样步数，工作台「生图参数 → 步数」可改（整数）
+# 生图（Moss Image · TE-Speed）默认值 —— 全部照用户给的 TE-Speed-Mossimageapi.json 抄
+DEFAULT_IMG_UNET = "Moss_image\\moss_image_sft_int8_convrot.safetensors"
+DEFAULT_IMG_CLIP = "Moss_image\\qwen3.5_9b_int8_convrot.safetensors"
+DEFAULT_IMG_VAE = "Moss_image\\flux2-vae.safetensors"
+DEFAULT_IMG_STEPS = 50          # KSampler.steps
+DEFAULT_IMG_CFG = 3.5           # KSampler.cfg
+DEFAULT_IMG_SAMPLER = "euler"
+DEFAULT_IMG_SCHEDULER = "simple"
+DEFAULT_IMG_MEGAPIXELS = 2.0    # 资产卡上的默认像素（工作流里 ResolutionSelector 也是 2）
+DEFAULT_IMG_SPEED_ATTN = "default"
+DEFAULT_IMG_STEP_CACHE = "te_predictor 2"
+DEFAULT_IMG_REUSE_THRESHOLD = 0.12
+DEFAULT_IMG_START_PERCENT = 0.2
+DEFAULT_IMG_END_PERCENT = 0.8
+DEFAULT_IMG_PREDICTOR_ERROR = 0.06
+DEFAULT_IMG_UNCOND_CACHE = False
+DEFAULT_IMG_VERBOSE = False
+# 小脸涂抹（TaiYangSmallFaceErase 79）：去掉参考图里多出来的小脸，默认开
+DEFAULT_IMG_FACE_ERASE = True
+DEFAULT_IMG_FACE_MODEL = "face_yolov8m.pt"
+DEFAULT_IMG_FACE_THRESHOLD = 0.12
+DEFAULT_IMG_FACE_KEEP = 1
+DEFAULT_IMG_FACE_SMEAR = 1.8
+DEFAULT_IMG_FACE_FILL = "自动背景"
+# 换工作流标记：老项目（Qwen-Image 2.1 三件套 + 25 步）看到这个标记不一致时，把"还是旧默认值"的项对齐一次
+IMG_WF_TAG = "moss-te-speed-20261024"
+LEGACY_IMG_MODELS = {
+    "imgUnet": "Qwen-Image\\qwen_image_2.1_int8_convrot.safetensors",
+    "imgClip": "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors",
+    "imgVae": "Qwen-Image\\qwen_image_2.1_vae_bf16.safetensors",
+}
+
+
+def align_moss_defaults(sset):
+    """把"仍然是 Qwen-Image 2.1 旧默认"的项换成 Moss Image 的默认；人改过的值不动。"""
+    if not isinstance(sset, dict):
+        return False
+    changed = False
+    for k, oldv in LEGACY_IMG_MODELS.items():
+        if (sset.get(k) or "") == oldv:
+            sset[k] = {"imgUnet": DEFAULT_IMG_UNET, "imgClip": DEFAULT_IMG_CLIP,
+                       "imgVae": DEFAULT_IMG_VAE}[k]
+            changed = True
+    try:
+        if int(float(sset.get("imgSteps"))) == 25:
+            sset["imgSteps"] = DEFAULT_IMG_STEPS
+            changed = True
+    except (TypeError, ValueError):
+        pass
+    sset["imgWfTag"] = IMG_WF_TAG
+    return changed
 # 上一代工作流的默认值：老项目里仍是这些值时，随新工作流自动对齐一次
 LEGACY_H3_LORA = "MiniMaxH3\\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors"
 LEGACY_H3_LORAS = (
@@ -663,7 +715,12 @@ def review_gate(st, skip, what, with_images=False):
 # 下一个项目 init 时直接沿用，不用每次重设。只记参数，剧情 / 资产 / 台词 / 提示词一律不记。
 USER_SETTINGS_PATH = os.path.join(SKILL_DIR, "settings.user.json")
 REMEMBER_KEYS = (
-    "imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels",
+    "imgUnet", "imgClip", "imgVae", "imgSteps",
+    "imgCfg", "imgSampler", "imgScheduler", "imgSpeedAttn", "imgStepCache",
+    "imgReuseThreshold", "imgStartPercent", "imgEndPercent", "imgPredictorError",
+    "imgUncondCache", "imgVerbose",
+    "imgFaceErase", "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
+    "ratio", "megapixels",
     "steps", "comfy", "h3Model",
     "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength", "h3Lora3", "h3Lora3Strength",
     "h3Clip", "h3VideoVae", "h3AudioVae",
@@ -680,6 +737,23 @@ def builtin_settings():
         "imgClip": DEFAULT_IMG_CLIP,
         "imgVae": DEFAULT_IMG_VAE,
         "imgSteps": DEFAULT_IMG_STEPS,
+        "imgCfg": DEFAULT_IMG_CFG,
+        "imgSampler": DEFAULT_IMG_SAMPLER,
+        "imgScheduler": DEFAULT_IMG_SCHEDULER,
+        "imgSpeedAttn": DEFAULT_IMG_SPEED_ATTN,
+        "imgStepCache": DEFAULT_IMG_STEP_CACHE,
+        "imgReuseThreshold": DEFAULT_IMG_REUSE_THRESHOLD,
+        "imgStartPercent": DEFAULT_IMG_START_PERCENT,
+        "imgEndPercent": DEFAULT_IMG_END_PERCENT,
+        "imgPredictorError": DEFAULT_IMG_PREDICTOR_ERROR,
+        "imgUncondCache": DEFAULT_IMG_UNCOND_CACHE,
+        "imgVerbose": DEFAULT_IMG_VERBOSE,
+        "imgFaceErase": DEFAULT_IMG_FACE_ERASE,
+        "imgFaceModel": DEFAULT_IMG_FACE_MODEL,
+        "imgFaceThreshold": DEFAULT_IMG_FACE_THRESHOLD,
+        "imgFaceKeep": DEFAULT_IMG_FACE_KEEP,
+        "imgFaceSmear": DEFAULT_IMG_FACE_SMEAR,
+        "imgFaceFill": DEFAULT_IMG_FACE_FILL,
         "ratio": "9:16",
         "megapixels": 0.9,
         "steps": DEFAULT_H3_STEPS,
@@ -739,6 +813,8 @@ def load_user_settings():
         if k == "h3Attn" and str(v).strip() not in H3_ATTN_OPTS:
             continue
         base[k] = copy.deepcopy(v)
+    # 记忆里还是 Qwen-Image 2.1 的三件套 / 25 步 → 换成 Moss Image 的默认（人改过的不动）
+    align_moss_defaults(base)
     return base
 
 
@@ -794,6 +870,23 @@ def new_state(title="未命名短剧", source=""):
             "imgClip": mem["imgClip"],
             "imgVae": mem["imgVae"],
             "imgSteps": mem["imgSteps"],
+            "imgCfg": mem.get("imgCfg", DEFAULT_IMG_CFG),
+            "imgSampler": mem.get("imgSampler", DEFAULT_IMG_SAMPLER),
+            "imgScheduler": mem.get("imgScheduler", DEFAULT_IMG_SCHEDULER),
+            "imgSpeedAttn": mem.get("imgSpeedAttn", DEFAULT_IMG_SPEED_ATTN),
+            "imgStepCache": mem.get("imgStepCache", DEFAULT_IMG_STEP_CACHE),
+            "imgReuseThreshold": mem.get("imgReuseThreshold", DEFAULT_IMG_REUSE_THRESHOLD),
+            "imgStartPercent": mem.get("imgStartPercent", DEFAULT_IMG_START_PERCENT),
+            "imgEndPercent": mem.get("imgEndPercent", DEFAULT_IMG_END_PERCENT),
+            "imgPredictorError": mem.get("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR),
+            "imgUncondCache": mem.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE),
+            "imgVerbose": mem.get("imgVerbose", DEFAULT_IMG_VERBOSE),
+            "imgFaceErase": mem.get("imgFaceErase", DEFAULT_IMG_FACE_ERASE),
+            "imgFaceModel": mem.get("imgFaceModel", DEFAULT_IMG_FACE_MODEL),
+            "imgFaceThreshold": mem.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
+            "imgFaceKeep": mem.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
+            "imgFaceSmear": mem.get("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR),
+            "imgFaceFill": mem.get("imgFaceFill", DEFAULT_IMG_FACE_FILL),
             "ratio": mem["ratio"],
             "megapixels": mem["megapixels"],
             "steps": mem["steps"],
@@ -841,6 +934,7 @@ def migrate(st):
     _sset = st["settings"]
     _sset.setdefault("segSecMin", SEC_MIN_DEFAULT)
     _sset.setdefault("segSecMax", SEC_MAX_DEFAULT)
+    align_moss_defaults(_sset)
     _SEC_BOUNDS = sec_bounds(st)
     st.setdefault("voices", [dict(v) for v in DEFAULT_VOICES])
     st["meta"].setdefault("globalBlock", {})
@@ -848,7 +942,12 @@ def migrate(st):
     s = st["settings"]
     # 缺项用「技能里记住的参数」补，而不是硬编码默认：老项目没写的字段也能吃到用户上次的设置
     mem = load_user_settings()
-    for k in ("imgUnet", "imgClip", "imgVae", "imgSteps", "ratio", "megapixels", "steps", "comfy",
+    for k in ("imgUnet", "imgClip", "imgVae", "imgSteps",
+              "imgCfg", "imgSampler", "imgScheduler", "imgSpeedAttn", "imgStepCache",
+              "imgReuseThreshold", "imgStartPercent", "imgEndPercent", "imgPredictorError",
+              "imgUncondCache", "imgVerbose",
+              "imgFaceErase", "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
+              "ratio", "megapixels", "steps", "comfy",
               "h3Model", "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength",
               "h3Lora3", "h3Lora3Strength", "h3Clip", "h3VideoVae", "h3AudioVae",
               "h3Sparse", "h3Attn", "h3Chunks", "h3SeqThreshold", "h3HeadChunks",
@@ -886,7 +985,35 @@ def migrate(st):
         s["imgSteps"] = iv if 1 <= iv <= 200 else DEFAULT_IMG_STEPS
     except (TypeError, ValueError):
         s["imgSteps"] = DEFAULT_IMG_STEPS
-    # 生图模型选择（turbo6 / quality25）已取消：turbo 工作流整个删掉，统一走 25 步 + 三件套模型
+    # Moss Image 的采样与加速参数：数字项都夹到合法区间，乱填回默认
+    try:
+        cfg = float(s.get("imgCfg"))
+    except (TypeError, ValueError):
+        cfg = DEFAULT_IMG_CFG
+    s["imgCfg"] = min(20.0, max(0.0, cfg))
+    for k, dflt in (("imgReuseThreshold", DEFAULT_IMG_REUSE_THRESHOLD),
+                    ("imgStartPercent", DEFAULT_IMG_START_PERCENT),
+                    ("imgEndPercent", DEFAULT_IMG_END_PERCENT),
+                    ("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR)):
+        try:
+            fv = float(s.get(k))
+        except (TypeError, ValueError):
+            fv = dflt
+        s[k] = min(1.0, max(0.0, fv))
+    if s["imgEndPercent"] < s["imgStartPercent"]:
+        s["imgEndPercent"] = s["imgStartPercent"]
+    for k, dflt, lo, hi, as_int in (("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD, 0.01, 0.99, False),
+                                    ("imgFaceKeep", DEFAULT_IMG_FACE_KEEP, 1, 10, True),
+                                    ("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR, 1.0, 5.0, False)):
+        try:
+            fv = float(s.get(k))
+        except (TypeError, ValueError):
+            fv = dflt
+        fv = min(hi, max(lo, fv))
+        s[k] = int(fv) if as_int else fv
+    for k in ("imgUncondCache", "imgVerbose", "imgFaceErase"):
+        s[k] = bool(s.get(k))
+    # 生图模型选择（turbo6 / quality25）已取消：turbo 工作流整个删掉，统一走 Moss Image
     s.pop("imageModel", None)
     # 人物定设图模板：项目里有就用项目的，没有就用记忆里的，再没有才用内置版
     cs = s.get("charSheet")
@@ -1576,28 +1703,112 @@ def asset_prompt(st, a):
 
 
 # ---------------------------------------------------------------- 工作流填参
-def image_graph(tpl, prompt, w, h, seed, prefix, unet="", clip="", vae="", steps=DEFAULT_IMG_STEPS):
+def image_graph(tpl, prompt, w, h, seed, prefix, unet="", clip="", vae="", steps=DEFAULT_IMG_STEPS,
+                cfg=DEFAULT_IMG_CFG, sampler=DEFAULT_IMG_SAMPLER, scheduler=DEFAULT_IMG_SCHEDULER,
+                ratio="16:9", megapixels=DEFAULT_IMG_MEGAPIXELS,
+                speed_attn=DEFAULT_IMG_SPEED_ATTN, step_cache=DEFAULT_IMG_STEP_CACHE,
+                reuse_threshold=DEFAULT_IMG_REUSE_THRESHOLD,
+                start_percent=DEFAULT_IMG_START_PERCENT, end_percent=DEFAULT_IMG_END_PERCENT,
+                predictor_error=DEFAULT_IMG_PREDICTOR_ERROR,
+                uncond_cache=DEFAULT_IMG_UNCOND_CACHE, verbose=DEFAULT_IMG_VERBOSE,
+                face_erase=DEFAULT_IMG_FACE_ERASE, face_model=DEFAULT_IMG_FACE_MODEL,
+                face_threshold=DEFAULT_IMG_FACE_THRESHOLD, face_keep=DEFAULT_IMG_FACE_KEEP,
+                face_smear=DEFAULT_IMG_FACE_SMEAR, face_fill=DEFAULT_IMG_FACE_FILL):
+    """Moss Image（TE-Speed）填参。
+
+    宽高不再写死：由 ResolutionSelector(56) 按「宽高比 + 百万像素」算，再连线进空 latent(58)；
+    w/h 只用于日志。TESpeedMoss(57) 是加速节点，step_cache 等参数按页面设置覆盖。
+    小脸涂抹(79) 关掉时，整颗节点摘掉，保存(62) 直接吃 VAE 解码(61)。
+    """
     g = copy.deepcopy(tpl)
-    g[Q_NODE["prompt"]]["inputs"]["value"] = prompt
-    g[Q_NODE["latent"]]["inputs"] = {"width": w, "height": h, "batch_size": 1}
-    g[Q_NODE["seed"]]["inputs"]["seed"] = int(seed)
-    g[Q_NODE["save"]]["inputs"]["filename_prefix"] = prefix
-    # 采样步数：填的是整数，直接覆盖 KSampler 的 steps；不合法就按 25 走
-    try:
-        n_steps = int(steps)
-    except (TypeError, ValueError):
-        n_steps = DEFAULT_IMG_STEPS
-    if n_steps < 1:
-        n_steps = DEFAULT_IMG_STEPS
-    if Q_NODE.get("steps") in g:
-        g[Q_NODE["steps"]]["inputs"]["steps"] = n_steps
+
+    def _node(key):
+        nid = IMG_NODE.get(key)
+        return g.get(nid) if nid and nid in g else None
+
+    pn = _node("prompt")
+    if pn is not None:
+        pn["inputs"][IMG_NODE.get("promptKey") or "value"] = prompt
+
+    # 分辨率：aspect_ratio 枚举必须与节点定义逐字一致
+    rsn = _node("res")
+    if rsn is not None:
+        rsn["inputs"]["aspect_ratio"] = H3_RATIO_OPTS.get(str(ratio), "16:9 (Widescreen)")
+        try:
+            rsn["inputs"]["megapixels"] = float(megapixels)
+        except (TypeError, ValueError):
+            rsn["inputs"]["megapixels"] = float(DEFAULT_IMG_MEGAPIXELS)
+
+    # 采样器：seed / steps / cfg / sampler / scheduler
+    smp = _node("sampler")
+    if smp is not None:
+        inp = smp["inputs"]
+        inp["seed"] = int(seed)
+        try:
+            n_steps = int(steps)
+        except (TypeError, ValueError):
+            n_steps = DEFAULT_IMG_STEPS
+        inp["steps"] = max(1, n_steps)
+        try:
+            inp["cfg"] = float(cfg)
+        except (TypeError, ValueError):
+            inp["cfg"] = DEFAULT_IMG_CFG
+        if sampler:
+            inp["sampler_name"] = sampler
+        if scheduler:
+            inp["scheduler"] = scheduler
+
+    # TE-Speed 加速节点
+    sp = _node("speed")
+    if sp is not None:
+        si = sp["inputs"]
+        if speed_attn:
+            si["attention"] = speed_attn
+        if step_cache:
+            si["step_cache"] = step_cache
+        for k, v, d in (("reuse_threshold", reuse_threshold, DEFAULT_IMG_REUSE_THRESHOLD),
+                        ("start_percent", start_percent, DEFAULT_IMG_START_PERCENT),
+                        ("end_percent", end_percent, DEFAULT_IMG_END_PERCENT),
+                        ("predictor_error_limit", predictor_error, DEFAULT_IMG_PREDICTOR_ERROR)):
+            try:
+                si[k] = float(v)
+            except (TypeError, ValueError):
+                si[k] = d
+        si["uncond_cache"] = bool(uncond_cache)
+        si["verbose"] = bool(verbose)
+
     # 三件套模型：留空则沿用工作流里的默认值
-    if unet and Q_NODE.get("unet") in g:
-        g[Q_NODE["unet"]]["inputs"]["unet_name"] = unet
-    if clip and Q_NODE.get("clip") in g:
-        g[Q_NODE["clip"]]["inputs"]["clip_name"] = clip
-    if vae and Q_NODE.get("vae") in g:
-        g[Q_NODE["vae"]]["inputs"]["vae_name"] = vae
+    for key, val, field in (("unet", unet, "unet_name"), ("clip", clip, "clip_name"),
+                            ("vae", vae, "vae_name")):
+        n = _node(key)
+        if n is not None and val:
+            n["inputs"][field] = val
+
+    # 小脸涂抹：关掉就整颗摘掉，保存节点改吃解码输出
+    fnode = _node("face")
+    if fnode is not None and not face_erase:
+        save = _node("save")
+        if save is not None:
+            save["inputs"]["images"] = [IMG_NODE["decode"], 0]
+        g.pop(IMG_NODE["face"], None)
+    elif fnode is not None:
+        fi = fnode["inputs"]
+        if face_model:
+            fi["人脸模型"] = face_model
+        for k, v, d in (("检测阈值", face_threshold, DEFAULT_IMG_FACE_THRESHOLD),
+                        ("保留脸数", face_keep, DEFAULT_IMG_FACE_KEEP),
+                        ("涂抹倍数", face_smear, DEFAULT_IMG_FACE_SMEAR)):
+            try:
+                fi[k] = int(v) if k == "保留脸数" else float(v)
+            except (TypeError, ValueError):
+                fi[k] = d
+        if face_fill:
+            fi["填充色"] = face_fill
+
+    if prefix:
+        sv = _node("save")
+        if sv is not None:
+            sv["inputs"]["filename_prefix"] = prefix
     return g
 
 
@@ -1979,8 +2190,8 @@ def cmd_images(args):
     st = load_state(proj)
     s = st["settings"]
     addr = args.addr or s["comfy"]
-    # 生图只有一条工作流：Qwen-Image 2.1；模型三件套与采样步数跟随「生图参数」里的选择
-    wf_name = Q_WF["quality25"]
+    # 生图只有一条工作流：Moss Image（TE-Speed）；三件套、采样与加速参数都跟随「生图参数」
+    wf_name = IMG_WF
     tpl = load_wf(wf_name)
     img_unet = (getattr(args, "unet", "") or s.get("imgUnet") or "").strip()
     img_clip = (getattr(args, "clip", "") or s.get("imgClip") or "").strip()
@@ -1992,6 +2203,8 @@ def cmd_images(args):
         img_steps = int(img_steps)
     except (TypeError, ValueError):
         img_steps = DEFAULT_IMG_STEPS
+    img_cfg = s.get("imgCfg", DEFAULT_IMG_CFG)
+    img_face = bool(s.get("imgFaceErase", DEFAULT_IMG_FACE_ERASE))
     p = paths(proj)
     os.makedirs(p["assets"], exist_ok=True)
 
@@ -2007,10 +2220,25 @@ def cmd_images(args):
             continue
         targets.append(a)
 
-    print("生图工作流：Qwen-Image 2.1（%s）｜%d 步｜待生成 %d 项" % (wf_name, img_steps, len(targets)), flush=True)
+    print("生图工作流：Moss Image · TE-Speed（%s）｜%d 步｜cfg %s｜待生成 %d 项"
+          % (wf_name, img_steps, img_cfg, len(targets)), flush=True)
     print("UNet：%s" % (img_unet or "（按工作流默认）"), flush=True)
     print("CLIP：%s" % (img_clip or "（按工作流默认）"), flush=True)
     print("VAE：%s" % (img_vae or "（按工作流默认）"), flush=True)
+    print("加速：%s｜缓存 %s｜复用阈值 %s｜区间 %s→%s｜误差上限 %s｜无条件缓存 %s"
+          % (s.get("imgSpeedAttn", DEFAULT_IMG_SPEED_ATTN), s.get("imgStepCache", DEFAULT_IMG_STEP_CACHE),
+             s.get("imgReuseThreshold", DEFAULT_IMG_REUSE_THRESHOLD),
+             s.get("imgStartPercent", DEFAULT_IMG_START_PERCENT), s.get("imgEndPercent", DEFAULT_IMG_END_PERCENT),
+             s.get("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR),
+             "开" if s.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE) else "关"), flush=True)
+    if img_face:
+        _face_note = "开（保留 %s 张脸，阈值 %s，涂抹 ×%s）" % (
+            s.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
+            s.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
+            s.get("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR))
+    else:
+        _face_note = "关"
+    print("小脸涂抹：%s" % _face_note, flush=True)
     if not targets:
         print("没有需要生成的资产（加 --force 可全部重跑）。", flush=True)
         return 0
@@ -2036,8 +2264,27 @@ def cmd_images(args):
             rep.good("%s dry-run" % aid)
             continue
         try:
-            graph = image_graph(tpl, prompt, w, h, seeds[i - 1], "drama/" + safe_id(aid),
-                                unet=img_unet, clip=img_clip, vae=img_vae, steps=img_steps)
+            graph = image_graph(
+                tpl, prompt, w, h, seeds[i - 1], "drama/" + safe_id(aid),
+                unet=img_unet, clip=img_clip, vae=img_vae, steps=img_steps,
+                cfg=s.get("imgCfg", DEFAULT_IMG_CFG),
+                sampler=s.get("imgSampler", DEFAULT_IMG_SAMPLER),
+                scheduler=s.get("imgScheduler", DEFAULT_IMG_SCHEDULER),
+                ratio=ratio, megapixels=mp,
+                speed_attn=s.get("imgSpeedAttn", DEFAULT_IMG_SPEED_ATTN),
+                step_cache=s.get("imgStepCache", DEFAULT_IMG_STEP_CACHE),
+                reuse_threshold=s.get("imgReuseThreshold", DEFAULT_IMG_REUSE_THRESHOLD),
+                start_percent=s.get("imgStartPercent", DEFAULT_IMG_START_PERCENT),
+                end_percent=s.get("imgEndPercent", DEFAULT_IMG_END_PERCENT),
+                predictor_error=s.get("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR),
+                uncond_cache=s.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE),
+                verbose=s.get("imgVerbose", DEFAULT_IMG_VERBOSE),
+                face_erase=img_face,
+                face_model=s.get("imgFaceModel", DEFAULT_IMG_FACE_MODEL),
+                face_threshold=s.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
+                face_keep=s.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
+                face_smear=s.get("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR),
+                face_fill=s.get("imgFaceFill", DEFAULT_IMG_FACE_FILL))
             jobs.append({"a": a, "aid": aid, "graph": graph, "prompt": prompt, "pid": None, "t0": 0.0})
         except Exception as e:
             a["error"] = str(e)[:800]
@@ -3290,9 +3537,9 @@ def cmd_status(args):
     ok, detail = comfy_api.ping(addr)
     print("项目：%s" % proj, flush=True)
     print("ComfyUI：%s" % ("在线 " + comfy_api.normalize(addr) if ok else "离线（" + detail + "）"), flush=True)
-    print("生图：UNet %s｜CLIP %s｜VAE %s｜%s 步" % (
+    print("生图：Moss Image（TE-Speed）｜UNet %s｜CLIP %s｜VAE %s｜%s 步｜cfg %s" % (
         st["settings"].get("imgUnet"), st["settings"].get("imgClip"), st["settings"].get("imgVae"),
-        st["settings"].get("imgSteps")), flush=True)
+        st["settings"].get("imgSteps"), st["settings"].get("imgCfg")), flush=True)
     print("H3 参数：%s / %s MP / %s 步｜CLIP %s" % (
         st["settings"]["ratio"], st["settings"]["megapixels"], st["settings"]["steps"],
         st["settings"].get("h3Clip")), flush=True)

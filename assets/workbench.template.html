@@ -180,7 +180,7 @@
       <div class="hd">三步走</div>
       <ol>
         <li><b>一</b> 按剧本 / 小说出资产提示词与视频提示词，你审完回「继续」</li>
-        <li><b>二</b> 本地 Qwen-Image 2.1 出资产参考图，你审完回「继续」</li>
+        <li><b>二</b> 本地 Moss Image（TE-Speed）出资产参考图，你审完回「继续」</li>
         <li><b>三</b> 本地 MiniMax H3 出视频，按顺序拼成片</li>
       </ol>
     </div>
@@ -663,26 +663,99 @@
   }
 
   /* ---------- 共享参数条 ----------
-     两个页面各用各的：资产页只放生图参数（Qwen-Image），
+     两个页面各用各的：资产页只放生图参数（Moss Image · TE-Speed），
      视频提示词页只放视频参数（MiniMax H3），绝不把生图模型混进视频参数区。 */
   function paramBar(title, withImage, extra) {
     var c = h("div", "card");
     c.appendChild(h("h3", null, title));
     var g = h("div", "params");
     if (withImage) {
-      /* --- 生图三件套：Qwen-Image 2.1 · 25 步（turbo 版已删），模型直接读 ComfyUI 的目录 --- */
+      /* --- 生图三件套：Moss Image（TE-Speed 加速版），模型直接读 ComfyUI 的目录 --- */
       g.appendChild(field("生图 UNet（models/diffusion_models）", "settings.imgUnet", {
         type: "select", options: selOptions(getModelList("unet")), hint: modelTip()
       }));
       g.appendChild(field("生图 CLIP（models/text_encoders）", "settings.imgClip", {
-        type: "select", options: selOptions(getModelList("clip")), hint: "Qwen-Image 2.1 配 qwen3vl 系列"
+        type: "select", options: selOptions(getModelList("clip")), hint: "Moss Image 配 Moss_image\\qwen3.5_9b 系列（加载器 type = moss_image）"
       }));
       g.appendChild(field("生图 VAE（models/vae）", "settings.imgVae", {
-        type: "select", options: selOptions(getModelList("vae")), hint: "Qwen-Image 2.1 配 qwen_image_2.1_vae"
+        type: "select", options: selOptions(getModelList("vae")), hint: "Moss Image 配 Moss_image\\flux2-vae"
       }));
       g.appendChild(field("步数（整数）", "settings.imgSteps", {
         type: "number", step: 1, min: 1, max: 200, integer: true,
-        hint: "默认 25。只能填整数；调低出图更快但细节少，调高更细也更慢"
+        hint: "默认 50（Moss Image 官方采样口径）。只能填整数；TE-Speed 会跳过一部分步，50 步的实际耗时比看上去低"
+      }));
+      g.appendChild(field("CFG", "settings.imgCfg", {
+        type: "number", step: 0.1, min: 0, max: 20,
+        hint: "默认 3.5。往下更松更自由，往上更贴提示词但容易僵"
+      }));
+      /* --- TE-Speed 加速参数（TESpeedMoss 节点） --- */
+      g.appendChild(h("div", "hint", "TE-Speed 加速（TESpeedMoss）：按潜空间变化决定哪几步可以跳过。默认值就是官方实测那套。"));
+      g.appendChild(field("加速 · 注意力后端", "settings.imgSpeedAttn", {
+        type: "select",
+        options: [["default", "default（ComfyUI 原生，MOSS 上最快，默认）"],
+                  ["sageattn", "sageattn"], ["sdpa", "sdpa"],
+                  ["flashattn", "flashattn"], ["kitchen_int8", "kitchen_int8"], ["kitchen_sol", "kitchen_sol"]],
+        hint: "default 就是 MOSS 的最快路径；其它融合/稀疏后端在这里反而更慢，还会改变画面"
+      }));
+      g.appendChild(field("加速 · 步缓存策略", "settings.imgStepCache", {
+        type: "select",
+        options: [["te_predictor", "te_predictor（线性两点预测）"],
+                  ["te_predictor 2", "te_predictor 2（最近四次拟合，自适应视野，默认）"]],
+        hint: "默认 te_predictor 2：用最近 4 次真实输出做最小二乘拟合，视野按实测偏差自适应"
+      }));
+      g.appendChild(field("加速 · 复用阈值", "settings.imgReuseThreshold", {
+        type: "number", step: 0.01, min: 0, max: 3,
+        hint: "潜空间相对变化小于它就跳过这一步（默认 0.12，对应 MOSS 在 euler 上的实测步间变化）。调大更快但会糊"
+      }));
+      g.appendChild(field("加速 · 起始百分比", "settings.imgStartPercent", {
+        type: "number", step: 0.01, min: 0, max: 1,
+        hint: "从这个进度开始才允许跳步（默认 0.2）；开头几步结构没定型，跳了会崩"
+      }));
+      g.appendChild(field("加速 · 结束百分比", "settings.imgEndPercent", {
+        type: "number", step: 0.01, min: 0, max: 1,
+        hint: "到这个进度停止跳步（默认 0.8）；尾段决定细节落点，留给真实采样"
+      }));
+      g.appendChild(field("加速 · 预测误差上限", "settings.imgPredictorError", {
+        type: "number", step: 0.01, min: 0.01, max: 1,
+        hint: "实测偏差超过它就冷却几步老实算（默认 0.06，保守值）"
+      }));
+      g.appendChild(field("加速 · 缓存无条件分支", "settings.imgUncondCache", {
+        type: "check", checkLabel: "无条件分支单独缓存（默认关）",
+        checkLabelOn: "无条件分支单独缓存已开启", checkLabelOff: "无条件分支单独缓存（默认关）",
+        hint: "开了更快，但负向分支会被近似；出图结构由正向锚住，一般看不出差别，糊了就先关它"
+      }));
+      g.appendChild(field("加速 · 详细日志", "settings.imgVerbose", {
+        type: "check", checkLabel: "在 ComfyUI 控制台打印每次预测决策（默认关）",
+        checkLabelOn: "详细日志已开启", checkLabelOff: "在 ComfyUI 控制台打印每次预测决策（默认关）",
+        hint: "排查哪步被跳了时才开"
+      }));
+      /* --- 小脸涂抹（TaiYangSmallFaceErase）：去掉参考图里多出来的小脸 --- */
+      g.appendChild(h("div", "hint", "小脸涂抹（TaiYangSmallFaceErase）：解决「参考图里带进来一张小脸被画进画面」。默认开。"));
+      g.appendChild(field("小脸涂抹", "settings.imgFaceErase", {
+        type: "check", checkLabel: "开启小脸涂抹（默认）",
+        checkLabelOn: "小脸涂抹已开启", checkLabelOff: "开启小脸涂抹（默认）",
+        hint: "关掉 = 这个节点整颗从工作流摘掉，出图原样保存（想自己后期修时用）"
+      }));
+      g.appendChild(field("涂抹 · 人脸模型", "settings.imgFaceModel", {
+        type: "select", options: [["face_yolov8m.pt", "face_yolov8m.pt"], ["hand_yolov8s.pt", "hand_yolov8s.pt"]],
+        hint: "读 models/ultralytics/bbox/"
+      }));
+      g.appendChild(field("涂抹 · 检测阈值", "settings.imgFaceThreshold", {
+        type: "number", step: 0.01, min: 0.02, max: 0.9,
+        hint: "默认 0.12（放低才检得到纯侧脸）。非人脸被误涂就调高"
+      }));
+      g.appendChild(field("涂抹 · 保留脸数", "settings.imgFaceKeep", {
+        type: "number", step: 1, min: 0, max: 8, integer: true,
+        hint: "按面积从大到小保留几张脸（默认 1 = 只留主脸；0 = 全涂）"
+      }));
+      g.appendChild(field("涂抹 · 涂抹倍数", "settings.imgFaceSmear", {
+        type: "number", step: 0.1, min: 1, max: 4,
+        hint: "小脸框放大倍数（默认 1.8 刚好盖住；2.2 以上开始吃头发）"
+      }));
+      g.appendChild(field("涂抹 · 填充色", "settings.imgFaceFill", {
+        type: "select",
+        options: [["自动背景", "自动背景（取四边中位色，默认）"], ["纯白", "纯白"], ["纯黑", "纯黑"], ["中灰", "中灰"]],
+        hint: "纯色背景素材用自动背景最贴合，看不出补丁"
       }));
     }
     if (extra) extra(g);
@@ -696,10 +769,10 @@
     return c;
   }
 
-  function imageModelBar(extra) { return paramBar("生图参数（Qwen-Image 2.1）", true, extra); }
+  function imageModelBar(extra) { return paramBar("生图参数（Moss Image · TE-Speed）", true, extra); }
 
   /* ---------- 人物视图模板（生图参数里的一个长条框） ----------
-     这段会接在每张人物定设图提示词后面一起送进 Qwen-Image，决定三块面板怎么排、截在哪。
+     这段会接在每张人物定设图提示词后面一起送进 Moss Image，决定三块面板怎么排、截在哪。
      只给一个中文框：改完点「保存参数」，和比例 / 像素 / 步数一起存盘。 */
   function charSheetField() {
     if (!STATE.settings) STATE.settings = {};
@@ -764,7 +837,7 @@
   /* ---------- 页面：资产 ---------- */
   function renderAssets() {
     var v = h("section", "page");
-    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Qwen-Image 2.1 规范：英文单段、约 400 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图固定走 Qwen-Image 2.1，UNet / CLIP / VAE 三件套与采样步数（默认 25，可自己改）都按上面选的来。"));
+    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Moss Image 规范（CLIP 为 qwen3.5 系列，写法与 Qwen 一致）：英文单段、至少 500 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图固定走 Moss Image（TE-Speed 加速版）：UNet / CLIP / VAE 三件套、步数（默认 50）、CFG（默认 3.5）以及 TE-Speed 与小脸涂抹那一组参数，都按上面选的来。"));
     v.appendChild(flowbar());
     v.appendChild(imageModelBar(function (g) {
       var miss = (STATE.assets || []).filter(function (a) { return !a.image; }).length;

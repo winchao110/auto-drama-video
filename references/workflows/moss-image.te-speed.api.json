@@ -1,0 +1,194 @@
+{
+  "51": {
+    "inputs": {
+      "unet_name": "Moss_image\\moss_image_sft_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "52": {
+    "inputs": {
+      "clip_name": "Moss_image\\qwen3.5_9b_int8_convrot.safetensors",
+      "type": "moss_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "53": {
+    "inputs": {
+      "vae_name": "Moss_image\\flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "54": {
+    "inputs": {
+      "text": [
+        "77",
+        0
+      ],
+      "clip": [
+        "52",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "55": {
+    "inputs": {
+      "text": " worst quality, bad anatomy, watermark, jpeg artifact",
+      "clip": [
+        "52",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt (empty = reference default)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 2,
+      "multiple": 16
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "分辨率选择器"
+    }
+  },
+  "57": {
+    "inputs": {
+      "attention": "default",
+      "step_cache": "te_predictor 2",
+      "reuse_threshold": 0.12,
+      "start_percent": 0.2,
+      "end_percent": 0.8,
+      "predictor_error_limit": 0.06,
+      "uncond_cache": false,
+      "verbose": false,
+      "model": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "TESpeedMoss",
+    "_meta": {
+      "title": "TE-Speed MOSS"
+    }
+  },
+  "58": {
+    "inputs": {
+      "width": [
+        "56",
+        0
+      ],
+      "height": [
+        "56",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "空Latent图像（Flux2）"
+    }
+  },
+  "60": {
+    "inputs": {
+      "seed": 739151024928739,
+      "steps": 50,
+      "cfg": 3.5,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "57",
+        0
+      ],
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "55",
+        0
+      ],
+      "latent_image": [
+        "58",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "61": {
+    "inputs": {
+      "samples": [
+        "60",
+        0
+      ],
+      "vae": [
+        "53",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "62": {
+    "inputs": {
+      "filename_prefix": "moss_image_t2i_base",
+      "images": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "77": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "提示词"
+    }
+  },
+  "79": {
+    "inputs": {
+      "人脸模型": "face_yolov8m.pt",
+      "检测阈值": 0.12,
+      "保留脸数": 1,
+      "涂抹倍数": 1.8,
+      "填充色": "自动背景",
+      "image": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "TaiYangSmallFaceErase",
+    "_meta": {
+      "title": "小脸涂抹（去参考图杂脸）"
+    }
+  }
+}

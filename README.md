@@ -4,7 +4,7 @@
 > 作者：**太阳阶梯jqk8707**
 
 把小说、剧本或随口一个点子丢进来，全流程跑在**自己的机器上**：
-**H3 分段提示词 → Qwen-Image 2.1 资产图 → MiniMax H3 视频**。
+**H3 分段提示词 → Moss Image 资产图 → MiniMax H3 视频**。
 每两步之间都会停下来，把产物摆到工作台页面上让你拍板——不是黑盒式"一键生成"。
 
 生成全部走 **ComfyUI 原生 HTTP 接口**（`/prompt`、`/upload/image`、`/history`、`/view`、`/object_info`），
@@ -17,7 +17,7 @@
 | | 内容 |
 |---|---|
 | **做** | ① MiniMax H3 分段提示词（英文正文 + 中文对照）　② 人物/场景/道具资产提示词　③ 视频简介 |
-| | 用 Qwen-Image 2.1 出资产图（人物默认 4:3 三段定设图）　生成带声音的分段成片　一键拼整片 |
+| | 用 Moss Image（TE-Speed 加速）出资产图（人物默认 4:3 三段定设图）　生成带声音的分段成片　一键拼整片 |
 | **不做** | 不写分集大纲、不写分镜表、不做"剧本页"——你要的是片子，不是 PPT |
 
 **没有"剧本"环节**：你给的原文就是输入，直接进提示词生产。
@@ -113,14 +113,14 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 - ComfyUI 侧需要（脚本自动读它们暴露的节点与模型列表）：
   - **自定义节点**：**必须先装齐下表 4 个仓库**，缺一个工作流就提交不了（见下节）
   - **VHS**（`VHS_VideoCombine`）用于 mp4 输出；工作流里还用到 rgthree / KJNodes
-  - **模型**：H3 主模型 + H3 LoRA（可叠到 3 条）+ 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧 Qwen-Image 2.1 UNet + 8B CLIP + VAE
+  - **模型**：H3 主模型 + H3 LoRA（可叠到 3 条）+ 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧 Moss Image UNet + qwen3.5 9B CLIP（type `moss_image`）+ flux2 VAE
   - 具体文件名见 `使用手册.md` 第二章，或直接看工作台参数区的下拉
 
 > **不需要联网**。除了本地 ComfyUI，全程不访问外部服务（也不下载任何权重）。
 
 ### ComfyUI 需要安装的自定义节点
 
-内嵌的两份工作流（H3 视频 + Qwen-Image 2.1 生图）里，H3 那条走的是 **ComfyUI 原生的 MiniMax H3 节点链**，
+内嵌的两份工作流（H3 视频 + Moss Image 生图）里，H3 那条走的是 **ComfyUI 原生的 MiniMax H3 节点链**，
 主干节点随 ComfyUI 本体（≥ 0.42）就有；另外还需要下面 3 个仓库。
 **缺节点时 ComfyUI 会直接报 `node type not found` / 提交被拒，工作台参数区也会读不到模型下拉**，装完重启 ComfyUI 再跑。
 
@@ -129,13 +129,13 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 | ComfyUI 本体（≥ 0.42） | `MiniMaxH3ReferenceToVideo`、`MiniMaxH3SigmaShift`、`MiniMaxChunkFeedForward`、`MiniMaxLowVRAMAttention`、`ModelAttentionBackend`、`BlockSparseAttention`、`ResolutionSelector`、`SaveVideo`、`CreateVideo`，以及 comfy kitchen 量化注意力 | 视频工作流主干 |
 | [`kijai/ComfyUI-KJNodes`](https://github.com/kijai/ComfyUI-KJNodes) | `ModelPreviewOverrideKJ`（采样过程中的低分辨率预览） | 视频工作流 |
 | [`winchao110/TaiYang_MultiImage`](https://github.com/winchao110/TaiYang_MultiImage) | 多图 / 多音轨输入（`TaiYangMultiImageLoader`、`TaiYangMultiAudioLoader`） | 参考图与参考音挂载 |
-| [`tl2012tl/TE-Speed-QwenImage21`](https://github.com/tl2012tl/TE-Speed-QwenImage21) | Qwen-Image 2.1 推理加速 | 生图工作流（25 步） |
+| TE-Speed（MOSS 版） | 生图加速 | 生图工作流里的 `TESpeedMoss` 节点，缺它入队会报 `node type not found` |
 
 ```bash
 cd <ComfyUI>/custom_nodes
 git clone https://github.com/kijai/ComfyUI-KJNodes.git
 git clone https://github.com/winchao110/TaiYang_MultiImage.git
-git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
+# TE-Speed（MOSS 版）：装 TESpeedMoss 节点（本机已装；换机器时按作者的 MOSS 版仓库装，别装 Qwen 版）
 # 各自按仓库 README 装 requirements（如有），然后重启 ComfyUI
 ```
 
@@ -230,12 +230,14 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 
 ## 参数区
 
-### 生图参数（Qwen-Image 2.1）
+### 生图参数（Moss Image · TE-Speed）
 
 | 参数 | 说明 |
 |---|---|
-| UNet / CLIP / VAE | 下拉现读 ComfyUI，默认 `qwen_image_2.1_int8_convrot` + `qwen3vl_8b_int8_convrot` + `qwen_image_2.1_vae_bf16` |
-| **步数** | 整数，可自行填写，默认 **25**（对应 `qwen-image21.quality25` 工作流） |
+| UNet / CLIP / VAE | 下拉现读 ComfyUI，默认 `Moss_image\moss_image_sft_int8_convrot` + `Moss_image\qwen3.5_9b_int8_convrot`（type `moss_image`）+ `Moss_image\flux2-vae` |
+| **步数 / CFG** | 默认 **50 步 / cfg 3.5**（Moss Image 官方口径，TE-Speed 会跳掉一部分步） |
+| **TE-Speed 加速** | `attention`（默认 default）/ `step_cache`（te_predictor 2）/ `reuse_threshold` 0.12 / `start_percent` 0.2 / `end_percent` 0.8 / `predictor_error_limit` 0.06 / `uncond_cache` / `verbose` |
+| **小脸涂抹** | 开关 + 人脸模型（face_yolov8m.pt）/ 检测阈值 0.12 / 保留脸数 1 / 涂抹倍数 1.8 / 填充色（自动背景） |
 | 百万像素 | 人物/场景/道具默认均 **2.0** |
 | 比例 | 人物 **4:3**、场景 16:9、道具 1:1 |
 | 人物视图模板 | 中文框即是唯一口径：左大幅脸部特写 \| 中无头全身 \| 右有头背面 的三段式定设图 |
@@ -290,13 +292,13 @@ auto-drama-video/
 │  ├─ 07-qwen-wordbank.md           资产取词库用法（槽位顺序 / 配额 / 正反例）
 │  ├─ qwen-wordbank.json            资产词库数据源（42 槽 / 370 条）
 │  ├─ 02-asset-prompt-spec.md       资产清单与信息项
-│  ├─ 03-qwen-image-prompt.md       Qwen-Image 2.1 提示词规范
+│  ├─ 03-qwen-image-prompt.md       生图提示词规范（Qwen 系，现役 Moss Image）
 │  ├─ qwen-t2i-rules.md / qwen-cheat-sheet.md / qwen-edit-rules.md
 │  ├─ 04-comfy-api.md               接口与排错
 │  ├─ 05-project-schema.md          drama.json 字段表
 │  └─ workflows/
 │     ├─ minimax-h3.ref2va.api.json        H3 视频工作流（原生 Ref2VA，28 节点）
-│     └─ qwen-image21.quality25.api.json   生图工作流（25 步）
+│     └─ moss-image.te-speed.api.json      生图工作流（Moss Image + TE-Speed，50 步）
 └─ scripts/
    ├─ drama.py           主程序（init/build/serve/images/videos/check/…）
    ├─ comfy_api.py       ComfyUI HTTP 封装（标准库）
