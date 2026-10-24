@@ -819,7 +819,10 @@
         var nm = h("div", "nm");
         nm.appendChild(document.createTextNode(a.name || a.id));
         nm.appendChild(h("span", "tag " + (a.image ? "ok" : "warn"), a.image ? "已生成" : "待生成"));
-        if (a.imageSource === "user-upload") nm.appendChild(h("span", "tag", "手动上传"));
+        if (a.imageSource === "user-upload") {
+          nm.appendChild(h("span", "tag", "手动上传"));
+          nm.appendChild(h("span", "tag ok", "提示词已改「严格参照图」"));
+        }
         body.appendChild(nm);
         if (a.type === "character") body.appendChild(voiceBlock(a, i));
         body.appendChild(field("身份一句话", "assets." + i + ".desc", { ph: "例：1934 江南，17 岁女学生" }));
@@ -828,6 +831,11 @@
         prow.appendChild(field("百万像素", "assets." + i + ".megapixels", { type: "number", step: 0.1, min: 0.2, max: 6 }));
         body.appendChild(prow);
         body.appendChild(field("生成提示词", "assets." + i + ".prompt", { rows: 6, hint: "拼接构图块与统一画风由生成器自动补在前后，这里只写人物/场景/道具本体。" }));
+        if (a.imageSource === "user-upload") {
+          body.appendChild(h("div", "hint",
+            "这张图是你上传替换的：所有分镜里对应的 <Subject " + (i + 1) + "> 已自动压成「相貌/衣着/体型严格参照图 "
+            + (i + 1) + "」，不再保留描述词（描述和图会打架）。想改回来就取消这张图或换回生成图，再跑一次 build。"));
+        }
 
         var tools = h("div", "tools");
         var file = h("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";

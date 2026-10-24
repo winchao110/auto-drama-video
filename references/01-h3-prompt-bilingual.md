@@ -80,6 +80,23 @@ non_diegetic_music:
 N/A
 ```
 
+**上传替换的资产：`<Subject N>` 只写「严格参照图 N」**
+
+资产图如果是用户自己上传替换的（`assets[].imageSource == "user-upload"`），这个 Subject 的段落**不许再有描述词**：
+
+```text
+<Subject 2> is the person shown in <Picture 2>; face, hair, body build and clothing strictly follow
+<Picture 2>, with nothing added or described.
+```
+
+- 场景写 `layout, materials, furniture and lighting strictly follow <Picture 1>`；
+  道具写 `shape, material, colour and wear strictly follow <Picture 3>`。
+- 中文块同样只写一句：「<Subject 2> 就是 <Picture 2> 里的这个人：相貌、发型、体型与服装全部严格参照 <Picture 2>，不再另加描述。」
+- **保留**：场景条的 `Opening state:`、已注入的音色句。
+- `retention_analysis` 里对应行改成 `fully_preserved - identity, hair, build and clothing follow <Picture 2>.`
+  （场景用 layout/materials/furniture/lighting，道具用 shape/material/colour/wear）。
+- 由 `build` / 上传接口自动改写，不要手写回描述；`check` 会判「和上传的图对不上」。
+
 **英文块是唯一送进 H3 的文本**（`seg_prompt()` 只拼 `en`）；中文块只作人读与修改入口。
 
 ### 2.2 断段规则（必须逐条遵守，否则中英对不齐）

@@ -134,6 +134,7 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `segments[].voiceTags` | 本轮写进提示词的音色句（`kind` = audio / prompt，含 subject/audio_no 和 en/zh 原文），供下次同步时精确删除。旧项目的 `audioTags` 会自动迁移 | **脚本**（`sync_voice_tags`） |
 | `segments[].legacy` | true 表示旧版单语提示词，`promptSegs[0].en` 直接送生成 | 迁移时自动置 |
 | `assets[].type` | character / scene / prop | AI |
+| `assets[].imageSource` | 空 / `"user-upload"`。等于 `user-upload` 表示图是用户上传替换的 → 各段 `<Subject N>` 只留「严格参照图 N」，描述词会被 `sync_upload_subjects()` 清掉（`build` / 上传接口自动执行） | `/api/upload` 自动置 |
 | `assets[].voice` | 参考音 id（仅人物有效）。空 = 不挂参考音，走 `voicePrompt` | 人在「资产」页选 / 上传 |
 | `assets[].voicePrompt` | 人物固定音色描述（英文一句，40–80 词，整部剧共用）。没挂参考音时写进每个 `<Subject K>` | AI 写，人可改 |
 | `assets[].voicePromptZh` | 上面的中文对照 | AI 写，人可改 |

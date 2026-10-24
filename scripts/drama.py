@@ -1391,6 +1391,132 @@ def sync_voice_tags(st):
 
 
 # 兼容旧名字
+# 用户上传替换过的资产：Subject 段落只留"严格参照图 N"，不再写任何描述
+# （描述会和用户上传的图打架——图是他给的，文字说另一套，模型两头不靠）
+UPLOAD_SUBJECT_TEXT = {
+    "character": (
+        "<Subject {n}> is the person shown in <Picture {n}>; face, hair, body build and clothing strictly follow "
+        "<Picture {n}>, with nothing added or described.",
+        "<Subject {n}> 就是 <Picture {n}> 里的这个人：相貌、发型、体型与服装全部严格参照 <Picture {n}>，不再另加描述。"),
+    "scene": (
+        "<Subject {n}> is the place shown in <Picture {n}>; layout, materials, furniture and lighting strictly "
+        "follow <Picture {n}>, with nothing added or described.",
+        "<Subject {n}> 就是 <Picture {n}> 里的这个场景：空间格局、材质、陈设与光位全部严格参照 <Picture {n}>，不再另加描述。"),
+    "prop": (
+        "<Subject {n}> is the object shown in <Picture {n}>; shape, material, colour and wear strictly follow "
+        "<Picture {n}>, with nothing added or described.",
+        "<Subject {n}> 就是 <Picture {n}> 里的这件道具：外形、材质、颜色与磨损全部严格参照 <Picture {n}>，不再另加描述。"),
+}
+
+UPLOAD_RETENTION = {
+    "character": (
+        "<Subject {n}>: fully_preserved - identity, hair, build and clothing follow <Picture {n}>.",
+        "<Subject {n}>：完全保留——相貌、发型、体型与服装以 <Picture {n}> 为准。"),
+    "scene": (
+        "<Subject {n}>: fully_preserved - layout, materials, furniture and lighting follow <Picture {n}>.",
+        "<Subject {n}>：完全保留——空间格局、材质、陈设与光位以 <Picture {n}> 为准。"),
+    "prop": (
+        "<Subject {n}>: fully_preserved - shape, material, colour and wear follow <Picture {n}>.",
+        "<Subject {n}>：完全保留——外形、材质、颜色与磨损以 <Picture {n}> 为准。"),
+}
+
+UPLOAD_MARK_EN = "strictly follow <Picture"
+UPLOAD_MARK_ZH = "严格参照 <Picture"
+
+
+def sync_upload_subjects(st):
+    """用户上传/替换过图的资产 → 把各段里对应的 <Subject N> 段落压成"严格参照图 N"。
+
+    返回改过的段 id 列表。规则：
+      · 只处理 `imageSource == "user-upload"` 的资产（/api/upload 会自动打这个标）
+      · 段落里的 `Opening state:`（本段开场站位）必须原样保留 —— 那是本段独立生成的锚点
+      · 已注入的音色句（voiceTags 里记着的）也保留，否则音色会丢
+      · retention_analysis 里该 Subject 那行同样改成"以图 N 为准"
+    """
+    changed = []
+    amap = {a.get("id"): a for a in (st.get("assets") or []) if a.get("id")}
+    for seg in st.get("segments") or []:
+        cast = seg.get("cast") or []
+        tags = seg.get("voiceTags") or seg.get("audioTags") or []
+        touched = False
+        for idx, aid in enumerate(cast):
+            a = amap.get(aid) or {}
+            if (a.get("imageSource") or "") != "user-upload":
+                continue
+            n = idx + 1
+            typ = a.get("type") or "character"
+            tpl = UPLOAD_SUBJECT_TEXT.get(typ) or UPLOAD_SUBJECT_TEXT["character"]
+
+            para = None
+            for x in (seg.get("promptSegs") or []):
+                if isinstance(x, dict) and ("<Subject %d>" % n) in (x.get("en") or ""):
+                    para = x
+                    break
+            if para is None:
+                continue
+
+            keep_en = _upload_keep_tail(para.get("en") or "", tags, n, "Opening state:")
+            keep_zh = _upload_keep_tail(para.get("zh") or "", tags, n, "本段开场：")
+            head_en = _block_head(para.get("en") or "")
+            head_zh = _block_head(para.get("zh") or "")
+            new_en = head_en + tpl[0].format(n=n) + (" " + keep_en if keep_en else "")
+            new_zh = head_zh + tpl[1].format(n=n) + (" " + keep_zh if keep_zh else "")
+            if (para.get("en") or "") != new_en or (para.get("zh") or "") != new_zh:
+                para["en"] = new_en
+                para["zh"] = new_zh
+                touched = True
+
+            # retention_analysis 里那一行
+            for x in (seg.get("promptSegs") or []):
+                if not isinstance(x, dict):
+                    continue
+                en = x.get("en") or ""
+                zh = x.get("zh") or ""
+                ret = UPLOAD_RETENTION.get(typ) or UPLOAD_RETENTION["character"]
+                pat = re.compile(r"^<Subject %d>: fully_preserved - .*$" % n, re.M)
+                if pat.search(en):
+                    x["en"] = pat.sub(ret[0].format(n=n), en)
+                    touched = True
+                pat_zh = re.compile(r"^<Subject %d>[：:]\s*完全保留.*$" % n, re.M)
+                if pat_zh.search(zh):
+                    x["zh"] = pat_zh.sub(ret[1].format(n=n), zh)
+                    touched = True
+        if touched:
+            changed.append(seg.get("id") or "?")
+    return changed
+
+
+def _block_head(text):
+    """段落开头的块名行（如 `subject_definitions:`）要原样留住，别被重写吃掉。"""
+    first, sep, _rest = text.partition("\n")
+    if sep and re.match(r"^[a-z_]+:\s*$", first.strip()):
+        return first + "\n"
+    return ""
+
+
+def _upload_keep_tail(text, tags, n, open_mark):
+    """从段落里截出必须保留的尾巴：本段开场站位 + 该 Subject 的音色句。"""
+    starts = []
+    pos = text.find(open_mark)
+    if pos >= 0:
+        starts.append(pos)
+    for t in tags:
+        try:
+            if int(t.get("subject") or 0) != int(n):
+                continue
+        except Exception:
+            continue
+        for key in ("en", "zh"):
+            v = (t.get(key) or "").strip()
+            if v:
+                p2 = text.find(v)
+                if p2 >= 0:
+                    starts.append(p2)
+    if not starts:
+        return ""
+    return text[min(starts):].strip()
+
+
 def sync_audio_tags(st):
     return sync_voice_tags(st)
 
@@ -2279,12 +2405,15 @@ def cmd_videos(args):
     st["_proj"] = proj
     moved = extract_global_block(st)
     tags = sync_audio_tags(st)
-    if tags or moved:
+    ups = sync_upload_subjects(st)
+    if tags or moved or ups:
         save_state(proj, st)
         if moved:
             print("全局画质与摄影前置已从各段抽到参数区：%s" % "、".join(moved), flush=True)
         if tags:
             print("音色已同步进提示词：%s" % "、".join(tags), flush=True)
+        if ups:
+            print("用户上传的资产已改成「严格参照图」：%s" % "、".join(ups), flush=True)
     gb = st["meta"].get("globalBlock") or {}
     addr = args.addr or st["settings"]["comfy"]
     s = st["settings"]
@@ -2951,9 +3080,14 @@ def make_handler(proj):
                 target["status"] = "done"
                 target["imageSource"] = "user-upload"
                 target["imageVer"] = int(time.time())
+                sync_audio_tags(st)
+                ups = sync_upload_subjects(st)
                 save_state(p["proj"], st)
                 build_html(p["proj"], st)
-                return self._send(200, {"ok": True, "image": target["image"]})
+                return self._send(200, {"ok": True, "image": target["image"],
+                                        "promptSynced": ups,
+                                        "note": "已把 %s 里对应 Subject 的描述换成「严格参照图」，"
+                                                "提示词需重新呈现后才能生成" % ("、".join(ups) or "本资产")})
 
             if path == "/api/voice":
                 blob = data.get("data") or ""
@@ -3125,6 +3259,7 @@ def cmd_build(args):
         seg["genSec"] = gen_sec(seg.get("sec"), sec_bounds(st))
     moved = extract_global_block(st)
     tags = [] if getattr(args, "no_audio_sync", False) else sync_audio_tags(st)
+    ups = sync_upload_subjects(st)
     save_state(proj, st)
     html = build_html(proj, st)
     pending_sync = sum(len(seg_edited(s)) for s in st["segments"])
@@ -3142,6 +3277,9 @@ def cmd_build(args):
         print("全局画质与摄影前置已抽到参数区（原本重复在 %s 的段首）" % "、".join(moved), flush=True)
     if tags:
         print("音色已同步进提示词：%s" % "、".join(tags), flush=True)
+    if ups:
+        print("用户上传的资产已改成「严格参照图」：%s（这些段里对应 Subject 的描述词已清空）"
+              % "、".join(ups), flush=True)
     return 0
 
 
@@ -3750,6 +3888,24 @@ def cmd_check(args):
             else:
                 warns.append("%s 的资产提示词里有丑化词（%s），已用 note 记账（%s…）→ 确认只留 1 条、"
                              "确实是剧情需要" % (aid, names, note[:20]))
+
+    # 用户上传替换过的资产：各段对应 Subject 段落必须是「严格参照图 N」，不许再留描述词
+    if st["segments"]:
+        amap2 = {a.get("id"): a for a in st["assets"] if a.get("id")}
+        for seg in st["segments"]:
+            for idx, aid in enumerate(seg.get("cast") or []):
+                a = amap2.get(aid) or {}
+                if (a.get("imageSource") or "") != "user-upload":
+                    continue
+                n = idx + 1
+                para = next((x for x in (seg.get("promptSegs") or [])
+                             if isinstance(x, dict) and ("<Subject %d>" % n) in (x.get("en") or "")), None)
+                if para is None:
+                    continue
+                if UPLOAD_MARK_EN not in (para.get("en") or ""):
+                    issues.append("%s 的 %s（<Subject %d>）是用户上传的图，但这段还在写相貌/衣着描述 → "
+                                  "和上传的图对不上；跑一次 build 会自动改成「严格参照图 %d」，或手动清掉描述词"
+                                  % (seg.get("id"), aid, n, n))
 
     vids = {v.get("id") for v in st["voices"]}
     vmap = {v.get("id"): v for v in st["voices"]}

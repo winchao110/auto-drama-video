@@ -217,6 +217,23 @@ $PY = 当前环境的 python（Windows 例：python 或 py -3）
       `flaw` / `worn` 两个剧情专用槽里取 **1 条**，并在 `assets[].note` 记账；没写的场合一律不取。
     - 词条只是**半成品**，要扩写成带方位的句子（行文规则仍见 `03-qwen-image-prompt.md` 的八步框架与五条硬禁令）。
 
+22. **用户上传替换过的资产，提示词要让位给图**（2026-10-24 用户钦定）：
+    `assets[].imageSource == "user-upload"` 时（页面点「上传替换」会自动打标），各段里对应的 `<Subject N>` 段落
+    **只留一句「严格参照图 N」**，不许再写相貌 / 发型 / 体型 / 衣着 / 材质 / 陈设等描述词——
+    图是用户给的，文字再描述一套，H3 会两头不靠，出来的脸和衣服必然和他要的不一样。
+
+    - 标准写法（自动生成的，不许手改回去）：
+      `character` → `<Subject 2> is the person shown in <Picture 2>; face, hair, body build and clothing strictly follow <Picture 2>, with nothing added or described.`
+      `scene` → `<Subject 1> is the place shown in <Picture 1>; layout, materials, furniture and lighting strictly follow <Picture 1>, …`
+      `prop` → `<Subject 3> is the object shown in <Picture 3>; shape, material, colour and wear strictly follow <Picture 3>, …`
+      中文对应「…就是 <Picture N> 里的这个人/这个场景/这件道具：…严格参照 <Picture N>，不再另加描述。」
+    - **必须保留**：场景条里的 `Opening state:`（本段开场站位，铁律 17 的锚点）、已注入的音色句（铁律 12）。
+      `retention_analysis` 里该 Subject 那行同步改成「以图 N 为准」，不再列特征。
+    - **自动执行**：`build` 与 `/api/upload` 都会跑 `sync_upload_subjects()`，打印「用户上传的资产已改成严格参照图：P01…」。
+    - **`check` 会拦**：上传了图但原文还在写描述 → 硬问题「和上传的图对不上」。
+    - 用户把图换回生成图（或删图重生成）后，`imageSource` 不再等于 `user-upload`，就需要**重新写回描述**
+      （AI 按 07 词库补），否则 Subject 条只剩一句"参照图"，等于没给模型任何文字锚点。
+
 ---
 
 ## 第 0 步：建项目 + 探活
