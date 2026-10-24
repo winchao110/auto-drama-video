@@ -85,6 +85,17 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 
 细则见 `references/06-camera-moves.md`。
 
+**⑨ 资产取词库（41 槽 / 367 条英文词条）**
+`references/qwen-wordbank.json` + `07-qwen-wordbank.md`：从 Luori-Sunset 的 93 字段中文词库裁出来，
+只留人物 / 场景 / 道具三类用得上的槽位，改写成一词一条的英文短词条，配槽位顺序与配额。
+
+- **一个资产 = 一条提示词**，不给 A/B 版；要更细就往下补槽，不是写成两版让人挑。
+- **一个槽只取一个词**：长发＋寸头、素颜＋浓妆这类互斥词同写会把脸拉糊。
+- 人物 18 槽挑 12–16（350–500 词）、场景 10 槽挑 8–10（350–500 词）、道具 8 槽全用（300–450 词）。
+- 人物补 2–3 条真实感瑕疵（毛孔 / 绒毛 / 轻微不对称），场景必须写使用痕迹，道具必须给尺寸参照物。
+
+取词只管"用什么词"；行文仍是 `03` 的八步框架与五条硬禁令。
+
 ---
 
 ## 环境要求
@@ -259,7 +270,7 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 
 ```
 auto-drama-video/
-├─ SKILL.md                    主流程与 20 条铁律（给智能体看）
+├─ SKILL.md                    主流程与 21 条铁律（给智能体看）
 ├─ 使用手册.md                  中文说明书（给人看）
 ├─ assets/workbench.template.html   工作台模板
 ├─ references/
@@ -267,6 +278,8 @@ auto-drama-video/
 │  ├─ h3-wenxi-v2-template.md       权威结构模板（运镜/光影/台词预算）
 │  ├─ 06-camera-moves.md            44 条运镜目录 + 导演思维 + T0/T1/T2 + 跨段防闪
 │  ├─ camera-moves.json             运镜数据源（脚本与页面共用）
+│  ├─ 07-qwen-wordbank.md           资产取词库用法（槽位顺序 / 配额 / 正反例）
+│  ├─ qwen-wordbank.json            资产词库数据源（41 槽 / 367 条）
 │  ├─ 02-asset-prompt-spec.md       资产清单与信息项
 │  ├─ 03-qwen-image-prompt.md       Qwen-Image 2.1 提示词规范
 │  ├─ qwen-t2i-rules.md / qwen-cheat-sheet.md / qwen-edit-rules.md
@@ -347,12 +360,13 @@ auto-drama-video/
 | 文件 | 什么时候看 |
 |---|---|
 | `使用手册.md` | 中文说明书：怎么唤起、四页怎么用、参数怎么调、常见问题 |
-| `SKILL.md` | 主流程 + 20 条铁律（智能体执行口径） |
+| `SKILL.md` | 主流程 + 21 条铁律（智能体执行口径） |
 | `references/01` + `h3-wenxi-v2-template.md` | 写 H3 提示词 |
 | `references/02` + `03` | 写资产提示词 |
 | `references/04` | 调接口、排错 |
 | `references/05` | `drama.json` 字段含义 |
 | `references/06` | 运镜怎么选、怎么落地（44 条目录 + 导演思维 + T0/T1/T2 + 跨段防闪） |
+| `references/07` | 资产提示词取词库（41 槽 / 367 条 + 配额 + 正反例，每个资产只出一条） |
 
 ---
 

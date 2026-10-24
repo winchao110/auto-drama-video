@@ -3593,6 +3593,24 @@ def cmd_check(args):
     if dup:
         issues.append("资产 id 重复：%s" % ", ".join(sorted(dup)))
 
+    # 资产提示词：一个资产只出一条 + 够详细（铁律 21，词库见 references/07-qwen-wordbank.md）
+    for a in st["assets"]:
+        aid = a.get("id") or "?"
+        pr = (a.get("prompt") or "").strip()
+        if not pr:
+            continue
+        if "\n\n" in pr:
+            warns.append("%s 的资产提示词里有空行分段 → 看着像写了多段或给了备选；"
+                         "一个资产只出一条，合成一段（铁律 21）" % aid)
+        wc = len(re.findall(r"[A-Za-z][A-Za-z'\-]*", pr))
+        typ = a.get("type") or ""
+        lo = 300 if typ == "prop" else 350
+        if wc < lo * 0.7:
+            warns.append("%s 的资产提示词只有约 %d 个英文词（%s 建议 %d+）→ 细节不足，"
+                         "按 07 词库往下补槽（材质 / 痕迹 / 尺寸 / 真实感瑕疵）" % (aid, wc, typ or "资产", lo))
+        if re.search(r"\b(8K|masterpiece|award-winning|highly detailed|best quality)\b", pr, re.I):
+            warns.append("%s 的资产提示词里有空词（8K / masterpiece 之类）→ 删掉，换成光学与材质事实" % aid)
+
     vids = {v.get("id") for v in st["voices"]}
     vmap = {v.get("id"): v for v in st["voices"]}
     for a in st["assets"]:

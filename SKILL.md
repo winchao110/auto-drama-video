@@ -1,8 +1,8 @@
 ---
 name: auto-drama-video
-description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。运镜按 44 条 H3 运镜目录（references/camera-moves.json）以导演思维选用：先戏眼后站位再能量走向，不硬用、一段一个运镜；需要 LoRA 的运镜按近景 T0 / 中景 T1 / 本机缺文件 T2 三档自动挂载到独立节点 491 并前置触发词，缺文件就降级用原生提示词；相邻两段的尾镜与首镜不许同景别同机位（防拼接闪烁与人物跳动）。H3 工作流为 MiniMax-H3 原生 Ref2VA（euler/simple 5 步 + comfy kitchen 注意力 + sol-attn 块稀疏注意力 + 三格 LoRA 串联，默认只挂第一格）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
+description: "「全本地自动短剧视频生成」全自动短视频/短剧生成流水线（人机协同，3 阶段）：小说/剧本/点子 → 直接产出 MiniMax H3 分段提示词（英文正文+中文对照）+ Qwen-Image 2.1 资产提示词 + 视频简介 → 本地 ComfyUI 生成资产图 → 整批入队生成视频，全部跑完自动用 ffmpeg 拼成一个成片交给用户审核，全程用一份 HTML 工作台人机来回改稿。H3 提示词规范融合 minimax-h3-wenxi-prompt-v2；资产提示词按 Qwen-Image 2.1 官方改写规范（融合 qwen-image-2.1-skill，英文单段八步法），取词走内置资产词库 qwen-wordbank（41 槽 / 367 条英文词条，只做人物/场景/道具三类，每个资产只出一条最详细提示词）；音色在「资产」页人物图下定（选参考音/试听/替换音频，或写一条整部剧共用的音色提示词），提示词里对应 <Subject> 自动写入 <Audio N> 或固定音色句，同一个人物全剧音色一致；时长按 5/6 折算成 API 实传值。提示词按「构图与连续性四铁律」写：宽屏可两人同框、窄屏一律一人一镜，优先过脸/过肩/过腰并交代前景后景，每段独立重写开场站位与姿势（禁止“仍然/如前”式跨段指代），Shot 里不写光影、不写人物没发生的位移，check 自动卡这四条。运镜按 44 条 H3 运镜目录（references/camera-moves.json）以导演思维选用：先戏眼后站位再能量走向，不硬用、一段一个运镜；需要 LoRA 的运镜按近景 T0 / 中景 T1 / 本机缺文件 T2 三档自动挂载到独立节点 491 并前置触发词，缺文件就降级用原生提示词；相邻两段的尾镜与首镜不许同景别同机位（防拼接闪烁与人物跳动）。H3 工作流为 MiniMax-H3 原生 Ref2VA（euler/simple 5 步 + comfy kitchen 注意力 + sol-attn 块稀疏注意力 + 三格 LoRA 串联，默认只挂第一格）。生成全部走 ComfyUI 原生 HTTP 接口，只用 Python 标准库，任何智能体都能跑。触发词：全本地自动短剧视频生成、全本地短剧、自动短剧视频、全自动视频生成、短剧、短视频、AI 短剧、小说改编、小说转视频、H3 视频提示词、minimax h3、qwen image、资产提示词、参考音配音、音色提示词、音色一致、drama、auto-drama-video。"
 metadata:
-  version: "3.8.0"
+  version: "3.9.0"
   title: "全本地自动短剧视频生成"
   author: "太阳阶梯jqk8707"
   entry: "SKILL.md（本文件）"
@@ -194,6 +194,17 @@ $PY = 当前环境的 python（Windows 例：python 或 py -3）
       必须换景别或换方向（中景→近景 / 正面→过肩 / 侧面），否则拼接后**会闪一下、人物会跳一下**。
       `check` 会解析每段 `[Shot N]` 的景别词 + 方向词指纹自动抓这一条。
 
+21. **资产提示词一律走词库，一个资产只出一条**（2026-10-24 用户钦定，词库见 `references/07-qwen-wordbank.md`
+    + `qwen-wordbank.json`，抽自 Luori-Sunset 的 93 字段中文词库，裁成 41 槽 / 367 条英文词条）：
+    - **范围只有三类**：人物、场景、道具。不生成其它资产类型。
+    - **一个资产 = 一条提示词**：不给 A/B 版、不写备选、不把两段塞进 `assets[].prompt`。
+    - **一个槽取一个词**：互斥词同写（长发＋寸头、素颜＋浓妆、干净＋脏污）会把画面拉糊；
+      同义词堆叠（`beautiful / stunning / gorgeous`）等于零信息。
+    - **按槽位顺序取词、按配额**：人物 18 槽挑 12–16（350–500 词）、场景 10 槽挑 8–10（350–500 词）、
+      道具 8 槽全用（300–450 词）。人物补 2–3 条真实感瑕疵（毛孔 / 绒毛 / 轻微不对称），
+      场景必须写使用痕迹，道具必须写尺寸参照物。
+    - 词条只是**半成品**，要扩写成带方位的句子（行文规则仍见 `03-qwen-image-prompt.md` 的八步框架与五条硬禁令）。
+
 ---
 
 ## 第 0 步：建项目 + 探活
@@ -240,6 +251,7 @@ git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
 - `references/02-asset-prompt-spec.md`（该建哪些资产、人物 10 项信息、场景/道具信息项、分辨率）
 - `references/03-qwen-image-prompt.md`（**资产提示词怎么写**：Qwen-Image 2.1 八步框架、五条硬禁令、三类资产落地）
 - `references/06-camera-moves.md`（**运镜怎么选、怎么落地**：44 条目录、导演思维选用原则、T0/T1/T2、跨段防闪）
+- `references/07-qwen-wordbank.md`（**资产提示词取词库**：人物 18 槽 / 场景 10 槽 / 道具 8 槽 + 配额 + 正反例）
 
 要做的事：
 
@@ -247,6 +259,8 @@ git clone https://github.com/tl2012tl/TE-Speed-QwenImage21.git
    先标硬边界，再把"问句+回答+眼神"这种小回合合并进同一段。不要凑镜头。
 2. **写视频简介**：`meta.hook`（0–3 秒钩子）+ `meta.synopsis`（观众视角 3–6 句）+ `meta.styleLock`（统一美术风格锁）。
 3. **写资产提示词**：`assets[]`，两个以上段落出现的人物/道具必须建；只写本体，不写动作/镜头/光位。
+   **先查 `07-qwen-wordbank.md` 按槽位取词，每个资产只写一条**（铁律 21）——一条写完就够详细，
+   不要为了"更详细"给两版让人挑；要更细就往下补槽（真实感瑕疵、材质、使用痕迹、尺寸参照）。
 4. **写 H3 分段提示词**：`segments[]`，每段
    - `id`（P01…）、`title`、`chapter`、`sec`（5–18）、`logline`
    - `cast`：本段出场资产 id，**按 Subject 顺序**（人物在前、场景在后）
@@ -548,4 +562,6 @@ for id in P01 P02 P03; do echo "file 'videos/$id.mp4'" >> list.txt; done
 | `references/05-project-schema.md` | 任何需要确认字段含义时 |
 | `references/06-camera-moves.md` | 第 1 阶段写 `[Shot N]` 时、第 3 阶段跑视频前（**运镜目录 + 导演思维 + T0/T1/T2 + 跨段防闪**） |
 | `references/camera-moves.json` | 运镜数据源（44 条，脚本与工作台页面共用），**不要在别处另抄一份改** |
+| `references/07-qwen-wordbank.md` | 第 1 阶段写资产提示词前（**取词库用法 + 槽位顺序 + 配额 + 正反例**） |
+| `references/qwen-wordbank.json` | 资产词库数据源（41 槽 / 367 条英文词条），与 07 配套 |
 | `references/workflows/*.api.json` | 两份内嵌工作流（H3 视频 + Qwen-Image 生图），脚本自动读取，不手动改 |
