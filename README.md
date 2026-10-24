@@ -237,7 +237,9 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 | UNet / CLIP / VAE | 下拉现读 ComfyUI，默认 `Moss_image\moss_image_sft_int8_convrot` + `Moss_image\qwen3.5_9b_int8_convrot`（type `moss_image`）+ `Moss_image\flux2-vae` |
 | **步数 / CFG** | 默认 **50 步 / cfg 3.5**（Moss Image 官方口径，TE-Speed 会跳掉一部分步） |
 | **TE-Speed 加速** | `attention`（默认 default）/ `step_cache`（te_predictor 2）/ `reuse_threshold` 0.12 / `start_percent` 0.2 / `end_percent` 0.8 / `predictor_error_limit` 0.06 / `uncond_cache` / `verbose` |
-| **小脸涂抹** | 开关 + 人脸模型（face_yolov8m.pt）/ 检测阈值 0.12 / 保留脸数 1 / 涂抹倍数 1.8 / 填充色（自动背景） |
+| **人物参考图 · 小脸自动抹除** | 默认**开**，只在人物资产生成时生效（挂 `TaiYangSmallFaceErase(79)`） |
+| **场景 / 道具也抹小脸** | 默认**关**；人物之外的两类默认不挂这颗节点 |
+| 小脸节点参数 | 人脸模型（face_yolov8m.pt）/ 检测阈值 0.12 / 保留脸数 1 / 涂抹倍数 1.8 / 填充色（自动背景） |
 | 百万像素 | 人物/场景/道具默认均 **2.0** |
 | 比例 | 人物 **4:3**、场景 16:9、道具 1:1 |
 | 人物视图模板 | 中文框即是唯一口径：左大幅脸部特写 \| 中无头全身 \| 右有头背面 的三段式定设图 |

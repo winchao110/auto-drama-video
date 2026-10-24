@@ -280,8 +280,13 @@ DEFAULT_IMG_END_PERCENT = 0.8
 DEFAULT_IMG_PREDICTOR_ERROR = 0.06
 DEFAULT_IMG_UNCOND_CACHE = False
 DEFAULT_IMG_VERBOSE = False
-# 小脸涂抹（TaiYangSmallFaceErase 79）：去掉参考图里多出来的小脸，默认开
-DEFAULT_IMG_FACE_ERASE = True
+# 小脸涂抹（TaiYangSmallFaceErase 79）：去掉参考图里多出来的小脸。
+# 2026-10-24 用户口径：拆成两个开关 —— 人物定设图默认抹（一张图里三视图 + 参考图小脸最容易糊），
+# 场景 / 道具默认不抹（那里没有「多出来一张脸」的问题，抹了只会误伤）。
+DEFAULT_IMG_FACE_ERASE_CHAR = True
+DEFAULT_IMG_FACE_ERASE_OTHER = False
+# 兼容旧代码里的名字（老项目 / 老记忆里的 imgFaceErase 会被 align_face_scope 拆成上面两项）
+DEFAULT_IMG_FACE_ERASE = DEFAULT_IMG_FACE_ERASE_CHAR
 DEFAULT_IMG_FACE_MODEL = "face_yolov8m.pt"
 DEFAULT_IMG_FACE_THRESHOLD = 0.12
 DEFAULT_IMG_FACE_KEEP = 1
@@ -294,6 +299,37 @@ LEGACY_IMG_MODELS = {
     "imgClip": "Qwen-Image\\qwen3vl_8b_int8_convrot.safetensors",
     "imgVae": "Qwen-Image\\qwen_image_2.1_vae_bf16.safetensors",
 }
+
+
+def align_face_scope(sset):
+    """把老的单个 imgFaceErase 拆成「人物」与「场景/道具」两个开关（只拆一次）。
+
+    老语义是「全局抹」，所以拆分时人物沿用老值（默认开），场景/道具一律置为关——
+    这正是 2026-10-24 用户要的：小脸抹除只该发生在人物参考图上。
+    返回 True 表示这次真的改过。
+    """
+    if not isinstance(sset, dict):
+        return False
+    if "imgFaceEraseChar" in sset and "imgFaceEraseOther" in sset:
+        sset.pop("imgFaceErase", None)
+        return False
+    old = sset.get("imgFaceErase", DEFAULT_IMG_FACE_ERASE_CHAR)
+    sset["imgFaceEraseChar"] = bool(old)
+    sset.setdefault("imgFaceEraseOther", DEFAULT_IMG_FACE_ERASE_OTHER)
+    sset.pop("imgFaceErase", None)
+    return True
+
+
+def face_erase_for(sset, asset_type):
+    """某类资产这次要不要挂小脸涂抹节点。
+
+    人物看 imgFaceEraseChar（默认开），场景 / 道具看 imgFaceEraseOther（默认关）。
+    这是唯一判定入口：`images` 阶段逐资产调它，别在别处自己判断。
+    """
+    sset = sset or {}
+    if str(asset_type or "") == "character":
+        return bool(sset.get("imgFaceEraseChar", DEFAULT_IMG_FACE_ERASE_CHAR))
+    return bool(sset.get("imgFaceEraseOther", DEFAULT_IMG_FACE_ERASE_OTHER))
 
 
 def align_moss_defaults(sset):
@@ -719,7 +755,8 @@ REMEMBER_KEYS = (
     "imgCfg", "imgSampler", "imgScheduler", "imgSpeedAttn", "imgStepCache",
     "imgReuseThreshold", "imgStartPercent", "imgEndPercent", "imgPredictorError",
     "imgUncondCache", "imgVerbose",
-    "imgFaceErase", "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
+    "imgFaceEraseChar", "imgFaceEraseOther",
+    "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
     "ratio", "megapixels",
     "steps", "comfy", "h3Model",
     "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength", "h3Lora3", "h3Lora3Strength",
@@ -748,7 +785,8 @@ def builtin_settings():
         "imgPredictorError": DEFAULT_IMG_PREDICTOR_ERROR,
         "imgUncondCache": DEFAULT_IMG_UNCOND_CACHE,
         "imgVerbose": DEFAULT_IMG_VERBOSE,
-        "imgFaceErase": DEFAULT_IMG_FACE_ERASE,
+        "imgFaceEraseChar": DEFAULT_IMG_FACE_ERASE_CHAR,
+        "imgFaceEraseOther": DEFAULT_IMG_FACE_ERASE_OTHER,
         "imgFaceModel": DEFAULT_IMG_FACE_MODEL,
         "imgFaceThreshold": DEFAULT_IMG_FACE_THRESHOLD,
         "imgFaceKeep": DEFAULT_IMG_FACE_KEEP,
@@ -815,6 +853,8 @@ def load_user_settings():
         base[k] = copy.deepcopy(v)
     # 记忆里还是 Qwen-Image 2.1 的三件套 / 25 步 → 换成 Moss Image 的默认（人改过的不动）
     align_moss_defaults(base)
+    # 记忆里还是单个 imgFaceErase → 拆成人物 / 场景道具两个开关
+    align_face_scope(base)
     return base
 
 
@@ -881,7 +921,8 @@ def new_state(title="未命名短剧", source=""):
             "imgPredictorError": mem.get("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR),
             "imgUncondCache": mem.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE),
             "imgVerbose": mem.get("imgVerbose", DEFAULT_IMG_VERBOSE),
-            "imgFaceErase": mem.get("imgFaceErase", DEFAULT_IMG_FACE_ERASE),
+            "imgFaceEraseChar": mem.get("imgFaceEraseChar", DEFAULT_IMG_FACE_ERASE_CHAR),
+            "imgFaceEraseOther": mem.get("imgFaceEraseOther", DEFAULT_IMG_FACE_ERASE_OTHER),
             "imgFaceModel": mem.get("imgFaceModel", DEFAULT_IMG_FACE_MODEL),
             "imgFaceThreshold": mem.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
             "imgFaceKeep": mem.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
@@ -946,7 +987,8 @@ def migrate(st):
               "imgCfg", "imgSampler", "imgScheduler", "imgSpeedAttn", "imgStepCache",
               "imgReuseThreshold", "imgStartPercent", "imgEndPercent", "imgPredictorError",
               "imgUncondCache", "imgVerbose",
-              "imgFaceErase", "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
+              "imgFaceEraseChar", "imgFaceEraseOther",
+              "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
               "ratio", "megapixels", "steps", "comfy",
               "h3Model", "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength",
               "h3Lora3", "h3Lora3Strength", "h3Clip", "h3VideoVae", "h3AudioVae",
@@ -1011,7 +1053,8 @@ def migrate(st):
             fv = dflt
         fv = min(hi, max(lo, fv))
         s[k] = int(fv) if as_int else fv
-    for k in ("imgUncondCache", "imgVerbose", "imgFaceErase"):
+    align_face_scope(s)
+    for k in ("imgUncondCache", "imgVerbose", "imgFaceEraseChar", "imgFaceEraseOther"):
         s[k] = bool(s.get(k))
     # 生图模型选择（turbo6 / quality25）已取消：turbo 工作流整个删掉，统一走 Moss Image
     s.pop("imageModel", None)
@@ -1711,7 +1754,7 @@ def image_graph(tpl, prompt, w, h, seed, prefix, unet="", clip="", vae="", steps
                 start_percent=DEFAULT_IMG_START_PERCENT, end_percent=DEFAULT_IMG_END_PERCENT,
                 predictor_error=DEFAULT_IMG_PREDICTOR_ERROR,
                 uncond_cache=DEFAULT_IMG_UNCOND_CACHE, verbose=DEFAULT_IMG_VERBOSE,
-                face_erase=DEFAULT_IMG_FACE_ERASE, face_model=DEFAULT_IMG_FACE_MODEL,
+                face_erase=DEFAULT_IMG_FACE_ERASE_CHAR, face_model=DEFAULT_IMG_FACE_MODEL,
                 face_threshold=DEFAULT_IMG_FACE_THRESHOLD, face_keep=DEFAULT_IMG_FACE_KEEP,
                 face_smear=DEFAULT_IMG_FACE_SMEAR, face_fill=DEFAULT_IMG_FACE_FILL):
     """Moss Image（TE-Speed）填参。
@@ -2204,7 +2247,6 @@ def cmd_images(args):
     except (TypeError, ValueError):
         img_steps = DEFAULT_IMG_STEPS
     img_cfg = s.get("imgCfg", DEFAULT_IMG_CFG)
-    img_face = bool(s.get("imgFaceErase", DEFAULT_IMG_FACE_ERASE))
     p = paths(proj)
     os.makedirs(p["assets"], exist_ok=True)
 
@@ -2231,14 +2273,19 @@ def cmd_images(args):
              s.get("imgStartPercent", DEFAULT_IMG_START_PERCENT), s.get("imgEndPercent", DEFAULT_IMG_END_PERCENT),
              s.get("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR),
              "开" if s.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE) else "关"), flush=True)
-    if img_face:
-        _face_note = "开（保留 %s 张脸，阈值 %s，涂抹 ×%s）" % (
+    # 小脸抹除：人物与场景/道具分开判定（人物默认抹，场景道具默认不抹）
+    _char_on = face_erase_for(s, "character")
+    _other_on = face_erase_for(s, "scene")
+    if _char_on or _other_on:
+        _kv = "保留 %s 张脸｜阈值 %s｜涂抹 ×%s｜填充 %s" % (
             s.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
             s.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
-            s.get("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR))
+            s.get("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR),
+            s.get("imgFaceFill", DEFAULT_IMG_FACE_FILL))
     else:
-        _face_note = "关"
-    print("小脸涂抹：%s" % _face_note, flush=True)
+        _kv = "两颗节点都不会挂"
+    print("小脸抹除：人物 %s｜场景 / 道具 %s（%s）"
+          % ("开" if _char_on else "关", "开" if _other_on else "关", _kv), flush=True)
     if not targets:
         print("没有需要生成的资产（加 --force 可全部重跑）。", flush=True)
         return 0
@@ -2258,7 +2305,10 @@ def cmd_images(args):
         if not prompt.strip():
             rep.bad("%s 没有提示词，跳过" % aid)
             continue
-        print("\n[%d/%d] %s｜%s｜%s｜%dx%d" % (i, len(targets), aid, a.get("type"), ratio, w, h), flush=True)
+        face_on = face_erase_for(s, a.get("type"))
+        print("\n[%d/%d] %s｜%s｜%s｜%dx%d｜小脸抹除 %s"
+              % (i, len(targets), aid, a.get("type"), ratio, w, h,
+                 "开" if face_on else "关"), flush=True)
         if args.dry:
             print("      提示词：" + prompt[:180].replace("\n", " ") + "…", flush=True)
             rep.good("%s dry-run" % aid)
@@ -2279,7 +2329,7 @@ def cmd_images(args):
                 predictor_error=s.get("imgPredictorError", DEFAULT_IMG_PREDICTOR_ERROR),
                 uncond_cache=s.get("imgUncondCache", DEFAULT_IMG_UNCOND_CACHE),
                 verbose=s.get("imgVerbose", DEFAULT_IMG_VERBOSE),
-                face_erase=img_face,
+                face_erase=face_on,
                 face_model=s.get("imgFaceModel", DEFAULT_IMG_FACE_MODEL),
                 face_threshold=s.get("imgFaceThreshold", DEFAULT_IMG_FACE_THRESHOLD),
                 face_keep=s.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),

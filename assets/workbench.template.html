@@ -82,7 +82,19 @@
   .ov td:nth-child(3){width:120px}
   .agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(336px,1fr));gap:14px}
   .acard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
-  .acard .thumb{height:186px;background:#f0f0ec center/cover no-repeat;position:relative;border-bottom:1px solid var(--line)}
+  .acard .thumb{height:200px;background:#f2f2ee;position:relative;border-bottom:1px solid var(--line);overflow:hidden;cursor:zoom-in}
+  .acard .thumb img{width:100%;height:100%;object-fit:contain;display:block}
+  .acard .thumb .zoom{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.62);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:20px;letter-spacing:.05em;opacity:0;transition:.15s;pointer-events:none}
+  .acard .thumb:hover .zoom{opacity:1}
+  /* 看大图 */
+  #lightbox{position:fixed;inset:0;z-index:200;background:rgba(10,11,14,.88);display:none;align-items:center;justify-content:center;padding:36px;cursor:zoom-out}
+  #lightbox.on{display:flex}
+  #lightbox img{max-width:100%;max-height:calc(100vh - 96px);object-fit:contain;border-radius:6px;box-shadow:0 18px 60px rgba(0,0,0,.55);background:#fff}
+  #lightbox .cap{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#e8e8e4;font-size:12.5px;letter-spacing:.04em}
+  #lightbox .cap b{color:#fff;font-weight:600}
+  #lightbox .cap a{color:#9fd0ff;text-decoration:none;margin-left:10px}
+  #lightbox .close{position:absolute;right:18px;top:16px;color:#fff;background:rgba(255,255,255,.14);border:0;border-radius:20px;padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer}
+  #lightbox .close:hover{background:rgba(255,255,255,.26)}
   .acard .thumb .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#a8a8a0;font-size:12px;flex-direction:column;gap:2px}
   .acard .thumb .idx{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;padding:2px 7px;border-radius:20px;letter-spacing:.06em}
   .acard .body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;flex:1}
@@ -200,6 +212,11 @@
     <div class="banner" id="banner"><span id="bannerTxt"></span><button class="btn sm" id="reloadBtn">重新载入</button></div>
     <div id="view"></div>
   </main>
+</div>
+<div id="lightbox">
+  <button class="close" id="lb-close">关闭 ✕</button>
+  <img id="lb-img" alt=""/>
+  <div class="cap" id="lb-cap"></div>
 </div>
 <div id="toast"></div>
 <script type="application/json" id="drama-state">__DRAMA_STATE__</script>
@@ -329,6 +346,39 @@
     t.textContent = msg; t.classList.add("on");
     clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove("on"); }, ms || 2600);
   }
+  /* 看大图：点资产缩略图 → 全屏原图（Esc / 点空白 / 点关闭都收起来） */
+  function closeLightbox() {
+    var box = document.getElementById("lightbox");
+    if (box) box.classList.remove("on");
+  }
+  function openLightbox(src, caption) {
+    var box = document.getElementById("lightbox");
+    var img = document.getElementById("lb-img");
+    var cap = document.getElementById("lb-cap");
+    if (!box || !img || !cap) return;
+    img.src = src;
+    cap.textContent = "";
+    if (caption) cap.appendChild(h("b", null, caption));
+    var dl = h("a", null, "下载原图");
+    dl.href = src; dl.download = "";
+    cap.appendChild(dl);
+    cap.appendChild(document.createTextNode("　Esc 或点空白处关闭"));
+    box.classList.add("on");
+  }
+  (function bindLightbox() {
+    var box = document.getElementById("lightbox");
+    if (!box) return;
+    box.addEventListener("click", function (e) {
+      /* 点说明文字里的「下载原图」不关闭；其它位置一律关 */
+      if (e.target && e.target.tagName === "A") return;
+      closeLightbox();
+    });
+    var cb = document.getElementById("lb-close");
+    if (cb) cb.addEventListener("click", function (e) { e.stopPropagation(); closeLightbox(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeLightbox();
+    });
+  })();
   /* 让本机资源管理器打开本剧目录（由本地服务执行，浏览器不碰文件系统） */
   function openProjectDir(btn) {
     if (!SERVER) { toast("要用「打开目录」，请用 serve 起的 http://127.0.0.1 页面"); return; }
@@ -730,11 +780,22 @@
         hint: "排查哪步被跳了时才开"
       }));
       /* --- 小脸涂抹（TaiYangSmallFaceErase）：去掉参考图里多出来的小脸 --- */
-      g.appendChild(h("div", "hint", "小脸涂抹（TaiYangSmallFaceErase）：解决「参考图里带进来一张小脸被画进画面」。默认开。"));
-      g.appendChild(field("小脸涂抹", "settings.imgFaceErase", {
-        type: "check", checkLabel: "开启小脸涂抹（默认）",
-        checkLabelOn: "小脸涂抹已开启", checkLabelOff: "开启小脸涂抹（默认）",
-        hint: "关掉 = 这个节点整颗从工作流摘掉，出图原样保存（想自己后期修时用）"
+      g.appendChild(h("div", "hint",
+        "小脸涂抹（TaiYangSmallFaceErase）：解决「参考图里带进来一张小脸被画进画面」。"
+        + "人物定设图默认抹，场景 / 道具默认不抹——它们本来没有多出来的脸，抹了只会误伤。"));
+      g.appendChild(field("人物参考图 · 小脸自动抹除", "settings.imgFaceEraseChar", {
+        type: "check", checkLabel: "生成人物参考图时自动抹掉多出来的小脸（默认勾选）",
+        checkLabelOn: "人物参考图小脸自动抹除已开启（默认勾选）",
+        checkLabelOff: "人物参考图小脸自动抹除（默认勾选）",
+        hint: "只在人物资产（定设图）生成时生效；场景、道具不受这个开关影响。"
+            + "关掉 = 人物那张也不抹，出图原样保存（想自己后期修时用）"
+      }));
+      g.appendChild(field("场景 / 道具也抹小脸", "settings.imgFaceEraseOther", {
+        type: "check", checkLabel: "场景与道具生成时也抹（默认不勾）",
+        checkLabelOn: "场景 / 道具也抹小脸已开启",
+        checkLabelOff: "场景与道具生成时也抹（默认不勾）",
+        hint: "默认不勾：场景道具里出现的小脸一般是画面内容，抹掉会留下补丁。"
+            + "只有确实被参考图带脏了才勾"
       }));
       g.appendChild(field("涂抹 · 人脸模型", "settings.imgFaceModel", {
         type: "select", options: [["face_yolov8m.pt", "face_yolov8m.pt"], ["hand_yolov8s.pt", "hand_yolov8s.pt"]],
@@ -879,8 +940,18 @@
         var card = h("div", "acard");
         var thumb = h("div", "thumb");
         if (a.image) {
-          thumb.style.backgroundImage = 'url("' + assetUrl(a) + '")';
+          var timg = h("img");
+          timg.src = assetUrl(a);
+          timg.alt = a.name || a.id;
+          timg.loading = "lazy";
+          thumb.appendChild(timg);
           thumb.appendChild(h("div", "idx", a.id));
+          thumb.appendChild(h("div", "zoom", "点击看大图"));
+          thumb.title = "点击看大图";
+          thumb.onclick = function () {
+            openLightbox(assetUrl(a), (a.name || a.id) + " · " + (TYPE_NAME[a.type] || a.type)
+                         + " · " + (a.ratio || "16:9"));
+          };
         } else {
           var none = h("div", "none");
           none.appendChild(h("div", null, "未生成")); none.appendChild(h("div", null, a.id));
