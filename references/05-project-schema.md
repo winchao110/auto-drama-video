@@ -152,9 +152,11 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `settings.imgUnet` 等扁平 `img*` 键 | **运行时快照**：永远等于 `imgPacks[imgEngine]` 那份。生成、自检、页面控件都只读这一层；不要手动把两套的值混着写 | `apply_img_pack()` 铺开 |
 | `settings.imgWfTag` | 当前生图工作流标记（`"qwen-image21-quality25"` / `"moss-te-speed-20261024"`），由 `imgEngine` 决定；老项目加载时按它判断原来的扁平值是**哪一套**的 | **脚本** |
 | `settings.imgFaceEraseChar` | 人物参考图小脸抹除（`TaiYangSmallFaceErase(79)`），默认 `true`，**只在人物资产生效**；场景 / 道具永远不挂；**第一套工作流没有这个节点**，选第一套时不生效。老项目里的单个 `imgFaceErase` 由 `align_face_scope()` 转成这一项并删掉老键 | 人在「生图参数」里勾 |
+| `settings.imgLora1` … `imgLora5` | **生图五个 LoRA 位置**，存在每套 pack 里（两套各五格）。默认**全空 = 不挂**；挂了才建节点 `90`–`94`（`LoraLoaderModelOnly`，串在 `UNetLoader` 与 TE-Speed 加速节点之间），空着的格子直接不建节点，五格全空时图与模板完全一致 | 人在「生图参数」里选 |
+| `settings.imgLora1Strength` … `imgLora5Strength` | 与五个生图 LoRA 位一一对应的强度（默认 1.0，-2～2） | 人在「生图参数」里改 |
 | `settings.segSecMin` / `segSecMax` | **每段时长的实传区间**（5–15 秒，默认 6 / 15）。`genSec()` 先按 5/6 折算，再夹进这个区间；区间非法（<5、>15、lo>hi）自动回落 | 人在「视频提示词」页两个下拉选 |
-| `settings.h3Lora` / `h3Lora2` / `h3Lora3` | 三个 LoRA 位置，依次写进节点 `53` / `400` / `490`，按 1→2→3 串联。**1 号位默认挂主 LoRA，2、3 号位默认空（不挂）**；哪一格空就那颗节点整颗摘掉、链条重接 | 人在页面选 |
-| `settings.h3LoraStrength` / `h3Lora2Strength` / `h3Lora3Strength` | 与三格一一对应的强度（1 号位默认 0.8，2、3 号位默认 0.75，-2～2） | 人在页面改 |
+| `settings.h3Lora` / `h3Lora2` … `h3Lora5` | 五个 LoRA 位置，依次写进节点 `53` / `400` / `490` / `492` / `493`，按 1→5 串联。**1 号位默认挂主 LoRA，2–5 号位默认空（不挂）**；哪一格空就那颗节点整颗摘掉、链条重接 | 人在页面选 |
+| `settings.h3LoraStrength` / `h3Lora2Strength` … `h3Lora5Strength` | 与五格一一对应的强度（1 号位默认 0.8，2–5 号位默认 0.75，-2～2） | 人在页面改 |
 | `settings.h3Wf` | 当前 H3 工作流标记（`native-ref2va-20261023`）。不等于当前 `H3_WF_TAG` 时，脚本把上一代默认值（旧 turbo LoRA / 4 步）对齐一次，人改过的值不动 | **脚本** |
 | `settings.h3Sparse` | 块稀疏注意力开关（默认 `true`）→ 决定 `BlockSparseAttention(332)` 在不在图上；节点内部稀疏参数不暴露 | 人在「视频提示词」页勾选 |
 | `settings.h3Attn` | 注意力后端 → `ModelAttentionBackend(331).attention`。只有 `comfy kitchen attention`（默认）/ `pytorch attention` 两档，其它值在 `migrate()` 里回落到默认 | 人在页面下拉 |

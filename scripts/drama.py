@@ -248,12 +248,15 @@ H3_WF_TAG = "native-ref2va-20261023b"   # 换工作流时改这个，老项目�
 H3_NODE = {"prompt": "424", "promptKey": "value",
            "core": "413", "res": "252", "duration": "259", "steps": "261", "seed": "407", "save": "417",
            "refs": "421", "audios": "414",
-           "unet": "192", "lora": "53", "lora2": "400", "lora3": "490", "motionLora": "491",
+           "unet": "192", "lora": "53", "lora2": "400", "lora3": "490",
+           "lora4": "492", "lora5": "493", "motionLora": "491",
            "clip": "38", "videoVae": "36", "audioVae": "37",
            "sparse": "332", "attn": "331", "chunkff": "401", "lowvram": "403"}
-# 三个 LoRA 位置的节点 id，顺序即串联顺序。前两个在模板里（53 / 400），
-# 第三个（490）模板里没有，由 video_graph() 按 400 复制一颗出来，只在该格挂了 LoRA 时才留在图上。
-H3_LORA_NODES = (H3_NODE["lora"], H3_NODE["lora2"], H3_NODE["lora3"])
+# 五个 LoRA 位置的节点 id，顺序即串联顺序。前两个在模板里（53 / 400），
+# 后三个（490 / 492 / 493）模板里没有，由 video_graph() 按 400 复制出来，只在该格挂了 LoRA 时才留在图上。
+# 491 留给运镜 LoRA（每段最多一条，跟人选的五格互不抢占），所以 4、5 号位从 492 起。
+H3_LORA_NODES = (H3_NODE["lora"], H3_NODE["lora2"], H3_NODE["lora3"],
+                 H3_NODE["lora4"], H3_NODE["lora5"])
 # 宽高比 → ResolutionSelector 的 aspect_ratio 枚举（值必须与 ComfyUI 节点定义逐字一致）
 H3_RATIO_OPTS = {
     "1:1": "1:1 (Square)",
@@ -286,11 +289,13 @@ DEFAULT_H3_HEAD_CHUNKS = 4
 DEFAULT_H3_SPARSE = True
 DEFAULT_H3_MODEL = "MiniMaxH3\\minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
 DEFAULT_H3_LORA = "MiniMaxH3\\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors"
-# 视频 LoRA 做成三个独立位置：1 号位默认挂主 LoRA（dmad_v4），2、3 号位默认「不挂」，页面上由人自选。
-# 三条按 1 → 2 → 3 顺序串联在 unet 与 SigmaShift 之间；哪一格空着就把那颗节点整颗从链上摘掉。
-H3_LORA_SLOTS = 3
+# 视频 LoRA 做成五个独立位置（2026-10-25 用户要求 3 → 5）：1 号位默认挂主 LoRA（dmad_v4），
+# 2–5 号位默认「不挂」，页面上由人自选。五条按 1 → 5 顺序串联在 unet 与注意力后端之间；
+# 哪一格空着就把那颗节点整颗从链上摘掉。
+H3_LORA_SLOTS = 5
+H3_LORA_SFX = ("", "2", "3", "4", "5")      # settings 键后缀：h3Lora / h3Lora2 …
 DEFAULT_H3_LORA_STRENGTH = 0.8          # 1 号位强度默认（dmad_v4 step600 蒸馏 LoRA）
-DEFAULT_H3_LORA_SLOT_STRENGTH = 0.75    # 2、3 号位强度默认：选上 LoRA 但没填强度时用它
+DEFAULT_H3_LORA_SLOT_STRENGTH = 0.75    # 2–5 号位强度默认：选上 LoRA 但没填强度时用它
 DEFAULT_H3_CLIP = "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
 DEFAULT_H3_VIDEO_VAE = "minimax_h3_video_vae_int8_convrot.safetensors"
 DEFAULT_H3_AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
@@ -345,6 +350,14 @@ QWEN_IMG_END_PERCENT = 0.0
 QWEN_IMG_PREDICTOR_ERROR = 0.08
 QWEN_IMG_VERBOSE = True
 
+# 生图 LoRA 也是五个位置（2026-10-25 用户要求，两套引擎各五个、默认全不挂）。
+# 两张生图工作流模板里**本来就没有任何 LoRA 节点**，所以节点由 image_graph() 现造：
+# LoraLoaderModelOnly，id 固定 90–94，串在 UNetLoader 与 TE-Speed 加速节点之间。
+IMG_LORA_SLOTS = 5
+IMG_LORA_NODE_IDS = ("90", "91", "92", "93", "94")
+IMG_LORA_KEY_SFX = ("1", "2", "3", "4", "5")
+DEFAULT_IMG_LORA_STRENGTH = 1.0          # 生图 LoRA 默认强度（没填时用它）
+
 # 一套生图参数包含的字段（两套各存一份，存在 settings.imgPacks[引擎] 里）
 IMG_PACK_KEYS = (
     "imgUnet", "imgClip", "imgVae", "imgSteps",
@@ -354,7 +367,8 @@ IMG_PACK_KEYS = (
     "imgUncondCache", "imgVerbose",
     "imgFaceEraseChar", "imgFaceModel", "imgFaceThreshold",
     "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
-)
+) + tuple(k for sfx in IMG_LORA_KEY_SFX
+          for k in ("imgLora" + sfx, "imgLora" + sfx + "Strength"))
 
 
 def img_pack_defaults(engine):
@@ -392,6 +406,10 @@ def img_pack_defaults(engine):
         "imgFaceSmear": DEFAULT_IMG_FACE_SMEAR,
         "imgFaceFill": DEFAULT_IMG_FACE_FILL,
     })
+    # 五个生图 LoRA 位置：出厂一律不挂（空串），强度先给个 1.0 占位
+    for sfx in IMG_LORA_KEY_SFX:
+        pack["imgLora" + sfx] = ""
+        pack["imgLora" + sfx + "Strength"] = DEFAULT_IMG_LORA_STRENGTH
     return pack
 
 
@@ -433,12 +451,23 @@ def apply_img_pack(st):
     for e in IMG_ENGINE_ORDER:
         if not isinstance(packs.get(e), dict):
             packs[e] = img_pack_defaults(e)
+        else:
+            # 老项目 / 老记忆里的 pack 没有后加的键（比如五个生图 LoRA 位置）：按那套的出厂默认补齐，
+            # 两套都补，切套时不会把上一套的值带过去。
+            dflt_e = img_pack_defaults(e)
+            for k in IMG_PACK_KEYS:
+                if k not in packs[e]:
+                    packs[e][k] = dflt_e.get(k)
     eng = img_engine_of(s)
     s["imgPacks"] = packs
     s["imgEngine"] = eng
+    # 老项目 / 老记忆里的 pack 没有后加的键（比如五个生图 LoRA 位置）：缺的用出厂默认补齐，
+    # 否则页面上那几行会是空的、生成时也取不到值。
+    dflt = img_pack_defaults(eng)
     for k in IMG_PACK_KEYS:
-        if k in packs[eng]:
-            s[k] = packs[eng][k]
+        if k not in packs[eng]:
+            packs[eng][k] = dflt.get(k)
+        s[k] = packs[eng][k]
     s["imgWfTag"] = IMG_ENGINES[eng]["tag"]
     return eng
 
@@ -925,6 +954,7 @@ REMEMBER_KEYS = (
     "ratio", "megapixels",
     "steps", "comfy", "h3Model",
     "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength", "h3Lora3", "h3Lora3Strength",
+    "h3Lora4", "h3Lora4Strength", "h3Lora5", "h3Lora5Strength",
     "h3Clip", "h3VideoVae", "h3AudioVae",
     "h3Sparse", "h3Attn", "h3Chunks", "h3SeqThreshold", "h3HeadChunks",
     "segSecMin", "segSecMax",
@@ -968,11 +998,15 @@ def builtin_settings():
         "h3Model": DEFAULT_H3_MODEL,
         "h3Lora": DEFAULT_H3_LORA,
         "h3LoraStrength": DEFAULT_H3_LORA_STRENGTH,
-        # 2、3 号位默认留空：页面上显示「（不挂 LoRA）」，要用自己选
+        # 2–5 号位默认留空：页面上显示「（不挂 LoRA）」，要用自己选
         "h3Lora2": "",
         "h3Lora2Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
         "h3Lora3": "",
         "h3Lora3Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
+        "h3Lora4": "",
+        "h3Lora4Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
+        "h3Lora5": "",
+        "h3Lora5Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
         "h3Clip": DEFAULT_H3_CLIP,
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE,
         "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
@@ -1116,6 +1150,10 @@ def new_state(title="未命名短剧", source=""):
             "h3Lora2Strength": mem.get("h3Lora2Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
             "h3Lora3": mem.get("h3Lora3") or "",
             "h3Lora3Strength": mem.get("h3Lora3Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
+            "h3Lora4": mem.get("h3Lora4") or "",
+            "h3Lora4Strength": mem.get("h3Lora4Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
+            "h3Lora5": mem.get("h3Lora5") or "",
+            "h3Lora5Strength": mem.get("h3Lora5Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
             "h3Clip": mem["h3Clip"],
             "h3VideoVae": mem["h3VideoVae"],
             "h3AudioVae": mem["h3AudioVae"],
@@ -1169,21 +1207,27 @@ def migrate(st):
               "imgFaceModel", "imgFaceThreshold", "imgFaceKeep", "imgFaceSmear", "imgFaceFill",
               "ratio", "megapixels", "steps", "comfy",
               "h3Model", "h3Lora", "h3LoraStrength", "h3Lora2", "h3Lora2Strength",
-              "h3Lora3", "h3Lora3Strength", "h3Clip", "h3VideoVae", "h3AudioVae",
+              "h3Lora3", "h3Lora3Strength", "h3Lora4", "h3Lora4Strength",
+              "h3Lora5", "h3Lora5Strength", "h3Clip", "h3VideoVae", "h3AudioVae",
               "h3Sparse", "h3Attn", "h3Chunks", "h3SeqThreshold", "h3HeadChunks",
               "seed", "afterGenerate"):
         s.setdefault(k, mem[k])
     # 生图两套参数：先把「选中的那一套」铺到扁平 img* 键上，下面的夹取才对得上它的默认值
     apply_img_pack(st)
-    # 三个 LoRA 位置：名字必须是字符串（空 = 不挂），强度必须是数字
-    for i, sfx in ((1, ""), (2, "2"), (3, "3")):
+    # 五个 LoRA 位置：名字必须是字符串（空 = 不挂），强度必须是数字
+    # 键名规则：h3Lora / h3Lora2 … + 强度是 h3LoraStrength / h3Lora2Strength …
+    # （注意后缀在中间，别拼成 h3LoraStrength2 —— 老版本这里拼错过，值一直被忽略）
+    for sfx in H3_LORA_SFX:
         nm = s.get("h3Lora" + sfx)
         s["h3Lora" + sfx] = "" if nm in (None, "") else str(nm).strip()
-        k = "h3LoraStrength" + sfx
+        # 历史拼错的键（h3LoraStrength2/3/4/5）直接丢掉，免得留下幽灵字段
+        if sfx:
+            s.pop("h3LoraStrength" + sfx, None)
+        k = "h3Lora" + sfx + "Strength"
         try:
             sv = float(s.get(k))
         except (TypeError, ValueError):
-            sv = DEFAULT_H3_LORA_SLOT_STRENGTH if i > 1 else DEFAULT_H3_LORA_STRENGTH
+            sv = DEFAULT_H3_LORA_STRENGTH if not sfx else DEFAULT_H3_LORA_SLOT_STRENGTH
         s[k] = min(2.0, max(-2.0, sv))
     # 新工作流里没有二采高清 / VEDA：老项目残留的一律清掉，页面也不再显示
     for k in H3_RETIRED_KEYS:
@@ -1429,7 +1473,7 @@ def build_html(proj, st=None):
     model_defaults = json.dumps({
         "imgUnet": DEFAULT_IMG_UNET, "imgClip": DEFAULT_IMG_CLIP, "imgVae": DEFAULT_IMG_VAE,
         "h3Model": DEFAULT_H3_MODEL, "h3Lora": DEFAULT_H3_LORA, "h3Clip": DEFAULT_H3_CLIP,
-        "h3Lora2": "", "h3Lora3": "",
+        "h3Lora2": "", "h3Lora3": "", "h3Lora4": "", "h3Lora5": "",
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE, "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
     }, ensure_ascii=False).replace("</", "<\\/")
     # 运镜目录随页面下发：下拉选项 + 每条运镜的戏用说明 + 是否要 LoRA（前端算徽标用）
@@ -1998,6 +2042,20 @@ def asset_prompt(st, a):
 
 
 # ---------------------------------------------------------------- 工作流填参
+def norm_lora_slot(p, dflt=DEFAULT_H3_LORA_SLOT_STRENGTH):
+    """把 (名字, 强度) 规整成字符串 + 浮点；名字空 = 这一格不挂。"""
+    if isinstance(p, (list, tuple)):
+        name = (p[0] or "").strip() if len(p) > 0 else ""
+        raw = p[1] if len(p) > 1 else None
+    else:
+        name, raw = str(p or "").strip(), None
+    try:
+        strength = float(raw) if raw not in (None, "") else dflt
+    except (TypeError, ValueError):
+        strength = dflt
+    return name, strength
+
+
 def image_graph(tpl, prompt, w, h, seed, prefix, unet="", clip="", vae="", steps=DEFAULT_IMG_STEPS,
                 cfg=DEFAULT_IMG_CFG, sampler=DEFAULT_IMG_SAMPLER, scheduler=DEFAULT_IMG_SCHEDULER,
                 ratio="16:9", megapixels=DEFAULT_IMG_MEGAPIXELS,
@@ -2009,12 +2067,13 @@ def image_graph(tpl, prompt, w, h, seed, prefix, unet="", clip="", vae="", steps
                 face_erase=DEFAULT_IMG_FACE_ERASE_CHAR, face_model=DEFAULT_IMG_FACE_MODEL,
                 face_threshold=DEFAULT_IMG_FACE_THRESHOLD, face_keep=DEFAULT_IMG_FACE_KEEP,
                 face_smear=DEFAULT_IMG_FACE_SMEAR, face_fill=DEFAULT_IMG_FACE_FILL,
-                node=None):
+                loras=None, node=None):
     """两套生图引擎共用这一支填参：节点 id 全部走 `node`（IMG_ENGINES[引擎]["node"]）。
 
     - 宽高不写死：由 ResolutionSelector 按「宽高比 + 百万像素」算，再连线进空 latent；w/h 只用于日志。
     - 种子：Moss 在 KSampler 上，Qwen 在单独的 Seed(rgthree) 节点上（515 的 seed 是连线，不能直写）。
     - 加速节点参数按模板里真实存在的输入键覆盖，模板没有的（比如 Qwen 那套没有 uncond_cache）自动跳过。
+    - 生图 LoRA：五个位置（loras），默认全不挂；两套模板里都没有 LoRA 节点，由这里现造。
     - 小脸涂抹节点只有 Moss 那套有；关掉 / 这套没有 → 整颗摘掉，保存节点改吃解码输出。
     """
     node = node or IMG_NODE
@@ -2091,6 +2150,31 @@ def image_graph(tpl, prompt, w, h, seed, prefix, unet="", clip="", vae="", steps
         if n is not None and val:
             n["inputs"][field] = val
 
+    # 生图 LoRA：五个位置，默认全不挂。两张模板里都没有 LoRA 节点，所以这里现造
+    # LoraLoaderModelOnly（固定 id 90–94），串在 UNetLoader 与 TE-Speed 加速节点之间；
+    # 空着的格子直接不建节点 —— 一条都没挂时，这张图和模板一模一样。
+    u = node.get("unet")
+    slots = [norm_lora_slot(p, DEFAULT_IMG_LORA_STRENGTH)
+             for p in (loras or [])][:IMG_LORA_SLOTS]
+    while len(slots) < IMG_LORA_SLOTS:
+        slots.append(("", DEFAULT_IMG_LORA_STRENGTH))
+    if u and u in g and any(nm for nm, _ in slots):
+        prev = [u, 0]
+        for i, (sid, (nm, stv)) in enumerate(zip(IMG_LORA_NODE_IDS, slots), 1):
+            if not nm:
+                continue
+            g[sid] = {"class_type": "LoraLoaderModelOnly",
+                      "inputs": {"lora_name": nm, "strength_model": float(stv), "model": prev},
+                      "_meta": {"title": "生图 LoRA %d" % i}}
+            prev = [sid, 0]
+        # 原来直接吃 UNetLoader 的节点（各套的 TE-Speed 加速节点）改指链条末端
+        for _nid, nd in list(g.items()):
+            if _nid in IMG_LORA_NODE_IDS:
+                continue
+            ins = nd.get("inputs") or {}
+            if ins.get("model") == [u, 0]:
+                ins["model"] = prev
+
     # 小脸涂抹：这套没有这个节点 / 开关关掉 → 整颗摘掉，保存节点改吃解码输出
     fnode = _node("face")
     if fnode is not None and not face_erase:
@@ -2136,11 +2220,11 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
                 sparse=True, attn="", chunks=None, seq_threshold=None, head_chunks=None):
     """按 H3 原生 Ref2VA 填参。sec 这里已经是"实际传给 API"的秒数（gen_sec 算过）。
 
-    loras：三个 LoRA 位置，形如 [("xxx.safetensors", 0.8), ("", None), ("", None)]，最多 3 条、
+    loras：五个 LoRA 位置，形如 [("xxx.safetensors", 0.8), ("", None), …]，最多 5 条、
     顺序即串联顺序；名字为空表示这一格不挂，对应的节点会被整颗摘掉、链条自动接回去。
 
     motion_lora：本段运镜 LoRA，形如 ("dolly_zoom_minimaxh3_v1.safetensors", 1.0)，最多 1 条，
-    串在三个位置之后（节点 491，按 400 复制）。None / 空串 = 本段不挂运镜 LoRA。
+    串在五个位置之后（节点 491，按 400 复制）。None / 空串 = 本段不挂运镜 LoRA。
 
     宽高不再写死在条件节点上：新工作流由 ResolutionSelector(252) 按「宽高比 + 像素」算好，
     再连线进 MiniMaxH3ReferenceToVideo(413) 的 width/height。w/h 只用于日志与帧数换算。
@@ -2192,20 +2276,11 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
                 ins["model"] = upstream
         g.pop(nid, None)
 
-    # LoRA 串联：53（1 号位）→ 400（2 号位）→ 490（3 号位）→[491 运镜 LoRA]→ 注意力后端(331)。
+    # LoRA 串联：53（1 号位）→ 400（2）→ 490（3）→ 492（4）→ 493（5）→[491 运镜 LoRA]→ 注意力后端(331)。
     # 空的格子整颗摘掉；摘完重新从 unet 一路接回去，保证下游拿到的永远是链条最后一个。
     def _norm_slot(p, dflt=DEFAULT_H3_LORA_STRENGTH):
         """把 (名字, 强度) 规整成字符串 + 浮点；名字空 = 这一格不挂。"""
-        if isinstance(p, (list, tuple)):
-            name = (p[0] or "").strip() if len(p) > 0 else ""
-            raw = p[1] if len(p) > 1 else None
-        else:
-            name, raw = (p or "").strip(), None
-        try:
-            strength = float(raw) if raw not in (None, "") else dflt
-        except (TypeError, ValueError):
-            strength = dflt
-        return name, strength
+        return norm_lora_slot(p, dflt)
 
     slots = [_norm_slot(p) for p in (loras or [])][:H3_LORA_SLOTS]
     while len(slots) < H3_LORA_SLOTS:
@@ -2218,9 +2293,14 @@ def video_graph(tpl, prompt, w, h, sec, steps, seed, prefix, ref_files, outputs_
     if mn and motion[0]:
         chain.append(mn)
 
-    # 490 / 491 模板里都没有：真要用时，按第 2 格（400）的样子复制一颗，连线下面统一重排
-    if slots[2][0] and H3_LORA_NODES[1] in g and H3_LORA_NODES[2] not in g:
-        g[H3_LORA_NODES[2]] = copy.deepcopy(g[H3_LORA_NODES[1]])
+    # 3–5 号位（490 / 492 / 493）和运镜位（491）模板里都没有：真要用时，
+    # 按第 2 格（400）的样子复制一颗，连线下面统一重排。
+    for i, nid in enumerate(H3_LORA_NODES):
+        if i < 2 or not slots[i][0]:
+            continue
+        if H3_LORA_NODES[1] in g and nid not in g:
+            g[nid] = copy.deepcopy(g[H3_LORA_NODES[1]])
+            g[nid]["_meta"] = {"title": "LoRA %d" % (i + 1)}
     if mn and motion[0] and H3_LORA_NODES[1] in g and mn not in g:
         g[mn] = copy.deepcopy(g[H3_LORA_NODES[1]])
 
@@ -2515,6 +2595,13 @@ def cmd_images(args):
     except (TypeError, ValueError):
         img_steps = idflt["imgSteps"]
     img_cfg = s.get("imgCfg", idflt["imgCfg"])
+    # 五个生图 LoRA 位置（默认全不挂）：这一套的参数里选了什么就挂什么，顺序即串联顺序
+    img_loras = []
+    for sfx in IMG_LORA_KEY_SFX:
+        nm = (s.get("imgLora" + sfx) or "").strip()
+        sv = s.get("imgLora" + sfx + "Strength")
+        sv = DEFAULT_IMG_LORA_STRENGTH if sv in (None, "") else float(sv)
+        img_loras.append((nm, sv))
     p = paths(proj)
     os.makedirs(p["assets"], exist_ok=True)
 
@@ -2535,6 +2622,9 @@ def cmd_images(args):
     print("UNet：%s" % (img_unet or "（按工作流默认）"), flush=True)
     print("CLIP：%s" % (img_clip or "（按工作流默认）"), flush=True)
     print("VAE：%s" % (img_vae or "（按工作流默认）"), flush=True)
+    print("生图 LoRA：%s" % "｜".join(
+        "%d号位 %s" % (i, ("%s（强度 %s）" % (nm, sv)) if nm else "不挂")
+        for i, (nm, sv) in enumerate(img_loras, 1)), flush=True)
     print("加速：%s｜缓存 %s｜复用阈值 %s｜区间 %s→%s｜误差上限 %s｜无条件缓存 %s"
           % (s.get("imgSpeedAttn", DEFAULT_IMG_SPEED_ATTN), s.get("imgStepCache", DEFAULT_IMG_STEP_CACHE),
              s.get("imgReuseThreshold", DEFAULT_IMG_REUSE_THRESHOLD),
@@ -2604,6 +2694,7 @@ def cmd_images(args):
                 face_keep=s.get("imgFaceKeep", DEFAULT_IMG_FACE_KEEP),
                 face_smear=s.get("imgFaceSmear", DEFAULT_IMG_FACE_SMEAR),
                 face_fill=s.get("imgFaceFill", DEFAULT_IMG_FACE_FILL),
+                loras=img_loras,
                 node=spec["node"])
             jobs.append({"a": a, "aid": aid, "graph": graph, "prompt": prompt, "pid": None, "t0": 0.0})
         except Exception as e:
@@ -3008,12 +3099,12 @@ def cmd_videos(args):
     ratio = args.ratio or s["ratio"]
     mp = args.megapixels if args.megapixels is not None else s["megapixels"]
     steps = args.steps if args.steps is not None else s["steps"]
-    # 三个 LoRA 位置（页面上三行下拉 + 三行强度）：1 号位默认挂主 LoRA，2、3 号位默认不挂
+    # 五个 LoRA 位置（页面上五行下拉 + 五行强度）：1 号位默认挂主 LoRA，2–5 号位默认不挂
     lora_slots = []
-    for i, sfx in ((1, ""), (2, "2"), (3, "3")):
+    for sfx in H3_LORA_SFX:
         nm = (s.get("h3Lora" + sfx) or "").strip()
-        sv = s.get("h3LoraStrength" + sfx)
-        sv = (DEFAULT_H3_LORA_SLOT_STRENGTH if i > 1 else DEFAULT_H3_LORA_STRENGTH) \
+        sv = s.get("h3Lora" + sfx + "Strength")
+        sv = (DEFAULT_H3_LORA_STRENGTH if not sfx else DEFAULT_H3_LORA_SLOT_STRENGTH) \
             if sv in (None, "") else float(sv)
         lora_slots.append((nm, sv))
     # 加速 / 显存相关的四个节点参数（页面上是中文四项 + 一个勾选）
@@ -4673,8 +4764,12 @@ def cmd_settings(args):
         print("更新时间：%s（来源项目：%s）" % (doc.get("updatedAt"), doc.get("from") or "—"), flush=True)
     print("", flush=True)
     print("视频参数：", flush=True)
-    for k, lab in (("h3Model", "H3 主模型"), ("h3Lora", "LoRA"), ("h3LoraStrength", "LoRA 强度"),
-                   ("h3Clip", "CLIP"), ("h3VideoVae", "视频 VAE"), ("h3AudioVae", "音频 VAE"),
+    print("  %-14s %s" % ("H3 主模型", mem.get("h3Model")), flush=True)
+    print("  %-14s %s" % ("LoRA（5 位）", "｜".join(
+        "%d.%s" % (i, ("%s@%s" % (mem.get("h3Lora" + sfx) or "", mem.get("h3Lora" + sfx + "Strength")))
+                   if (mem.get("h3Lora" + sfx) or "").strip() else "不挂")
+        for i, sfx in enumerate(H3_LORA_SFX, 1))), flush=True)
+    for k, lab in (("h3Clip", "CLIP"), ("h3VideoVae", "视频 VAE"), ("h3AudioVae", "音频 VAE"),
                    ("steps", "生成步数"), ("ratio", "宽高比"), ("megapixels", "分辨率 MP"),
                    ("seed", "随机种"), ("afterGenerate", "生成后控制"), ("comfy", "ComfyUI 地址")):
         print("  %-14s %s" % (lab, mem.get(k)), flush=True)
@@ -4693,6 +4788,10 @@ def cmd_settings(args):
         else:
             line += "｜（这套工作流没有小脸涂抹节点）"
         print(line, flush=True)
+        print("       生图 LoRA（5 位）%s" % "｜".join(
+            "%d.%s" % (i, ("%s@%s" % (p.get("imgLora" + sfx) or "", p.get("imgLora" + sfx + "Strength")))
+                       if (p.get("imgLora" + sfx) or "").strip() else "不挂")
+            for i, sfx in enumerate(IMG_LORA_KEY_SFX, 1)), flush=True)
     csz = (mem.get("charSheet") or {}).get("zh") or ""
     print("  %-14s %s" % ("人物视图模板", ("自定义 %d 字" % len(csz)) if (mem.get("charSheet") or {}).get("edited") else ("内置默认 %d 字" % len(csz))), flush=True)
     print("", flush=True)

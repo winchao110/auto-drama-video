@@ -249,10 +249,17 @@
      两套各存一份（settings.imgPacks[引擎]），页面只显示当前选中那套的参数。 */
   var IMG_META = __IMG_ENGINES__;
   var MODEL_SLOT = { imgUnet: "unet", imgClip: "clip", imgVae: "vae",
-                     h3Model: "unet", h3Lora: "lora", h3Clip: "clip",
+                     imgLora1: "lora", imgLora2: "lora", imgLora3: "lora",
+                     imgLora4: "lora", imgLora5: "lora",
+                     h3Model: "unet", h3Lora: "lora", h3Lora2: "lora", h3Lora3: "lora",
+                     h3Lora4: "lora", h3Lora5: "lora", h3Clip: "clip",
                      h3VideoVae: "vae", h3AudioVae: "vae" };
   var MODEL_LABEL = { imgUnet: "生图 UNet", imgClip: "生图 CLIP", imgVae: "生图 VAE",
-                      h3Model: "H3 主模型", h3Lora: "LoRA", h3Clip: "CLIP",
+                      imgLora1: "生图 LoRA 1", imgLora2: "生图 LoRA 2", imgLora3: "生图 LoRA 3",
+                      imgLora4: "生图 LoRA 4", imgLora5: "生图 LoRA 5",
+                      h3Model: "H3 主模型", h3Lora: "视频 LoRA 1", h3Lora2: "视频 LoRA 2",
+                      h3Lora3: "视频 LoRA 3", h3Lora4: "视频 LoRA 4", h3Lora5: "视频 LoRA 5",
+                      h3Clip: "CLIP",
                       h3VideoVae: "视频 VAE", h3AudioVae: "音频 VAE" };
   var MODEL_FIXED = [];          /* 本轮读取判定为「已不存在」并自动改掉的项（明细） */
   function fixedNames() {
@@ -314,9 +321,13 @@
   function applyImgPack(id) {
     var s = STATE.settings; if (!s) return;
     var e = imgEngineById(id); if (!e) return;
-    var pack = (s.imgPacks || {})[id] || e.defaults || {};
+    var pack = (s.imgPacks || {})[id] || {};
+    var dflt = e.defaults || {};
     ((IMG_META && IMG_META.packKeys) || []).forEach(function (k) {
+      /* 这套没有这个键（老项目 / 后加的字段）→ 用这套的出厂默认，
+         绝不能留着上一套的值，否则切套会把 Moss 的 LoRA 带到 Qwen 上 */
       if (pack[k] !== undefined) s[k] = pack[k];
+      else if (dflt[k] !== undefined) s[k] = dflt[k];
     });
     s.imgEngine = id;
   }
@@ -337,8 +348,8 @@
       var cur = String((STATE.settings || {})[k] || "").trim();
       if (!cur || list.indexOf(cur) >= 0) return;
       var pick;
-      if (k === "h3Lora") {
-        pick = "";                                   /* LoRA 可选：文件没了就先不挂 */
+      if (/^h3Lora\d*$/.test(k) || /^imgLora\d$/.test(k)) {
+        pick = "";                                   /* LoRA 可选：文件没了就先不挂，绝不自动顶一条上去 */
       } else {
         /* 生图三件套按「当前选中那套」的出厂默认回落，别看错套 */
         var def = (k.indexOf("img") === 0 ? (imgEngineDefaults()[k] || "") : (MODEL_DEFAULTS[k] || ""));
@@ -781,6 +792,58 @@
     return wrap;
   }
 
+  /* 生图 LoRA：五个位置，默认全不挂（两套方案各存一份，切套不会互相覆盖）。
+     下拉把本方案相关的排在最前面：Moss 那套先列 Moss_image\，Qwen 那套先列 QwenImage2.1\；
+     H3 的视频 LoRA 也会出现在列表里（全部现读 ComfyUI），但挂到生图上没有意义，别选。 */
+  function imgLoraOptions(eng) {
+    var all = getModelList("lora") || [];
+    var kw = (eng === "moss") ? /moss/i : /qwen/i;
+    var hit = [], rest = [];
+    all.forEach(function (x) { (kw.test(x) ? hit : rest).push([x, x]); });
+    return [["", "（不挂 LoRA）"]].concat(hit, rest);
+  }
+  function imgLoraField(kind) {
+    var wrap = h("div", "field");
+    wrap.appendChild(h("label", null, kind === "select" ? "生图 LoRA（models/loras）"
+                                                       : "生图 LoRA 强度"));
+    [1, 2, 3, 4, 5].forEach(function (i) {
+      var box, path = "settings.imgLora" + i + (kind === "select" ? "" : "Strength");
+      if (kind === "select") {
+        box = h("select");
+        imgLoraOptions(curImgEngineId()).forEach(function (v) {
+          var op = h("option", null, v[1]); op.value = v[0]; box.appendChild(op);
+        });
+        box.value = get(path) || "";
+        if (box.value && box.selectedIndex < 0) {   /* 存的文件已经不在 ComfyUI 里了：补一条占位，别让人以为丢了 */
+          var op2 = h("option", null, box.value + "（已不在 ComfyUI）");
+          op2.value = box.value; box.appendChild(op2);
+        }
+        if (box.selectedIndex < 0) box.selectedIndex = 0;
+        box.addEventListener("change", function () { set(path, box.value); markDirty(); });
+        box.title = "生图 LoRA 位置 " + i + "（默认不挂）";
+      } else {
+        box = h("input"); box.type = "number"; box.step = 0.05; box.min = -2; box.max = 2;
+        var v0 = get(path); box.value = (v0 == null ? "" : v0);
+        box.addEventListener("input", function () {
+          set(path, box.value === "" ? "" : Number(box.value)); markDirty();
+        });
+        box.title = "生图 LoRA 位置 " + i + " 的强度";
+      }
+      var row = h("div", "lorarow");
+      row.appendChild(h("span", "lorano", String(i)));
+      row.appendChild(box);
+      box.style.marginBottom = "0";
+      row.style.marginBottom = (i === 5) ? "0" : "8px";
+      wrap.appendChild(row);
+    });
+    if (kind === "select") {
+      wrap.appendChild(h("div", "hint",
+        "五个位置按 1 → 2 → 3 → 4 → 5 串联，默认全不挂；空着的格子那颗节点直接不建。"
+        + "两套方案各存一份，切方案不会互相覆盖。列表里本方案相关的排在最前面"));
+    }
+    return wrap;
+  }
+
   /* 当前这套的四个（第二套五个）参数项 */
   function imgParamFields() {
     var eng = curImgEngineId();
@@ -805,6 +868,9 @@
       hint: moss ? "默认 50（Moss Image 官方采样口径）。只能填整数；TE-Speed 会跳过一部分步，50 步的实际耗时比看上去低"
                  : "默认 25（Qwen-Image 2.1 官方采样口径）。只能填整数；这套的 TE-Speed 同样会跳步"
     }));
+    /* --- 生图 LoRA：五个位置，默认全不挂 --- */
+    out.push(imgLoraField("select"));
+    out.push(imgLoraField("number"));
     if (e.face) {
       /* --- 小脸涂抹（TaiYangSmallFaceErase）：去掉参考图里多出来的小脸 --- */
       out.push(field("人物参考图 · 小脸自动抹除", "settings.imgFaceEraseChar", {
@@ -913,7 +979,7 @@
   /* ---------- 页面：资产 ---------- */
   function renderAssets() {
     var v = h("section", "page");
-    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Moss Image 规范（CLIP 为 qwen3.5 系列，写法与 Qwen 一致）：英文单段、至少 500 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图有两套参数，参数区顶上下拉选一套：第一套 Qwen-Image 2.1（原版 25 步）、第二套 Moss Image（TE-Speed 加速，50 步，默认）。每套只暴露 4–5 项——UNet / CLIP / VAE 三件套、步数，第二套多一个「人物参考图小脸自动抹除」；CFG、采样器与加速参数都吃该套的默认值，不在这里暴露。两套各存一份，切换不会互相覆盖。"));
+    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Moss Image 规范（CLIP 为 qwen3.5 系列，写法与 Qwen 一致）：英文单段、至少 500 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图有两套参数，参数区顶上下拉选一套：第一套 Qwen-Image 2.1（原版 25 步）、第二套 Moss Image（TE-Speed 加速，50 步，默认）。每套只暴露 4–5 项——UNet / CLIP / VAE 三件套、步数，第二套多一个「人物参考图小脸自动抹除」；CFG、采样器与加速参数都吃该套的默认值，不在这里暴露。另有五个「生图 LoRA」位置（默认全不挂，空着就不建节点）。两套各存一份，切换不会互相覆盖。"));
     v.appendChild(flowbar());
     v.appendChild(imageModelBar(function (g) {
       var miss = (STATE.assets || []).filter(function (a) { return !a.image; }).length;
@@ -1435,7 +1501,7 @@
       var unetOpts = selOptions(getModelList("unet"));
       var loraOpts = [["", "（不挂 LoRA）"]].concat(getModelList("lora").map(function (x) { return [x, x]; }));
       var tip = modelTip();
-      /* --- LoRA 三个位置：1 号位默认挂主 LoRA，2、3 号位默认「不挂」，都可自选 --- */
+      /* --- LoRA 五个位置：1 号位默认挂主 LoRA，2–5 号位默认「不挂」，都可自选 --- */
       function loraStack(label, keys, kind, hint) {
         var wrap = h("div", "field");
         wrap.appendChild(h("label", null, label));
@@ -1470,9 +1536,12 @@
         return wrap;
       }
       g.appendChild(field("H3 主模型（models/diffusion_models）", "settings.h3Model", { type: "select", options: unetOpts, hint: tip }));
-      g.appendChild(loraStack("LoRA（models/loras）", ["h3Lora", "h3Lora2", "h3Lora3"], "select"));
-      g.appendChild(loraStack("LoRA 强度", ["h3LoraStrength", "h3Lora2Strength", "h3Lora3Strength"], "number",
-        "3 个位置按 1 → 2 → 3 串联，默认只挂 1 号位；选「（不挂 LoRA）」= 空着，那颗节点整颗摘掉。"));
+      g.appendChild(loraStack("LoRA（models/loras）",
+        ["h3Lora", "h3Lora2", "h3Lora3", "h3Lora4", "h3Lora5"], "select"));
+      g.appendChild(loraStack("LoRA 强度",
+        ["h3LoraStrength", "h3Lora2Strength", "h3Lora3Strength", "h3Lora4Strength", "h3Lora5Strength"],
+        "number",
+        "5 个位置按 1 → 2 → 3 → 4 → 5 串联，默认只挂 1 号位；选「（不挂 LoRA）」= 空着，那颗节点整颗摘掉、链条自动接回去。"));
       g.appendChild(field("CLIP（models/text_encoders）", "settings.h3Clip", {
         type: "select", options: selOptions(getModelList("clip")),
         hint: "接 CLIPLoader 节点 38；H3 走 minimax 类型，主模型 20G 那版要 32B（5120 维），8B 会在采样器报形状不匹配"

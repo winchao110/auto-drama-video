@@ -100,7 +100,7 @@ UNET(51) → TESpeedMoss(57) → KSampler(60) ← 正向 CLIP(54) / 负向 CLIP(
 | `414` | TaiYangMultiAudioLoader | `audio_files` | JSON 数组字符串，参考音文件名；没参考音时整节点从图上摘掉 |
 | `417` | SaveVideo | `filename_prefix` | 用 `drama/<段号>`（`format` / `codec` = auto → mp4） |
 | `192` | UNETLoader | `unet_name` | H3 主模型 |
-| `53` / `400` / `490` | LoraLoaderModelOnly | `lora_name` / `strength_model` | **三个 LoRA 位置**（页面三行下拉 + 三个强度，按 1→2→3 串联）：`53` = 1 号位（默认 `dmad_full_dareties_v4_step600` @ 0.8）、`400` = 2 号位、`490` = 3 号位（**模板里没有**，3 号位真挂了东西时由 `video_graph()` 按 `400` 复制一颗）。哪一格为空就整颗摘掉、链条重接；三格全空时 `331.model` 直连 `192` |
+| `53` / `400` / `490` / `492` / `493` | LoraLoaderModelOnly | `lora_name` / `strength_model` | **五个 LoRA 位置**（页面五行下拉 + 五个强度，按 1→5 串联）：`53` = 1 号位（默认 `dmad_full_dareties_v4_step600` @ 0.8）、`400` = 2 号位、`490` / `492` / `493` = 3/4/5 号位（**模板里都没有**，该格真挂了东西时由 `video_graph()` 按 `400` 复制）。`491` 是运镜位，所以 4、5 号位从 `492` 起。哪一格为空就整颗摘掉、链条重接；五格全空时 `331.model` 直连 `192` |
 | `331` | ModelAttentionBackend | `attention` | **注意力后端**，只有两档：`comfy kitchen attention`（默认，量化 INT8）/ `pytorch attention`。← `settings.h3Attn` |
 | `332` | BlockSparseAttention | —（只决定在不在图上） | **块稀疏注意力**，`selection = sol-attn`、`tau = 1.3`、`start/end = 0.2/1`、`min_tokens = 12288`、`extra_tokens = 256`、`sink_conditioning = exact_kv_and_rows`、`verbose = true`。页面**只给一个开关**（`settings.h3Sparse`），这些内部参数不暴露；不勾时整颗节点摘掉，`333.model` 直连 `331` |
 | `401` | MiniMaxChunkFeedForward | `chunks` / `seq_threshold` | **分块前馈** ← `settings.h3Chunks`（默认 2）/ `settings.h3SeqThreshold`（默认 4096）。前馈层切 `chunks` 份算，序列长度超过 `seq_threshold` 才分块 |

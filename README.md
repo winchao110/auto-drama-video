@@ -263,6 +263,10 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 > **全部按各自工作流的默认写死在代码里**（`img_pack_defaults()`），不在页面上暴露。
 > 页面上能改的就上面这些；参数记忆里存的是整套 `imgEngine` + `imgPacks`。
 
+生图侧另有**五个「生图 LoRA」位置**（下拉 + 强度各五行），两套方案各存一份，**默认全不挂**；
+挂上才建节点，五格全空时送进 ComfyUI 的图跟没用这功能时一模一样。
+下拉里本方案相关的排在最前面（Moss 那套先列 `Moss_image\`、Qwen 那套先列 `QwenImage2.1\`）。
+
 | 每张资产自己的参数 | 说明 |
 |---|---|
 | 百万像素 | 人物/场景/道具默认均 **2.0** |
@@ -274,7 +278,7 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 | 参数 | 说明 |
 |---|---|
 | 主模型 | 下拉现读；默认 `minimax_h3_hybrid_fl2va_ref2va_b25-49-int8` |
-| **LoRA ×3 + 强度 ×3** | 三个独立位置，按 1→2→3 串联。**1 号位默认挂 `dmad_full_dareties_v4_step600` @ 0.8，2、3 号位默认「（不挂 LoRA）」**。哪格留空，那颗 LoRA 节点整颗摘掉、链条自动接回去；想叠风格 LoRA 就在 2 号位选 `MysticXXX_MMH3-V1` @ 0.35 |
+| **LoRA ×5 + 强度 ×5** | 五个独立位置，按 1→2→3→4→5 串联。**1 号位默认挂 `dmad_full_dareties_v4_step600` @ 0.8，2–5 号位默认「（不挂 LoRA）」**。哪格留空，那颗 LoRA 节点整颗摘掉、链条自动接回去；想叠风格 LoRA 就在 2 号位选 `MysticXXX_MMH3-V1` @ 0.35 |
 | **CLIP** | 必须 **32B H3 专用**（5120 维），见下方"已踩过的坑" |
 | **视频 VAE / 音频 VAE** | 下拉现读，默认 `minimax_h3_video_vae_int8_convrot` + `minimax_h3_audio_vae_fp32` |
 | 步数 / 种子 / 生成后控制 | 默认 5 步、`fixed` 可改 `increment / decrement / randomize` |
@@ -290,7 +294,7 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 
 **下面这些 LoRA 装不装都能用 —— 不装完全不影响本技能**：生图、生视频、合成、审稿全流程照跑，缺哪个就跳过哪个，
 运镜缺文件时自动改用文字降级句。**装了效果会明显更好**（真实感、运镜准确度、动作幅度、风格辨识度），
-所以建议按需下载。参数区的三个 LoRA 位和运镜自动挂载都是**现读 ComfyUI 的 `models/loras`**，
+所以建议按需下载。参数区的**视频五格 + 生图五格** LoRA 位和运镜自动挂载都是**现读 ComfyUI 的 `models/loras`**，
 放进去就能在下拉里看到，不用改代码。
 
 统一放在 `ComfyUI/models/loras/MiniMaxH3/`，下拉里显示为 `MiniMaxH3\文件名`（下表全名就是下拉里显示的名字）。
