@@ -290,12 +290,16 @@ DEFAULT_H3_SPARSE = True
 DEFAULT_H3_MODEL = "MiniMaxH3\\minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
 DEFAULT_H3_LORA = "MiniMaxH3\\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors"
 # 视频 LoRA 做成五个独立位置（2026-10-25 用户要求 3 → 5）：1 号位默认挂主 LoRA（dmad_v4），
-# 2–5 号位默认「不挂」，页面上由人自选。五条按 1 → 5 顺序串联在 unet 与注意力后端之间；
+# 2 号位默认挂写实人脸 LoRA（2026-10-25 用户钦定：h3-realism-people @0.4）——H3 的中景及更远景别人脸会掉细节，
+# 这颗专门修人脸/皮肤写实度，必须和「定场替代方案」（references/01 四之四之二）配套用；
+# 3–5 号位默认「不挂」，页面上由人自选。五条按 1 → 5 顺序串联在 unet 与注意力后端之间；
 # 哪一格空着就把那颗节点整颗从链上摘掉。
 H3_LORA_SLOTS = 5
 H3_LORA_SFX = ("", "2", "3", "4", "5")      # settings 键后缀：h3Lora / h3Lora2 …
 DEFAULT_H3_LORA_STRENGTH = 0.8          # 1 号位强度默认（dmad_v4 step600 蒸馏 LoRA）
-DEFAULT_H3_LORA_SLOT_STRENGTH = 0.75    # 2–5 号位强度默认：选上 LoRA 但没填强度时用它
+DEFAULT_H3_LORA2 = "MiniMaxH3\\h3-realism-people-t2v-i2v-r2v.safetensors"
+DEFAULT_H3_LORA2_STRENGTH = 0.4         # 2 号位强度默认（写实人脸 LoRA，太高会顶掉主 LoRA 的动作）
+DEFAULT_H3_LORA_SLOT_STRENGTH = 0.75    # 3–5 号位强度默认：选上 LoRA 但没填强度时用它
 DEFAULT_H3_CLIP = "MinimaxH3\\qwen3vl_32b_minimax_h3_int8_convrot.safetensors"
 DEFAULT_H3_VIDEO_VAE = "minimax_h3_video_vae_int8_convrot.safetensors"
 DEFAULT_H3_AUDIO_VAE = "minimax_h3_audio_vae_fp32.safetensors"
@@ -998,9 +1002,9 @@ def builtin_settings():
         "h3Model": DEFAULT_H3_MODEL,
         "h3Lora": DEFAULT_H3_LORA,
         "h3LoraStrength": DEFAULT_H3_LORA_STRENGTH,
-        # 2–5 号位默认留空：页面上显示「（不挂 LoRA）」，要用自己选
-        "h3Lora2": "",
-        "h3Lora2Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
+        # 2 号位默认挂写实人脸 LoRA；3–5 号位默认留空，页面上显示「（不挂 LoRA）」
+        "h3Lora2": DEFAULT_H3_LORA2,
+        "h3Lora2Strength": DEFAULT_H3_LORA2_STRENGTH,
         "h3Lora3": "",
         "h3Lora3Strength": DEFAULT_H3_LORA_SLOT_STRENGTH,
         "h3Lora4": "",
@@ -1146,8 +1150,8 @@ def new_state(title="未命名短剧", source=""):
             "h3Model": mem["h3Model"],
             "h3Lora": mem["h3Lora"],
             "h3LoraStrength": mem["h3LoraStrength"],
-            "h3Lora2": mem.get("h3Lora2") or "",
-            "h3Lora2Strength": mem.get("h3Lora2Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
+            "h3Lora2": mem.get("h3Lora2") if "h3Lora2" in mem else DEFAULT_H3_LORA2,
+            "h3Lora2Strength": mem.get("h3Lora2Strength", DEFAULT_H3_LORA2_STRENGTH),
             "h3Lora3": mem.get("h3Lora3") or "",
             "h3Lora3Strength": mem.get("h3Lora3Strength", DEFAULT_H3_LORA_SLOT_STRENGTH),
             "h3Lora4": mem.get("h3Lora4") or "",
@@ -1473,7 +1477,7 @@ def build_html(proj, st=None):
     model_defaults = json.dumps({
         "imgUnet": DEFAULT_IMG_UNET, "imgClip": DEFAULT_IMG_CLIP, "imgVae": DEFAULT_IMG_VAE,
         "h3Model": DEFAULT_H3_MODEL, "h3Lora": DEFAULT_H3_LORA, "h3Clip": DEFAULT_H3_CLIP,
-        "h3Lora2": "", "h3Lora3": "", "h3Lora4": "", "h3Lora5": "",
+        "h3Lora2": DEFAULT_H3_LORA2, "h3Lora3": "", "h3Lora4": "", "h3Lora5": "",
         "h3VideoVae": DEFAULT_H3_VIDEO_VAE, "h3AudioVae": DEFAULT_H3_AUDIO_VAE,
     }, ensure_ascii=False).replace("</", "<\\/")
     # 运镜目录随页面下发：下拉选项 + 每条运镜的戏用说明 + 是否要 LoRA（前端算徽标用）
@@ -4132,6 +4136,160 @@ def _ratio_wh(ratio):
     return (a, b) if b else None
 
 
+FACE_BAD_SIZE_EN = ("extreme wide", "wide shot", "full shot", "long shot", "medium shot")
+FACE_BAD_SIZE_ZH = ("全景", "远景", "全身", "中景")
+FACE_SAFE_TIPS = ("改成定场替代方案（references/01 四之五）：单人 → 斜侧 45° 中近景带环境；"
+                  "双人 → 过肩定场；要纵深 → 前景框架式近景；要入场感 → 缓慢微推（胯部以上中近景→胸部近景）；"
+                  "必须交代大环境 → 空镜定场 + 人物近景拆分（1–2 秒空镜，0.2 秒叠化）")
+
+
+def _person_subjects(seg, assets):
+    """<Subject N> 里哪几个是人物：靠 subject_definitions 的 <Picture K> 对上 refs 顺序，再查资产类型。"""
+    def_text = _h3_block_text(seg, "subject_definitions:") or ""
+    refs = [r.get("asset") if isinstance(r, dict) else r for r in (seg.get("refs") or [])]
+    types = {a.get("id"): a.get("type") for a in (assets or [])}
+    out = set()
+    for m in re.finditer(r"<Subject\s*(\d+)>[^\n]*?<Picture\s*(\d+)>", def_text):
+        n, k = int(m.group(1)), int(m.group(2))
+        aid = refs[k - 1] if 0 <= k - 1 < len(refs) else None
+        if types.get(aid) == "character":
+            out.add(n)
+    if out:
+        return out
+    # 兜底：definitions 里没写 <Picture K>，就按描述里有没有人判断
+    for m in re.finditer(r"<Subject\s*(\d+)>[^\n]*", def_text):
+        low = m.group(0).lower()
+        if any(w in low for w in (" man", " woman", " girl", " boy", " person", " young")):
+            out.add(int(m.group(1)))
+    return out
+
+
+def check_face_safe(st, issues, warns):
+    """H3 人脸安全区（references/01 四之五 铁律 H）。
+
+    H3 在腰部以上的中近景 / 近景人脸才清晰，标准中景（膝盖以上）及更远会断崖式衰减，多人更明显。
+    所以只要这一镜里有人，景别就只到中近景；要交代空间一律走定场替代方案，不许靠拉远。
+    """
+    assets = st.get("assets") or []
+    for seg in st.get("segments") or []:
+        people = _person_subjects(seg, assets)
+        if not people:
+            continue
+        sid = seg.get("id")
+        for no, txt in _seg_shots(seg):
+            low = txt.lower()
+            hit = next((w for w in FACE_BAD_SIZE_EN if w in low), "")
+            if not hit:
+                hit = next((w for w in FACE_BAD_SIZE_ZH if w in txt), "")
+            if not hit:
+                continue
+            who = set(int(x) for x in re.findall(r"<Subject\s*(\d+)>", txt))
+            if not (who & people):
+                continue
+            issues.append("%s 的 [Shot %d] 写成了「%s」还带人 → H3 在标准中景及更远景别上人脸会断崖式掉细节；%s"
+                          % (sid, no, hit, FACE_SAFE_TIPS))
+
+
+def check_establish_habit(st, issues, warns):
+    """定场次数习惯（references/01 四之五 铁律 I）：一个场景默认只定一次场，不是每段都定。
+
+    只看每段的第一镜，且只认"明确交代空间"的写法（establishing / readable / 全景 / 定场 之类），
+    所以普通的"中近景带一点虚化背景"不会被误判。这条是**建议**，不拦生成——剧情需要就多加。
+    """
+    segs = [s for s in (st.get("segments") or []) if _seg_shots(s)]
+    if not segs:
+        return
+    scene_ids = {a.get("id") for a in (st.get("assets") or []) if a.get("type") == "scene"}
+    en_marks = ("establishing", "establishes", "readable", "the whole street", "the whole room",
+                "opens up the street", "the full room", "wide shot", "full shot", "long shot",
+                "extreme wide")
+    zh_marks = ("定场", "全景", "远景", "全身", "整条街", "整个空间", "铺开")
+    groups = {}
+    for seg in segs:
+        key = tuple(sorted([c for c in (seg.get("cast") or []) if c in scene_ids])) or ("-",)
+        groups.setdefault(key, []).append(seg)
+    for lst in groups.values():
+        hits = []
+        for seg in lst:
+            first = _seg_shots(seg)[:1]
+            if not first:
+                continue
+            txt = first[0][1]
+            low = txt.lower()
+            if any(w in low for w in en_marks) or any(w in txt for w in zh_marks):
+                hits.append("%s [Shot %d]" % (seg.get("id"), first[0][0]))
+        if len(hits) > 1:
+            warns.append("同一场景有 %d 段用定场镜开画（%s）→ 没有剧情需要时，同一场景同一人物的连续剧情"
+                         "只留 1 个定场，其余段直接近景 / 中近景接表演；多加的定场要能说出剧情理由"
+                         "（四之五 · 铁律 I）" % (len(hits), "、".join(hits)))
+
+
+def check_cut_rules(st, issues, warns):
+    """拆镜 / 跨段承接（2026-10-25 用户钦定，见 references/01 四之四 铁律 E/F）。
+
+    E：同一机位同一景别的连续表演不拆段；必须拆时节点击要在镜头上（正反打 / A近景↔B近景 / 过肩切近景），
+       只能同机位同景别续演就标 same-take continuation。
+    F：上一段最后一镜的状态（位置 / 站坐躺 / 朝向 / 相对位置 / 手里东西 / 接法）写进下一段 retention_analysis。
+
+    注：定场镜数量**不校验**（原「同场景只定场一次」已取消），要不要铺全景 / 中景全按剧情需要。
+    """
+    segs = [s for s in (st.get("segments") or []) if _seg_shots(s)]
+    if not segs:
+        return
+    scene_ids = {a.get("id") for a in (st.get("assets") or []) if a.get("type") == "scene"}
+    size_words = ("close-up", "medium close-up", "medium shot", "wide shot", "full shot")
+    lie_words = (" stands", " standing", " sits", " seated", " sitting", " lies", " lying",
+                 " leans", " crouch", "站姿", "站着", "坐着", "躺", "靠着")
+    cut_words = ("reverse shot", "over-the-shoulder", "same-take", "正反打", "过肩", "同镜头续拍")
+
+    def _size(text):
+        low = text.lower()
+        for w in size_words:
+            if w in low:
+                return w
+        return ""
+
+    # 场景分组：本段 cast 里的场景资产相同 = 同一场景
+    groups = {}
+    for seg in segs:
+        key = tuple(sorted([c for c in (seg.get("cast") or []) if c in scene_ids])) or ("-",)
+        groups.setdefault(key, []).append(seg)
+
+    for lst in groups.values():
+        # F：跨段承接
+        for i, seg in enumerate(lst):
+            sid = seg.get("id")
+            ret = _h3_block_text(seg, "retention_analysis:")
+            low = ret.lower()
+            has_ci = "continuity_in" in low
+            if i > 0 and not has_ci:
+                issues.append("%s 的 retention_analysis 缺 continuity_in → 上一段最后一镜的人物位置、"
+                              "站/坐/躺、朝向、两人相对位置、手里拿什么都要写进这一段（铁律 F）" % sid)
+            if not has_ci:
+                continue
+            if not any(w in low for w in lie_words):
+                warns.append("%s 的 continuity_in 没写清是站、是坐还是躺 → 补一个实词姿势" % sid)
+            if i > 0 and not any(w in low for w in cut_words):
+                warns.append("%s 的 continuity_in 没写本段第一镜与上一段的接法（正反打 / 过肩切近景 / "
+                             "同镜头续拍）→ 接缝会看出来（铁律 E）" % sid)
+
+    # E：段边界疑似同镜头硬切
+    for prev, nxt in zip(segs, segs[1:]):
+        p_shots, n_shots = _seg_shots(prev), _seg_shots(nxt)
+        if not p_shots or not n_shots:
+            continue
+        ptxt, ntxt = p_shots[-1][1], n_shots[0][1]
+        psubs = set(re.findall(r"<Subject\s*(\d+)>", ptxt))
+        nsubs = set(re.findall(r"<Subject\s*(\d+)>", ntxt))
+        same_size = bool(_size(ptxt)) and _size(ptxt) == _size(ntxt)
+        both_fixed = ("fixed camera" in ptxt.lower()) and ("fixed camera" in ntxt.lower())
+        marked = "same-take" in (_h3_block_text(nxt, "retention_analysis:") + ntxt).lower()
+        if psubs and psubs & nsubs and same_size and both_fixed and not marked:
+            warns.append("%s → %s 的接缝像是同一主体、同一景别、同一固定机位的硬切 → 要么并进同一段，"
+                         "要么在切点换成反打 / 过肩；只能续演就标 same-take continuation（铁律 E）"
+                         % (prev.get("id"), nxt.get("id")))
+
+
 def check_h3_rules(st, issues, warns):
     """H3 落地规则 + 构图与连续性四铁律（画幅同框 / 关系镜头 / 每段独立 / Shot 不写光影与位置）。"""
     ratio = str((st.get("settings") or {}).get("ratio") or "")
@@ -4692,6 +4850,24 @@ def cmd_check(args):
         check_h3_rules(st, issues, warns)
     except Exception as e:
         warns.append("H3 落地八条校验失败：%s" % e)
+
+    # 拆镜 / 跨段承接（2026-10-25 用户钦定，见 references/01 四之四 铁律 E/F）
+    try:
+        check_cut_rules(st, issues, warns)
+    except Exception as e:
+        warns.append("拆镜与跨段承接校验失败：%s" % e)
+
+    # 景别 / 人脸安全区（四之五 铁律 H）：带人的中景及更远一律换成定场替代方案
+    try:
+        check_face_safe(st, issues, warns)
+    except Exception as e:
+        warns.append("景别与定场替代方案校验失败：%s" % e)
+
+    # 定场次数（四之五 铁律 I）：一个场景默认只定一次场，不是每段都定
+    try:
+        check_establish_habit(st, issues, warns)
+    except Exception as e:
+        warns.append("定场次数校验失败：%s" % e)
 
     # 运镜目录 / 运镜 LoRA / 跨段首尾镜头是否重复（拼起来会闪）
     try:

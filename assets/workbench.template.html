@@ -1541,7 +1541,7 @@
       g.appendChild(loraStack("LoRA 强度",
         ["h3LoraStrength", "h3Lora2Strength", "h3Lora3Strength", "h3Lora4Strength", "h3Lora5Strength"],
         "number",
-        "5 个位置按 1 → 2 → 3 → 4 → 5 串联，默认只挂 1 号位；选「（不挂 LoRA）」= 空着，那颗节点整颗摘掉、链条自动接回去。"));
+        "5 个位置按 1 → 2 → 3 → 4 → 5 串联。默认挂 1 号位 dmad_v4 @0.8 + 2 号位 h3-realism-people @0.4（写实人脸）；3–5 号位默认空着。选「（不挂 LoRA）」= 空着，那颗节点整颗摘掉、链条自动接回去。"));
       g.appendChild(field("CLIP（models/text_encoders）", "settings.h3Clip", {
         type: "select", options: selOptions(getModelList("clip")),
         hint: "接 CLIPLoader 节点 38；H3 走 minimax 类型，主模型 20G 那版要 32B（5120 维），8B 会在采样器报形状不匹配"
