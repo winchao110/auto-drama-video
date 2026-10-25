@@ -17,7 +17,7 @@
 | | 内容 |
 |---|---|
 | **做** | ① MiniMax H3 分段提示词（英文正文 + 中文对照）　② 人物/场景/道具资产提示词　③ 视频简介 |
-| | 用 Moss Image（TE-Speed 加速）出资产图（人物默认 4:3 三段定设图）　生成带声音的分段成片　一键拼整片 |
+| | 用 Moss Image（TE-Speed 加速，默认）或 Qwen-Image 2.1 出资产图（人物默认 4:3 三段定设图）　生成带声音的分段成片　一键拼整片 |
 | **不做** | 不写分集大纲、不写分镜表、不做"剧本页"——你要的是片子，不是 PPT |
 
 **没有"剧本"环节**：你给的原文就是输入，直接进提示词生产。
@@ -113,14 +113,14 @@ H3 恒定少 1/6：提示词写 `sec` 秒，API 实传 `round(sec×5/6)`（5–1
 - ComfyUI 侧需要（脚本自动读它们暴露的节点与模型列表）：
   - **自定义节点**：**必须先装齐下表 4 个仓库**，缺一个工作流就提交不了（见下节）
   - **VHS**（`VHS_VideoCombine`）用于 mp4 输出；工作流里还用到 rgthree / KJNodes
-  - **模型**：H3 主模型 + H3 LoRA（可叠到 3 条）+ 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧 Moss Image UNet + qwen3.5 9B CLIP（type `moss_image`）+ flux2 VAE
+  - **模型**：H3 主模型 + H3 LoRA（可叠到 3 条）+ 32B H3 专用 CLIP + 视频 VAE + 音频 VAE；生图侧两套任选：Moss Image UNet + qwen3.5 9B CLIP（type `moss_image`）+ flux2 VAE（默认），或 Qwen-Image 2.1 UNet + qwen3vl 8B CLIP（type `qwen_image`）+ qwen_image_2.1 VAE
   - 具体文件名见 `使用手册.md` 第二章，或直接看工作台参数区的下拉
 
 > **不需要联网**。除了本地 ComfyUI，全程不访问外部服务（也不下载任何权重）。
 
 ### ComfyUI 需要安装的自定义节点
 
-内嵌的两份工作流（H3 视频 + Moss Image 生图）里，H3 那条走的是 **ComfyUI 原生的 MiniMax H3 节点链**，
+内嵌的三份工作流（H3 视频 + 两套生图：Moss Image（默认）/ Qwen-Image 2.1）里，H3 那条走的是 **ComfyUI 原生的 MiniMax H3 节点链**，
 主干节点随 ComfyUI 本体（≥ 0.42）就有；另外还需要下面 3 个仓库。
 **缺节点时 ComfyUI 会直接报 `node type not found` / 提交被拒，工作台参数区也会读不到模型下拉**，装完重启 ComfyUI 再跑。
 
@@ -230,9 +230,17 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 
 ## 参数区
 
-### 生图参数（Moss Image · TE-Speed）
+### 生图参数（两套方案，下拉切换）
 
-**参数只有五项**（2026-10-24 用户钦定，多一个都不放）：
+参数区**最上面是一条下拉**：选哪套，下面显示哪套的参数（2026-10-25 用户钦定，默认第二套）。
+两套各存一份 `settings.imgPacks[引擎]`，切来切去都不会互相覆盖；生成时按 `settings.imgEngine` 选工作流与节点映射。
+
+| 方案 | 工作流 | 暴露的参数 | 备注 |
+|---|---|---|---|
+| 第一套 · Qwen-Image 2.1（原版 25 步） | `qwen-image21.quality25.api.json` | UNet / CLIP / VAE / 步数 | 这套没有小脸涂抹节点，页面显示一句说明代替那个开关 |
+| **第二套 · Moss Image（TE-Speed，50 步）** | `moss-image.te-speed.api.json` | UNet / CLIP / VAE / 步数 / 人物参考图小脸自动抹除 | **默认选这套** |
+
+**第二套（Moss Image）的默认值**：
 
 | 参数 | 说明 |
 |---|---|
@@ -242,8 +250,18 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 | 步数（整数） | 默认 **50**（Moss Image 官方口径，TE-Speed 会跳掉一部分步） |
 | 人物参考图 · 小脸自动抹除 | 默认**勾选**，只在人物资产（定设图）生成时生效（挂 `TaiYangSmallFaceErase(79)`）；场景 / 道具一律不挂 |
 
-> CFG 3.5、euler + simple、TE-Speed 六项加速参数、小脸节点的人脸模型/阈值/保留脸数/涂抹倍数/填充色，
-> **全部按官方默认写死在代码里，不在页面上暴露，也不进参数记忆**（`REMEMBER_KEYS` 里只留这 5 项）。
+**第一套（Qwen-Image 2.1）的默认值**：
+
+| 参数 | 说明 |
+|---|---|
+| 生图 UNet | 默认 `Qwen-Image\qwen_image_2.1_int8_convrot` |
+| 生图 CLIP | 默认 `Qwen-Image\qwen3vl_8b_int8_convrot`（加载器 type = `qwen_image`） |
+| 生图 VAE | 默认 `Qwen-Image\qwen_image_2.1_vae_bf16` |
+| 步数（整数） | 默认 **25**（Qwen-Image 2.1 官方口径） |
+
+> 两套的 CFG、euler + simple、TE-Speed 加速参数、小脸节点的人脸模型/阈值/保留脸数/涂抹倍数/填充色，
+> **全部按各自工作流的默认写死在代码里**（`img_pack_defaults()`），不在页面上暴露。
+> 页面上能改的就上面这些；参数记忆里存的是整套 `imgEngine` + `imgPacks`。
 
 | 每张资产自己的参数 | 说明 |
 |---|---|
@@ -268,6 +286,60 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 | **低显存注意力 · 头分块数** | 默认 4。注意力按头分几份算，越大越省显存越慢 |
 | **运镜 LoRA（自动）** | 不在参数区，也不在 `settings` 里。由每段的 `segments[].camera` 决定，最多 1 个，写进独立节点 `491`（链条 `… 490 → 491 → 331`）。本机缺文件就不挂、不写触发词，改用降级句 |
 
+### H3 LoRA 清单（全都在这个位置）
+
+**下面这些 LoRA 装不装都能用 —— 不装完全不影响本技能**：生图、生视频、合成、审稿全流程照跑，缺哪个就跳过哪个，
+运镜缺文件时自动改用文字降级句。**装了效果会明显更好**（真实感、运镜准确度、动作幅度、风格辨识度），
+所以建议按需下载。参数区的三个 LoRA 位和运镜自动挂载都是**现读 ComfyUI 的 `models/loras`**，
+放进去就能在下拉里看到，不用改代码。
+
+统一放在 `ComfyUI/models/loras/MiniMaxH3/`，下拉里显示为 `MiniMaxH3\文件名`（下表全名就是下拉里显示的名字）。
+
+#### ① 四步蒸馏 / 提速（决定"几步能出片"）
+
+| 全名 | 用途 | 触发词 | 建议强度 |
+|---|---|---|---|
+| `MiniMaxH3\minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors` | DMAD v4 全量蒸馏（DARE-TIES 合并、动态 rank、alpha 已归一）。**本技能 1 号位默认就挂它**，4–5 步出片的速度基底 | 无 | **0.8**（默认值，别乱动） |
+| `MiniMaxH3\minimax_h3_DMAD_4step_full_lora_avg_rank_39_bf16.safetensors` | 同门 4 步蒸馏，按 sv_fro 0.95 动态裁到 avg rank 39，比上一条更轻，动作更容易"稳" | 无 | 0.6–0.9 |
+| `MiniMaxH3\minimax_h3_turbo_v4_step600_comfyui_lar-convert.safetensors` | turbo v4 600 步蒸馏，4 步采样。**只对非剪枝主模型有效**（元数据写明 `incompatible_base = pruned_*`，AdaLN 输入维度 2688） | 无 | 1.0 |
+| `MiniMaxH3\minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors` | 同一条 turbo 的剪枝版：51 对 AdaLN 适配器被摘掉，作者自己标注"四步蒸馏可能退化或失效"。只在主模型是 pruned 系列时凑合用 | 无 | 1.0 |
+
+> **别同时挂两个提速型**：1→3 号位是串联的，两个蒸馏 LoRA 叠上去会互相打架，动作会糊。一次只留一个。
+
+#### ② 真实感 / 风格
+
+| 全名 | 用途 | 触发词 | 建议强度 |
+|---|---|---|---|
+| `MiniMaxH3\h3-realism-people-t2v-i2v-r2v.safetensors` | 真人写实增强（fl2va 底座，t2v / i2v / r2v 都吃得下）：压掉塑料感，皮肤、发丝、光影更像实拍。拍真人短剧的**首选** | 无 | 0.6–1.0 |
+| `MiniMaxH3\horror70s_style_h3_ep35.safetensors` | 70 年代恐怖片胶片风格，只改画面质感不改主体（和上一行是"质感 vs 写实"两种取向） | **`horror70sstyle`**，放提示词最前面 | 1.0 起（同系列 ep50 更平滑，本机没装） |
+| `MiniMaxH3\MysticXXX_MMH3-V1.safetensors` | 风格化画风，偏浓重调色 / 电影感 | **无**（文件里那些 Rick and Morty 字段是作者填着玩的，不是真触发词） | **0.3–0.5** 薄薄一层；0.75 以上会把整片色调改掉 |
+
+> **风格类 LoRA 的触发词得你自己写进提示词**：技能只自动补运镜 LoRA 的触发句，不替你往正文里插风格触发词。
+> 在「视频提示词」页把 `horror70sstyle` 加在 `detailed_description` 首句前面即可；加了 `check` 不会报错。
+
+#### ③ 运镜（技能按 `segments[].camera` 自动挂到节点 `491`，不用手选）
+
+| 全名 | 用途 | 触发词 | 建议强度 |
+|---|---|---|---|
+| `MiniMaxH3\Crash_Zoom_MinimaxH3_v1.safetensors` | 急推变焦（T0 级"一记硬推"）：情绪炸点、嗓门拔高的那一下 | 无（靠强度控幅度） | 1.0 |
+| `MiniMaxH3\dolly_zoom_minimaxh3_v1.safetensors` | 希区柯克式滑动变焦：主体不变、空间被拉长/压扁 | `dolly_zm`（技能自动写入） | 1.0 |
+| `MiniMaxH3\H3_Dutch_Angle_Slider_v1.safetensors` | 荷兰角（镜头滚转）滑块，可正可负 | 无 | 强度 × 20° ≈ 滚转角度；**正数顺时针、负数逆时针**，1.0 ≈ 20° |
+| `MiniMaxH3\minimax_h3_orb360_step1500_comfyui.safetensors` | 360° 环绕（ref2va 任务训练，124 / 73 帧阶梯），人物与环境完全冻住、只有镜头绕一圈 | 一整段 `One frozen instant. Only the camera moves. …`（运镜目录带出，技能自动写入） | 1.0 |
+| `MiniMaxH3\MMH3-MPOV.safetensors` | 第一人称 POV（原本是为了解决 H3 拍不好主观视角而做的辅助 LoRA） | **`mpov, first-person perspective pov video`**，结尾再补 `high angle` / `eye level` / `low angle`，并写明"只露出哪些身体部位" | 1.0（不完美，换种子试） |
+
+#### ④ 动作
+
+| 全名 | 用途 | 触发词 | 建议强度 |
+|---|---|---|---|
+| `MiniMaxH3\H3_Combat_V2.safetensors` | 打斗 / 肢体冲突的动作幅度与节奏（推搡、挥拳、扭打），单独挂，别和运镜 LoRA 抢 | 无（元数据没给，靠正文描述动作） | 1.0 起 |
+
+**两点提醒**
+
+- **下拉里的重名项是正常的**：`MMH3-MPOV`、`MysticXXX_MMH3-V1`、`h3-realism-people…`、`horror70s…`、`DMAD_4step…`、
+  `turbo_v4_…lar-convert` 这 6 个在 `loras` 根目录和 `MiniMaxH3\` 下各有一份，下拉里会出现两个同名项，选哪个都一样。
+- **运镜目录里还登记了两个本机没装的候选**：`fpv_headbob_h3_50.safetensors`（POV 备用）和
+  `MMH3-LOCKSTAB-MORE.safetensors`（锁定机位防抖）。装上就会自动按别名顶上，不装就走文字降级句。
+
 同一个人在页面上调过的值就是这一轮的唯一口径，脚本原样执行、不再追问，也**不会**擅自换成"更好"的值。
 
 ---
@@ -290,7 +362,7 @@ python scripts/drama.py status --project "D:/短剧/剧名-20261019"
 
 ```
 auto-drama-video/
-├─ SKILL.md                    主流程与 21 条铁律（给智能体看）
+├─ SKILL.md                    主流程与 23 条铁律（给智能体看）
 ├─ 使用手册.md                  中文说明书（给人看）
 ├─ assets/workbench.template.html   工作台模板
 ├─ references/
@@ -307,7 +379,8 @@ auto-drama-video/
 │  ├─ 05-project-schema.md          drama.json 字段表
 │  └─ workflows/
 │     ├─ minimax-h3.ref2va.api.json        H3 视频工作流（原生 Ref2VA，28 节点）
-│     └─ moss-image.te-speed.api.json      生图工作流（Moss Image + TE-Speed，50 步）
+│     ├─ moss-image.te-speed.api.json      生图工作流·第二套（Moss Image + TE-Speed，50 步，默认）
+│     └─ qwen-image21.quality25.api.json   生图工作流·第一套（Qwen-Image 2.1 原版，25 步）
 └─ scripts/
    ├─ drama.py           主程序（init/build/serve/images/videos/check/…）
    ├─ comfy_api.py       ComfyUI HTTP 封装（标准库）
@@ -380,7 +453,7 @@ auto-drama-video/
 | 文件 | 什么时候看 |
 |---|---|
 | `使用手册.md` | 中文说明书：怎么唤起、四页怎么用、参数怎么调、常见问题 |
-| `SKILL.md` | 主流程 + 21 条铁律（智能体执行口径） |
+| `SKILL.md` | 主流程 + 23 条铁律（智能体执行口径） |
 | `references/01` + `h3-wenxi-v2-template.md` | 写 H3 提示词 |
 | `references/02` + `03` | 写资产提示词 |
 | `references/04` | 调接口、排错 |

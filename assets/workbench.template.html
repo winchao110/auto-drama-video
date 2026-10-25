@@ -162,6 +162,7 @@
   .vcard .vwrap{aspect-ratio:9/16;max-height:520px;background:#0d0d0f;display:flex;align-items:center;justify-content:center;color:#5c5c5c;font-size:12px}
   .vcard video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
   .vcard .vb{padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}
+  .vcard .vb .hint{margin:0;font-variant-numeric:tabular-nums}
   .vcard .vb .id{font-weight:600}
   .finbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:18px}
   .finbox video{width:100%;display:block;background:#000;max-height:70vh}
@@ -244,6 +245,9 @@
   var MODELS = { unet: [], lora: [], clip: [], vae: [], error: "", loaded: false, ts: "" };
   var MODEL_DEFAULTS = __MODEL_DEFAULTS__;
   var CAMERA = __CAMERA_MOVES__;
+  /* 生图两套参数：第一套 Qwen-Image 2.1、第二套 Moss Image（默认）。
+     两套各存一份（settings.imgPacks[引擎]），页面只显示当前选中那套的参数。 */
+  var IMG_META = __IMG_ENGINES__;
   var MODEL_SLOT = { imgUnet: "unet", imgClip: "clip", imgVae: "vae",
                      h3Model: "unet", h3Lora: "lora", h3Clip: "clip",
                      h3VideoVae: "vae", h3AudioVae: "vae" };
@@ -283,6 +287,45 @@
     return list.map(function (x) { return [x, x]; });
   }
   function getModelList(slot) { return MODELS[slot] || []; }
+  /* ---------- 生图两套参数：切套 ----------
+     页面上的控件只读写扁平的 settings.img*；切套时先把当前这套改过的值收进 imgPacks[旧]，
+     再把 imgPacks[新] 铺回扁平键，最后整块重绘参数区。两套互不覆盖。 */
+  function imgEngineOrder() { return (IMG_META && IMG_META.order) || []; }
+  function imgEngineById(id) { return ((IMG_META || {}).engines || {})[id] || null; }
+  function curImgEngineId() {
+    var id = (STATE.settings || {}).imgEngine;
+    if (imgEngineById(id)) return id;
+    return (IMG_META && IMG_META.default) || imgEngineOrder().slice(-1)[0] || "";
+  }
+  function imgEngineDefaults() {
+    var e = imgEngineById(curImgEngineId());
+    return (e && e.defaults) || {};
+  }
+  function captureImgPack() {
+    var s = STATE.settings; if (!s) return;
+    var id = curImgEngineId(); if (!id) return;
+    s.imgPacks = s.imgPacks || {};
+    var pack = s.imgPacks[id] || {};
+    ((IMG_META && IMG_META.packKeys) || []).forEach(function (k) {
+      if (s[k] !== undefined && s[k] !== null) pack[k] = s[k];
+    });
+    s.imgPacks[id] = pack;
+  }
+  function applyImgPack(id) {
+    var s = STATE.settings; if (!s) return;
+    var e = imgEngineById(id); if (!e) return;
+    var pack = (s.imgPacks || {})[id] || e.defaults || {};
+    ((IMG_META && IMG_META.packKeys) || []).forEach(function (k) {
+      if (pack[k] !== undefined) s[k] = pack[k];
+    });
+    s.imgEngine = id;
+  }
+  function switchImgEngine(id) {
+    captureImgPack();          /* 先把当前这套改过的值收起来 */
+    applyImgPack(id);          /* 再铺开新那套 */
+    markDirty();
+    render();                  /* 参数区整块重画 */
+  }
   /* 保存的模型在当前 ComfyUI 里已经不存在 → 自动切到可用项，并记下来提示用户保存；
      读不到列表（离线）时一律不动，避免把设置改成空。 */
   function alignModels() {
@@ -297,7 +340,8 @@
       if (k === "h3Lora") {
         pick = "";                                   /* LoRA 可选：文件没了就先不挂 */
       } else {
-        var def = MODEL_DEFAULTS[k] || "";
+        /* 生图三件套按「当前选中那套」的出厂默认回落，别看错套 */
+        var def = (k.indexOf("img") === 0 ? (imgEngineDefaults()[k] || "") : (MODEL_DEFAULTS[k] || ""));
         pick = list.indexOf(def) >= 0 ? def : list[0];
       }
       STATE.settings[k] = pick;
@@ -713,35 +757,79 @@
   }
 
   /* ---------- 共享参数条 ----------
-     两个页面各用各的：资产页只放生图参数（Moss Image · TE-Speed），
+     两个页面各用各的：资产页只放生图参数（两套可选：Qwen-Image 2.1 / Moss Image），
      视频提示词页只放视频参数（MiniMax H3），绝不把生图模型混进视频参数区。 */
-  function paramBar(title, withImage, extra) {
-    var c = h("div", "card");
-    c.appendChild(h("h3", null, title));
-    var g = h("div", "params");
-    if (withImage) {
-      /* --- 生图三件套：Moss Image（TE-Speed 加速版），模型直接读 ComfyUI 的目录 --- */
-      g.appendChild(field("生图 UNet（models/diffusion_models）", "settings.imgUnet", {
-        type: "select", options: selOptions(getModelList("unet")), hint: modelTip()
-      }));
-      g.appendChild(field("生图 CLIP（models/text_encoders）", "settings.imgClip", {
-        type: "select", options: selOptions(getModelList("clip")), hint: "Moss Image 配 Moss_image\\qwen3.5_9b 系列（加载器 type = moss_image）"
-      }));
-      g.appendChild(field("生图 VAE（models/vae）", "settings.imgVae", {
-        type: "select", options: selOptions(getModelList("vae")), hint: "Moss Image 配 Moss_image\\flux2-vae"
-      }));
-      g.appendChild(field("步数（整数）", "settings.imgSteps", {
-        type: "number", step: 1, min: 1, max: 200, integer: true,
-        hint: "默认 50（Moss Image 官方采样口径）。只能填整数；TE-Speed 会跳过一部分步，50 步的实际耗时比看上去低"
-      }));
+
+  /* 生图方案下拉：选哪套，下面就显示哪套的参数（两套各存一份，切换不互相覆盖） */
+  function imgEngineField() {
+    var wrap = h("div", "field");
+    wrap.style.gridColumn = "1 / -1";
+    wrap.appendChild(h("label", null, "生图方案（两套参数，选哪套就显示哪套）"));
+    var sel = h("select");
+    imgEngineOrder().forEach(function (id) {
+      var e = imgEngineById(id);
+      var op = h("option", null, (e && e.label) || id);
+      op.value = id;
+      sel.appendChild(op);
+    });
+    sel.value = curImgEngineId();
+    sel.addEventListener("change", function () { switchImgEngine(sel.value); });
+    wrap.appendChild(sel);
+    wrap.appendChild(h("div", "hint",
+      "第一套走原版 Qwen-Image 2.1 文生图（25 步），第二套走 Moss Image（TE-Speed 加速，50 步）。"
+      + "两套参数各存一份，切回去还是你上次调的值；默认第二套。"));
+    return wrap;
+  }
+
+  /* 当前这套的四个（第二套五个）参数项 */
+  function imgParamFields() {
+    var eng = curImgEngineId();
+    var e = imgEngineById(eng) || {};
+    var moss = (eng === "moss");
+    var out = [];
+    out.push(field("生图 UNet（models/diffusion_models）", "settings.imgUnet", {
+      type: "select", options: selOptions(getModelList("unet")), hint: modelTip()
+    }));
+    out.push(field("生图 CLIP（models/text_encoders）", "settings.imgClip", {
+      type: "select", options: selOptions(getModelList("clip")),
+      hint: moss ? "这套配 Moss_image\\qwen3.5_9b 系列（加载器 type = moss_image）"
+                 : "这套配 Qwen-Image\\qwen3vl_8b（加载器 type = qwen_image）"
+    }));
+    out.push(field("生图 VAE（models/vae）", "settings.imgVae", {
+      type: "select", options: selOptions(getModelList("vae")),
+      hint: moss ? "这套配 Moss_image\\flux2-vae"
+                 : "这套配 Qwen-Image\\qwen_image_2.1_vae_bf16"
+    }));
+    out.push(field("步数（整数）", "settings.imgSteps", {
+      type: "number", step: 1, min: 1, max: 200, integer: true,
+      hint: moss ? "默认 50（Moss Image 官方采样口径）。只能填整数；TE-Speed 会跳过一部分步，50 步的实际耗时比看上去低"
+                 : "默认 25（Qwen-Image 2.1 官方采样口径）。只能填整数；这套的 TE-Speed 同样会跳步"
+    }));
+    if (e.face) {
       /* --- 小脸涂抹（TaiYangSmallFaceErase）：去掉参考图里多出来的小脸 --- */
-      g.appendChild(field("人物参考图 · 小脸自动抹除", "settings.imgFaceEraseChar", {
+      out.push(field("人物参考图 · 小脸自动抹除", "settings.imgFaceEraseChar", {
         type: "check", checkLabel: "生成人物参考图时自动抹掉多出来的小脸（默认勾选）",
         checkLabelOn: "人物参考图小脸自动抹除已开启（默认勾选）",
         checkLabelOff: "人物参考图小脸自动抹除（默认勾选）",
         hint: "只在人物资产（定设图）生成时生效；场景、道具不受这个开关影响。"
             + "关掉 = 人物那张也不抹，出图原样保存（想自己后期修时用）"
       }));
+    } else {
+      var none = h("div", "field");
+      none.style.gridColumn = "1 / -1";
+      none.appendChild(h("div", "hint", "这套工作流里没有小脸涂抹节点，所以不提供「小脸自动抹除」开关；要用就切到第二套（Moss Image）。"));
+      out.push(none);
+    }
+    return out;
+  }
+
+  function paramBar(title, withImage, extra) {
+    var c = h("div", "card");
+    c.appendChild(h("h3", null, title));
+    var g = h("div", "params");
+    if (withImage) {
+      g.appendChild(imgEngineField());
+      imgParamFields().forEach(function (el) { g.appendChild(el); });
     }
     if (extra) extra(g);
     c.appendChild(g);
@@ -754,7 +842,10 @@
     return c;
   }
 
-  function imageModelBar(extra) { return paramBar("生图参数（Moss Image · TE-Speed）", true, extra); }
+  function imageModelBar(extra) {
+    var e = imgEngineById(curImgEngineId()) || {};
+    return paramBar("生图参数（" + (e.short || "生图") + "）", true, extra);
+  }
 
   /* ---------- 人物视图模板（生图参数里的一个长条框） ----------
      这段会接在每张人物定设图提示词后面一起送进 Moss Image，决定三块面板怎么排、截在哪。
@@ -822,7 +913,7 @@
   /* ---------- 页面：资产 ---------- */
   function renderAssets() {
     var v = h("section", "page");
-    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Moss Image 规范（CLIP 为 qwen3.5 系列，写法与 Qwen 一致）：英文单段、至少 500 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图固定走 Moss Image（TE-Speed 加速版），参数只有上面五项：UNet / CLIP / VAE 三件套、步数（默认 50）、人物参考图小脸自动抹除；CFG、采样器与加速参数一律吃官方默认，不在这里暴露。"));
+    v.appendChild(pageHead("资产", "两个镜头以上出现的人物 / 道具都要建资产。提示词按 Moss Image 规范（CLIP 为 qwen3.5 系列，写法与 Qwen 一致）：英文单段、至少 500 词、观察者口吻、8–14 个方位短语、光照单独一句、结尾一句整体构图；正文里不写比例/像素、不写 8K 这类空词。人物默认 4:3 三段定设图（左脸部特写 / 中无头全身 / 右有头背面，模板在下面可改），场景 16:9 全景留白，道具 1:1 白底。人物卡图片下方先定音色：挂参考音频，或写一条整部剧共用的音色提示词，两条路二选一。生图有两套参数，参数区顶上下拉选一套：第一套 Qwen-Image 2.1（原版 25 步）、第二套 Moss Image（TE-Speed 加速，50 步，默认）。每套只暴露 4–5 项——UNet / CLIP / VAE 三件套、步数，第二套多一个「人物参考图小脸自动抹除」；CFG、采样器与加速参数都吃该套的默认值，不在这里暴露。两套各存一份，切换不会互相覆盖。"));
     v.appendChild(flowbar());
     v.appendChild(imageModelBar(function (g) {
       var miss = (STATE.assets || []).filter(function (a) { return !a.image; }).length;
@@ -1542,6 +1633,11 @@
         var vb = h("div", "vb");
         vb.appendChild(h("span", "id", s.id));
         vb.appendChild(h("span", "tag", (s.title || "") + " · " + (s.sec || "?") + "s"));
+        if (s.videoAt) {
+          var vat = h("span", "hint", "生成于 " + s.videoAt);
+          vat.title = "这条视频的生成时间（本地时间）";
+          vb.appendChild(vat);
+        }
         var dl = h("a", "btn sm", "下载");
         dl.href = videoUrl(s); dl.download = (s.id || "seg") + ".mp4";
         vb.appendChild(dl);

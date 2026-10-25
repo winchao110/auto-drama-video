@@ -481,6 +481,8 @@ subject_definitions:
 - [ ] `cast` 只写本段真出场的人，`refs` 顺序与 `<Picture N>` 一致。
 - [ ] **六个块齐全且顺序正确**：`subject_definitions` → `summary` → `retention_analysis` → `detailed_description` → `overall_soundscape` → `non_diegetic_music`。
 - [ ] `detailed_description` 首句写明风格 + 画幅 + 画质 + 禁止项（字幕/水印/UI/配乐）。
+      禁止项里**必须**有 `no on-screen text, subtitles, watermark, logo or UI at any moment`（铁律 23）；
+      漏了不会出事——`seg_prompt()` 会自动补到段尾——但手写版要自己带上，中文对照也写「全程无屏幕文字、无字幕、无水印、无台标、无 UI」。
 - [ ] `retention_analysis` 覆盖 `subject_definitions` 里的每一个 `<Subject N>`。
 - [ ] 每个 Shot 有运镜 + 景别 + 动作链，**Shot 内没有任何时长/时间码**。
 - [ ] **画幅对得上同框规则**：窄屏（9:16 / 3:4）没有一镜两人；宽屏双人同框写了左右与前后。

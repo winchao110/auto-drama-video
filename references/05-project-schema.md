@@ -51,10 +51,15 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
     "updatedAt": "2026-10-17 16:02:11"
   },
   "settings": {
+    "imgEngine": "moss",
+    "imgPacks": {
+      "qwen": { "imgUnet": "Qwen-Image\\qwen_image_2.1_int8_convrot.safetensors", "imgSteps": 25, "…": "…" },
+      "moss": { "imgUnet": "Moss_image\\moss_image_sft_int8_convrot.safetensors", "imgSteps": 50, "…": "…" }
+    },
     "imgUnet": "Moss_image\\moss_image_sft_int8_convrot.safetensors",
     "imgClip": "Moss_image\\qwen3.5_9b_int8_convrot.safetensors",
     "imgVae": "Moss_image\\flux2-vae.safetensors",
-    "imgSteps": 25,
+    "imgSteps": 50,
     "ratio": "9:16",
     "megapixels": 0.7,
     "steps": 5,
@@ -142,7 +147,11 @@ $PY scripts/drama.py check   --project "<目录>"                     # 交付�
 | `settings.*` | HTML 里的全局生成参数 | 人在 HTML 改，生成时读取 |
 | `settings` 的缺省来源 | **技能目录 `settings.user.json`**（跨项目参数记忆，只记生图/视频的参数项）；记忆也没有才落 `builtin_settings()` 内置默认 | `/api/save` 与 `drama.py settings --from` 写；`new_state` / `migrate` 读 |
 | `settings.ratio` / `megapixels` | 画幅与分辨率，写进 `ResolutionSelector(252)`；实际宽高由节点按 32 对齐算出 | 人在「视频提示词」页选 / 改 |
-| `settings.imgFaceEraseChar` | 人物参考图小脸抹除（`TaiYangSmallFaceErase(79)`），默认 `true`，**只在人物资产生效**；场景 / 道具永远不挂。老项目里的单个 `imgFaceErase` 由 `align_face_scope()` 转成这一项并删掉老键 | 人在「生图参数」里勾 |
+| `settings.imgEngine` | 当前选的生图方案：`"qwen"`（第一套 Qwen-Image 2.1，原版 25 步）/ `"moss"`（第二套 Moss Image，50 步）。**默认 `"moss"`**；页面顶部下拉切，切完 `imgWfTag` 跟着变 | 人在「生图参数」顶部下拉选 |
+| `settings.imgPacks` | 两套参数各存一份：`{"qwen": {...}, "moss": {...}}`，键就是 `IMG_PACK_KEYS`（三件套 / 步数 / cfg / 采样器 / TE-Speed 加速 / 小脸涂抹）。**切换时互不覆盖**：`capture_img_pack()` 把扁平 `img*` 收回当前那套，`apply_img_pack()` 把选中的那套铺回扁平键 | 页面切套 / 保存时自动维护 |
+| `settings.imgUnet` 等扁平 `img*` 键 | **运行时快照**：永远等于 `imgPacks[imgEngine]` 那份。生成、自检、页面控件都只读这一层；不要手动把两套的值混着写 | `apply_img_pack()` 铺开 |
+| `settings.imgWfTag` | 当前生图工作流标记（`"qwen-image21-quality25"` / `"moss-te-speed-20261024"`），由 `imgEngine` 决定；老项目加载时按它判断原来的扁平值是**哪一套**的 | **脚本** |
+| `settings.imgFaceEraseChar` | 人物参考图小脸抹除（`TaiYangSmallFaceErase(79)`），默认 `true`，**只在人物资产生效**；场景 / 道具永远不挂；**第一套工作流没有这个节点**，选第一套时不生效。老项目里的单个 `imgFaceErase` 由 `align_face_scope()` 转成这一项并删掉老键 | 人在「生图参数」里勾 |
 | `settings.segSecMin` / `segSecMax` | **每段时长的实传区间**（5–15 秒，默认 6 / 15）。`genSec()` 先按 5/6 折算，再夹进这个区间；区间非法（<5、>15、lo>hi）自动回落 | 人在「视频提示词」页两个下拉选 |
 | `settings.h3Lora` / `h3Lora2` / `h3Lora3` | 三个 LoRA 位置，依次写进节点 `53` / `400` / `490`，按 1→2→3 串联。**1 号位默认挂主 LoRA，2、3 号位默认空（不挂）**；哪一格空就那颗节点整颗摘掉、链条重接 | 人在页面选 |
 | `settings.h3LoraStrength` / `h3Lora2Strength` / `h3Lora3Strength` | 与三格一一对应的强度（1 号位默认 0.8，2、3 号位默认 0.75，-2～2） | 人在页面改 |
